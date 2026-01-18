@@ -217,6 +217,12 @@ describe('CLI Integration Tests', () => {
       }).not.toThrow();
     });
 
+    it('dist/index.js starts with a shebang for direct execution', () => {
+      const contents = readFileSync(CLI_PATH, 'utf-8');
+      const normalized = contents.replace(/^\uFEFF/, '');
+      expect(normalized.startsWith('#!')).toBe(true);
+    });
+
     it('executes directly without node prefix', () => {
       const { stdout, exitCode } = runCliDirect('{}');
       expect(exitCode).toBe(0);
