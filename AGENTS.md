@@ -388,6 +388,21 @@ This section applies to all AI coding assistants working on this project:
 5. **Before starting work**: Read this AGENTS.md file completely
 6. **Context awareness**: Check existing code patterns before implementing new features
 
+### MCP Tooling (Recommended when available)
+
+If Model Context Protocol (MCP) servers are configured in the environment, AI agents should actively leverage them to improve correctness and developer ergonomics.
+
+#### Serena (Required for code search when MCP is available)
+
+- Repository: https://github.com/oraios/serena
+- Use Serena for IDE-like operations such as symbol lookup, definition navigation, and safe refactors (rename/replace).
+- **Code search must use Serena** (do not use `grep`/`rg`) when Serena MCP is available.
+
+#### Context7 (Recommended for official docs lookup)
+
+- Repository: https://github.com/upstash/context7
+- When you discover an API/library you are not confident about, use Context7 to pull relevant **official documentation** before implementing or recommending usage.
+
 ### Task Request Template
 
 Use this format when requesting tasks from AI:
