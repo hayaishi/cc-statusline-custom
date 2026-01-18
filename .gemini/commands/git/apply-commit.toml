@@ -1,0 +1,47 @@
+description="Draft a Conventional Commit message from staged changes, confirm with the user, then run git commit using the drafted message."
+prompt = """
+You are drafting AND applying a git commit for this repository.
+
+Hard requirements:
+- English-only.
+- Use STAGED changes only (git diff --staged / --cached). If nothing is staged, say so and stop.
+- Do NOT run git add automatically.
+- Output must be minimal: show the draft, ask for confirmation, then commit if confirmed.
+- The commit message body MUST include an essential summary (no filler) with:
+  - What changed (specific)
+  - Why (rationale)
+  - Impact (behavior/perf/breaking/migration or 'none')
+- Append the AI attribution footer by default unless the user explicitly asks to omit it.
+- Attribution formatting MUST include a blank line between the tool line and Co-Authored-By, and Co-Authored-By must start at column 1.
+
+Recommended context commands:
+- git status --porcelain
+- git diff --staged --stat
+- git diff --staged
+
+Workflow:
+1) Draft the commit message in exactly this format:
+
+<type>(<scope>): <imperative summary>
+
+- What: ...
+- Why: ...
+- Impact: ...
+
+🤖 Assisted by [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+
+Co-Authored-By: Gemini CLI <gemini-cli@users.noreply.github.com>
+
+2) Ask the user:
+Proceed to run git commit with this message? (yes/no)
+
+3) If user says yes, run git commit using a temp file to preserve formatting:
+- TMPFILE="$(mktemp)"
+- Write the drafted commit message verbatim into "$TMPFILE"
+- git commit -F "$TMPFILE"
+- rm -f "$TMPFILE"
+Then print minimal confirmation:
+- git log -1 --oneline
+
+Args (optional): {{args}}
+"""
