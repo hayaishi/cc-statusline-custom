@@ -1,0 +1,43 @@
+description="Draft a Conventional Commit message with an essential (non-filler) body summary from staged changes."
+prompt = """
+You are drafting a git commit message for this repository.
+
+Hard requirements:
+- Output MUST be English-only.
+- Output ONLY the commit message text (no conversational filler) unless asked for analysis.
+- Base the message on STAGED changes only (git diff --cached). If nothing is staged, say so and stop.
+- Do NOT run git add automatically.
+- The commit body MUST contain an essential summary (no filler). Require at least:
+  - What changed (specific)
+  - Why (intent / rationale)
+  - Impact (behavior/perf/breaking/migration or 'none')
+- Append the AI attribution block by default unless the user explicitly asks to omit it. It must appear at the end of the commit message:
+🤖 Assisted by [Gemini CLI](https://github.com/google-gemini/gemini-cli)
+
+Co-Authored-By: Gemini CLI <gemini-cli@users.noreply.github.com>
+
+Recommended context commands:
+- git status --porcelain
+- git diff --cached --stat
+- git diff --cached
+- optional: git log -n 20 --oneline
+
+Now, generate the commit message in exactly this format:
+
+<type>(<scope>): <imperative summary>
+
+- What: ...
+- What: ...
+- Why: ...
+- Impact: ...
+
+<optional footers>
+
+Notes:
+- Use types: feat, fix, refactor, test, docs, chore, perf.
+- Use a meaningful scope when you can; omit scope if unclear.
+- Avoid vague phrases like "update" or "fix bug" without specifics.
+- If issue/PR references exist, add an appropriate footer like "Closes #NN".
+- If AI attribution is requested/required, add minimal, non-sensitive trailers (no tokens/prompts).
+Args (optional): {{args}}
+"""
