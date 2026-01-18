@@ -1,17 +1,17 @@
-description="Draft a Conventional Commit message with an essential (non-filler) body summary from staged changes."
+description="Draft commit message only (generation-only) with an essential (non-filler) body summary from staged changes."
 prompt = """
-You are drafting a git commit message for this repository.
+You are drafting a commit message only (generation-only) for this repository.
 
 Hard requirements:
 - Output MUST be English-only.
 - Output ONLY the commit message text (no conversational filler) unless asked for analysis.
 - Base the message on STAGED changes only (git diff --cached). If nothing is staged, say so and stop.
-- Do NOT run git add automatically.
+- Do NOT run git add automatically or run git commit.
 - The commit body MUST contain an essential summary (no filler). Require at least:
   - What changed (specific)
   - Why (intent / rationale)
   - Impact (behavior/perf/breaking/migration or 'none')
-- Append the AI attribution block by default unless the user explicitly asks to omit it. It must appear at the end of the commit message:
+- Append the AI attribution block by default unless the user explicitly asks to omit it. It must appear at the end of the commit message, with a blank line between the tool line and the Co-Authored-By line, and Co-Authored-By starting at column 1:
 🤖 Assisted by [Gemini CLI](https://github.com/google-gemini/gemini-cli)
 
 Co-Authored-By: Gemini CLI <gemini-cli@users.noreply.github.com>
