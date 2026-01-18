@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run type check
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test
+        run: |
+          echo '{}' | node dist/index.js | head -1
+          echo 'invalid' | node dist/index.js | head -1
+          echo '' | node dist/index.js | head -1
+
+      - name: Performance test
+        run: |
+          start=$(date +%s%N)
+          echo '{}' | node dist/index.js > /dev/null
+          end=$(date +%s%N)
+          duration=$(( (end - start) / 1000000 ))
+          echo "Execution time: ${duration}ms"
+          if [ "$duration" -gt 300 ]; then
+            echo "FAIL: Execution exceeded 300ms"
+            exit 1
+          fi
