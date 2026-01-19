@@ -260,8 +260,17 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
-        context_window: { used_percentage: 42 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
       });
+
+      // Strip ANSI codes for comparison
+      const stripAnsi = (text: string): string =>
+        // eslint-disable-next-line no-control-regex
+        text.replace(/\x1b\[[0-9;]*m/g, '');
 
       // Run multiple times to ensure no accumulation
       for (let i = 0; i < 5; i++) {
@@ -272,7 +281,7 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
             timeout: 500, // Should complete very fast
           }
         );
-        expect(result.trim()).toBe('Opus | $0.23 | 42%');
+        expect(stripAnsi(result.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
       }
     });
 

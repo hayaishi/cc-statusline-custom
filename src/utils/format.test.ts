@@ -4,6 +4,7 @@ import {
   formatPercentage,
   formatTokens,
   formatDuration,
+  formatProgressBar,
 } from './format.js';
 
 describe('formatCurrency', () => {
@@ -153,5 +154,52 @@ describe('formatDuration', () => {
 
   it('handles negative values (edge case)', () => {
     expect(formatDuration(-100)).toBe('');
+  });
+});
+
+describe('formatProgressBar', () => {
+  it('formats 0%', () => {
+    expect(formatProgressBar(0)).toBe('[░░░░░░░░]');
+  });
+
+  it('formats 100%', () => {
+    expect(formatProgressBar(100)).toBe('[████████]');
+  });
+
+  it('formats 50%', () => {
+    expect(formatProgressBar(50)).toBe('[████░░░░]');
+  });
+
+  it('formats intermediate values', () => {
+    expect(formatProgressBar(12.5)).toBe('[█░░░░░░░]');
+    expect(formatProgressBar(25)).toBe('[██░░░░░░]');
+    expect(formatProgressBar(75)).toBe('[██████░░]');
+  });
+
+  it('rounds to nearest block', () => {
+    // 6.25% per block (100/8 = 12.5 per block)
+    expect(formatProgressBar(6)).toBe('[░░░░░░░░]');
+    expect(formatProgressBar(7)).toBe('[█░░░░░░░]');
+  });
+
+  it('clamps negative values to 0', () => {
+    expect(formatProgressBar(-10)).toBe('[░░░░░░░░]');
+  });
+
+  it('clamps values over 100 to 100', () => {
+    expect(formatProgressBar(150)).toBe('[████████]');
+  });
+
+  it('returns empty string for NaN', () => {
+    expect(formatProgressBar(NaN)).toBe('');
+  });
+
+  it('returns empty string for Infinity', () => {
+    expect(formatProgressBar(Infinity)).toBe('');
+  });
+
+  it('supports custom width', () => {
+    expect(formatProgressBar(50, 4)).toBe('[██░░]');
+    expect(formatProgressBar(50, 10)).toBe('[█████░░░░░]');
   });
 });

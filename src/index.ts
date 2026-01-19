@@ -6,6 +6,9 @@
  * CLI entry point for Claude Code statusline integration.
  * Reads JSON from stdin, generates statusline, outputs to stdout.
  *
+ * Output format (legacy parity):
+ * 🤖 <Model> | 💰 $<session> sess / $<today> today / $<block> (<left>) | 🔥 $<rate>/hr | 🧠 <used>k/<limit>k [████░░░░] <pct>%
+ *
  * Guarantees:
  * - NEVER silent: always outputs exactly one VISIBLE line
  * - Never throws or exits with non-zero code
@@ -17,9 +20,9 @@
 
 import { readStdinSync } from './utils/stdin.js';
 import { parseInput } from './core/parser.js';
-import { generateStatusline, generateStatuslineWithExtended, FALLBACK_OUTPUT } from './core/statusline.js';
+import { generateStatusline, FALLBACK_OUTPUT } from './core/statusline.js';
 import { updateCache } from './core/cache-updater.js';
-import { getExtendedMetricsEnabled, getCacheDir, getCacheTtl } from './config/env.js';
+import { getCacheDir, getCacheTtl } from './config/env.js';
 
 /**
  * Fallback output for cache update operations.
@@ -58,17 +61,16 @@ function handleUpdateCache(): void {
  * Handles the statusline generation (default mode).
  * Reads JSON from stdin, generates statusline, outputs to stdout.
  *
- * When CCUSAGE_EXTENDED_METRICS is enabled, includes cached extended metrics.
+ * Always reads from cache when available for extended metrics
+ * (daily total, block info, burn rate).
  */
 function handleStatusline(): void {
   try {
     const raw = readStdinSync();
     const input = parseInput(raw);
 
-    // Use extended metrics when enabled
-    const line = getExtendedMetricsEnabled()
-      ? generateStatuslineWithExtended(input, getCacheDir(), getCacheTtl())
-      : generateStatusline(input);
+    // Generate statusline (always reads cache for extended metrics)
+    const line = generateStatusline(input, getCacheDir(), getCacheTtl());
 
     // Print ONLY the first visible line (defense in depth)
     console.log(ensureVisibleFirstLine(line));

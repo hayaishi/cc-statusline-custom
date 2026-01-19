@@ -11,12 +11,20 @@ const CLI_PATH = join(PROJECT_ROOT, 'dist/index.js');
 const FIXTURE_PATH = join(PROJECT_ROOT, 'tests/fixtures/claude-code-input.json');
 
 /**
+ * Strip ANSI escape codes from a string.
+ */
+function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+/**
  * Helper to run the CLI with given stdin input.
  * Returns stdout output and exit code.
  */
 function runCli(
   stdin: string,
-  options?: { timeout?: number }
+  options?: { timeout?: number; env?: Record<string, string> }
 ): { stdout: string; exitCode: number } {
   const execOptions: ExecSyncOptions = {
     input: stdin,
@@ -24,6 +32,7 @@ function runCli(
     cwd: PROJECT_ROOT,
     timeout: options?.timeout ?? 5000,
     stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, ...options?.env },
   };
 
   try {
@@ -210,8 +219,19 @@ describe('CLI Integration Tests', () => {
     });
   });
 
-  describe('full Claude Code schema', () => {
-    it('formats complete nested schema as "Model | $Cost | Usage%"', () => {
+  describe('new legacy format', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-format-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('formats complete nested schema with new format', () => {
+      // Create empty cache dir to avoid existing cache entries
+      mkdirSync(testCacheDir, { recursive: true });
+
       const input = JSON.stringify({
         hook_event_name: 'Status',
         session_id: 'test-123',
@@ -225,75 +245,128 @@ describe('CLI Integration Tests', () => {
         },
         context_window: {
           used_percentage: 42,
-          remaining_percentage: 58,
+          context_window_size: 200000,
+          current_usage: {
+            input_tokens: 80000,
+            output_tokens: 4000,
+          },
         },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe('Opus | $0.23 | 42%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
     });
 
     it('formats partial schema (model only)', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         model: { display_name: 'Claude Sonnet 4' },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe('Sonnet');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet');
     });
 
     it('formats partial schema (model + cost)', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe('Haiku | $0.01');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Haiku | 💰 $0.01 sess');
     });
 
     it('formats backward-compatible flat schema', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         cost_usd: 0.15,
-        context_window: { used_percentage: 25 },
+        context_window: {
+          used_percentage: 25,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 50000 },
+        },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe('Sonnet | $0.15 | 25%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 💰 $0.15 sess | 🧠 50k/200k [██░░░░░░] 25%');
+    });
+
+    it('handles current_usage: null gracefully', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        context_window: {
+          used_percentage: 0,
+          context_window_size: 200000,
+          current_usage: null,
+        },
+      });
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(countOutputLines(stdout)).toBe(1);
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0%');
+    });
+
+    it('rounds percentage with .5 up to 43', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        context_window: {
+          used_percentage: 42.5,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 85000 },
+        },
+      });
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(stripAnsi(stdout.trim())).toContain('43%');
     });
   });
 
   describe('graceful degradation', () => {
-    it('returns fallback for missing model', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-degrade-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('returns cost segment for missing model', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         cost: { total_cost_usd: 0.50 },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      // Only cost, so output is just cost
-      expect(stdout.trim()).toBe('$0.50');
+      // Only cost segment
+      expect(stripAnsi(stdout.trim())).toBe('💰 $0.50 sess');
     });
 
     it('handles invalid cost gracefully', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: NaN },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Only model is valid
-      expect(stdout.trim()).toBe('Opus');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus');
     });
 
     it('handles missing context_window gracefully', () => {
+      mkdirSync(testCacheDir, { recursive: true });
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
       });
-      const { stdout, exitCode } = runCli(input);
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stdout.trim()).toBe('Opus | $0.23');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess');
     });
   });
 
@@ -343,8 +416,8 @@ describe('CLI Integration Tests', () => {
     });
   });
 
-  describe('extended metrics (CCUSAGE_EXTENDED_METRICS)', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-test-${String(process.pid)}`);
+  describe('cache integration (always reads cache now)', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-cache-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -352,7 +425,7 @@ describe('CLI Integration Tests', () => {
       }
     });
 
-    it('includes daily total and burn rate when extended metrics enabled', () => {
+    it('includes daily total in cost segment when cache has fresh entry', () => {
       // Create test cache directory
       mkdirSync(testCacheDir, { recursive: true });
 
@@ -365,6 +438,25 @@ describe('CLI Integration Tests', () => {
           updated_at: Date.now(),
         })
       );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      });
+
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $2.50 today | 🧠 84k/200k [███░░░░░] 42%');
+    });
+
+    it('includes burn rate segment when cache has fresh entry', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
       writeFileSync(
         join(testCacheDir, 'burn-rate.json'),
         JSON.stringify({
@@ -376,54 +468,26 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
-        context_window: { used_percentage: 42 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
       });
 
-      // Run CLI with extended metrics enabled
-      const result = execSync(
-        `echo '${input}' | CCUSAGE_EXTENDED_METRICS=true CCUSAGE_CACHE_DIR="${testCacheDir}" node ${CLI_PATH}`,
-        {
-          encoding: 'utf-8',
-          timeout: 5000,
-        }
-      );
-
-      expect(result.trim()).toBe('Opus | $0.23 | 42% | $2.50 today | $0.25/hr');
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.25/hr | 🧠 84k/200k [███░░░░░] 42%');
     });
 
-    it('falls back to fast-path when extended metrics enabled but cache missing', () => {
-      // Ensure test cache directory doesn't exist
-      if (existsSync(testCacheDir)) {
-        rmSync(testCacheDir, { recursive: true, force: true });
-      }
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-        cost: { total_cost_usd: 0.23 },
-        context_window: { used_percentage: 42 },
-      });
-
-      // Run CLI with extended metrics enabled but no cache
-      const result = execSync(
-        `echo '${input}' | CCUSAGE_EXTENDED_METRICS=true CCUSAGE_CACHE_DIR="${testCacheDir}" node ${CLI_PATH}`,
-        {
-          encoding: 'utf-8',
-          timeout: 5000,
-        }
-      );
-
-      // Should still produce fast-path output
-      expect(result.trim()).toBe('Opus | $0.23 | 42%');
-    });
-
-    it('uses fast-path only when extended metrics disabled (default)', () => {
-      // Create test cache directory with cache entries
+    it('includes block info in cost segment when cache has fresh entry', () => {
       mkdirSync(testCacheDir, { recursive: true });
+
       writeFileSync(
-        join(testCacheDir, 'daily-total.json'),
+        join(testCacheDir, 'block-info.json'),
         JSON.stringify({
-          cost_usd: 2.50,
-          date: new Date().toISOString().slice(0, 10),
+          cost_usd: 0.45,
+          remaining_seconds: 9900, // 2h 45m
           updated_at: Date.now(),
         })
       );
@@ -431,20 +495,85 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
-        context_window: { used_percentage: 42 },
+        context_window: {
+          used_percentage: 12,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 25000 },
+        },
       });
 
-      // Run CLI without extended metrics (default)
-      const result = execSync(
-        `echo '${input}' | CCUSAGE_CACHE_DIR="${testCacheDir}" node ${CLI_PATH}`,
-        {
-          encoding: 'utf-8',
-          timeout: 5000,
-        }
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 25k/200k [█░░░░░░░] 12%');
+    });
+
+    it('formats full output with all cache entries', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'daily-total.json'),
+        JSON.stringify({
+          cost_usd: 1.23,
+          date: new Date().toISOString().slice(0, 10),
+          updated_at: Date.now(),
+        })
       );
 
-      // Should NOT include daily total
-      expect(result.trim()).toBe('Opus | $0.23 | 42%');
+      writeFileSync(
+        join(testCacheDir, 'block-info.json'),
+        JSON.stringify({
+          cost_usd: 0.45,
+          remaining_seconds: 9900,
+          updated_at: Date.now(),
+        })
+      );
+
+      writeFileSync(
+        join(testCacheDir, 'burn-rate.json'),
+        JSON.stringify({
+          rate_per_hour: 0.12,
+          updated_at: Date.now(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 12,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 25000 },
+        },
+      });
+
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      expect(stripAnsi(stdout.trim())).toBe(
+        '🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25k/200k [█░░░░░░░] 12%'
+      );
+    });
+
+    it('gracefully handles missing cache (shows basic output)', () => {
+      // Ensure test cache directory doesn't exist
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+      mkdirSync(testCacheDir, { recursive: true });
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      });
+
+      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      expect(exitCode).toBe(0);
+      // Should still produce output without cache data
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
     });
   });
 });

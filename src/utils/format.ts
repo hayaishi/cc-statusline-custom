@@ -90,3 +90,29 @@ export function formatDuration(seconds: number): string {
 
   return String(hours) + 'h ' + String(minutes) + 'm';
 }
+
+/**
+ * Progress bar characters.
+ */
+const PROGRESS_FILLED = '█';
+const PROGRESS_EMPTY = '░';
+const PROGRESS_BAR_WIDTH = 8;
+
+/**
+ * Generates a progress bar string.
+ *
+ * @param pct - Percentage value (0-100)
+ * @param width - Total width in characters (default: 8)
+ * @returns Progress bar string like "[████░░░░]", or empty string for invalid input
+ */
+export function formatProgressBar(pct: number, width: number = PROGRESS_BAR_WIDTH): string {
+  if (!isValidNumber(pct)) {
+    return '';
+  }
+
+  const clamped = Math.max(0, Math.min(100, pct));
+  const filled = Math.round((clamped / 100) * width);
+  const empty = width - filled;
+
+  return '[' + PROGRESS_FILLED.repeat(filled) + PROGRESS_EMPTY.repeat(empty) + ']';
+}

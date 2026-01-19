@@ -102,3 +102,72 @@ export function extractContextUsage(input: ClaudeCodeInput | null): number | und
 
   return input.context_window?.used_percentage;
 }
+
+/**
+ * Token usage information extracted from input.
+ */
+export interface TokenUsage {
+  /** Current token count, or null if current_usage is null */
+  readonly current: number | null;
+  /** Context window limit */
+  readonly limit: number | null;
+  /** Usage percentage (0-100), rounded to nearest integer */
+  readonly percentage: number | null;
+}
+
+/**
+ * Extracts token usage information from input.
+ *
+ * - Prefers `context_window.used_percentage` for percentage display.
+ * - If `context_window.current_usage` is present (non-null), computes `current`
+ *   as the sum of its token fields (input_tokens + output_tokens + cache tokens).
+ * - If `context_window.current_usage` is null, `current` is null.
+ * - Rounds `used_percentage` to the nearest integer with .5 rounding up.
+ *
+ * @param input - Parsed input or null
+ * @returns TokenUsage object or undefined if context_window is missing
+ */
+export function extractTokenUsage(input: ClaudeCodeInput | null): TokenUsage | undefined {
+  if (input === null) {
+    return undefined;
+  }
+
+  const contextWindow = input.context_window;
+  if (contextWindow === undefined) {
+    return undefined;
+  }
+
+  // Extract limit
+  const limit = contextWindow.context_window_size ?? null;
+
+  // Extract, validate, clamp, and round percentage (.5 rounds up)
+  let percentage: number | null = null;
+  if (contextWindow.used_percentage !== undefined) {
+    const raw = contextWindow.used_percentage;
+    if (Number.isFinite(raw)) {
+      const clamped = Math.max(0, Math.min(100, raw));
+      percentage = Math.round(clamped);
+    }
+    // If not finite (NaN, Infinity, -Infinity), percentage stays null
+  }
+
+  // Extract current token count from current_usage
+  let current: number | null = null;
+  const currentUsage = contextWindow.current_usage;
+
+  if (currentUsage !== undefined && currentUsage !== null) {
+    // Sum all token fields from current_usage
+    const inputTokens = currentUsage.input_tokens ?? 0;
+    const outputTokens = currentUsage.output_tokens ?? 0;
+    const cacheCreation = currentUsage.cache_creation_input_tokens ?? 0;
+    const cacheRead = currentUsage.cache_read_input_tokens ?? 0;
+
+    current = inputTokens + outputTokens + cacheCreation + cacheRead;
+  }
+
+  return {
+    current,
+    limit,
+    percentage,
+  };
+}

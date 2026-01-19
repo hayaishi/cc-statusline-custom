@@ -4,6 +4,7 @@ import {
   extractModelDisplayName,
   extractSessionCost,
   extractContextUsage,
+  extractTokenUsage,
 } from './parser.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 
@@ -397,5 +398,247 @@ describe('extractContextUsage', () => {
       context_window: {},
     };
     expect(extractContextUsage(input)).toBeUndefined();
+  });
+});
+
+describe('extractTokenUsage', () => {
+  it('returns undefined for null input', () => {
+    expect(extractTokenUsage(null)).toBeUndefined();
+  });
+
+  it('returns undefined for empty object', () => {
+    expect(extractTokenUsage({} as ClaudeCodeInput)).toBeUndefined();
+  });
+
+  it('returns undefined if context_window is missing', () => {
+    const input: ClaudeCodeInput = {
+      model: 'test',
+    };
+    expect(extractTokenUsage(input)).toBeUndefined();
+  });
+
+  it('extracts full token usage from current_usage', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+        used_percentage: 42,
+        current_usage: {
+          input_tokens: 80000,
+          output_tokens: 4000,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result).toEqual({
+      current: 84000,
+      limit: 200000,
+      percentage: 42,
+    });
+  });
+
+  it('sums all token fields from current_usage', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+        used_percentage: 50,
+        current_usage: {
+          input_tokens: 50000,
+          output_tokens: 10000,
+          cache_creation_input_tokens: 5000,
+          cache_read_input_tokens: 5000,
+        },
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.current).toBe(70000);
+  });
+
+  it('handles missing token fields with defaults of 0', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+        used_percentage: 25,
+        current_usage: {
+          input_tokens: 50000,
+          // other fields missing
+        },
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.current).toBe(50000);
+  });
+
+  it('returns current as null when current_usage is null', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+        used_percentage: 0,
+        current_usage: null,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result).toEqual({
+      current: null,
+      limit: 200000,
+      percentage: 0,
+    });
+  });
+
+  it('returns current as null when current_usage is undefined', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+        used_percentage: 10,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result).toEqual({
+      current: null,
+      limit: 200000,
+      percentage: 10,
+    });
+  });
+
+  it('rounds percentage with .5 rounding up', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        used_percentage: 42.5,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.percentage).toBe(43);
+  });
+
+  it('rounds percentage down for values below .5', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        used_percentage: 42.4,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.percentage).toBe(42);
+  });
+
+  it('rounds percentage up for values above .5', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        used_percentage: 42.6,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.percentage).toBe(43);
+  });
+
+  it('returns percentage null when used_percentage is undefined', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        context_window_size: 200000,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.percentage).toBeNull();
+  });
+
+  it('returns limit null when context_window_size is undefined', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {
+        used_percentage: 42,
+      },
+    };
+    const result = extractTokenUsage(input);
+    expect(result?.limit).toBeNull();
+  });
+
+  it('handles empty context_window object', () => {
+    const input: ClaudeCodeInput = {
+      context_window: {},
+    };
+    const result = extractTokenUsage(input);
+    expect(result).toEqual({
+      current: null,
+      limit: null,
+      percentage: null,
+    });
+  });
+
+  describe('percentage validation and clamping', () => {
+    it('returns percentage null when used_percentage is NaN', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: NaN,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBeNull();
+    });
+
+    it('returns percentage null when used_percentage is Infinity', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: Infinity,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBeNull();
+    });
+
+    it('returns percentage null when used_percentage is -Infinity', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: -Infinity,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBeNull();
+    });
+
+    it('clamps negative percentage to 0', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: -1,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBe(0);
+    });
+
+    it('clamps percentage above 100 to 100', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: 101,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBe(100);
+    });
+
+    it('clamps large negative percentage to 0', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: -50,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBe(0);
+    });
+
+    it('clamps large percentage above 100 to 100', () => {
+      const input: ClaudeCodeInput = {
+        context_window: {
+          used_percentage: 999,
+          context_window_size: 200000,
+        },
+      };
+      const result = extractTokenUsage(input);
+      expect(result?.percentage).toBe(100);
+    });
   });
 });
