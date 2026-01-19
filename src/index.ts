@@ -10,39 +10,85 @@
  * - NEVER silent: always outputs exactly one VISIBLE line
  * - Never throws or exits with non-zero code
  * - Responds within 300ms
+ *
+ * Subcommands:
+ * - --update-cache: Update the extended metrics cache (run periodically)
  */
 
 import { readStdinSync } from './utils/stdin.js';
 import { parseInput } from './core/parser.js';
-import { generateStatusline, FALLBACK_OUTPUT } from './core/statusline.js';
+import { generateStatusline, generateStatuslineWithExtended, FALLBACK_OUTPUT } from './core/statusline.js';
+import { updateCache } from './core/cache-updater.js';
+import { getExtendedMetricsEnabled, getCacheDir, getCacheTtl } from './config/env.js';
+
+/**
+ * Fallback output for cache update operations.
+ */
+const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
 
 /**
  * Ensures output is a single visible line.
  * Takes first line only; falls back if empty or whitespace-only.
  */
-function ensureVisibleFirstLine(text: string): string {
+function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
   const firstLine = text.split('\n')[0] ?? '';
   // If first line is empty or whitespace-only, use fallback
   if (firstLine.trim() === '') {
-    return FALLBACK_OUTPUT;
+    return fallback;
   }
   return firstLine;
 }
 
 /**
- * Main entry point.
- * Wrapped in try/catch as ultimate safety net.
+ * Handles the --update-cache subcommand.
+ * Updates extended metrics cache and outputs result.
  */
-function main(): void {
+function handleUpdateCache(): void {
+  try {
+    const result = updateCache();
+    // Always output a visible single line
+    const output = result.success ? result.message : `Error: ${result.message}`;
+    console.log(ensureVisibleFirstLine(output, CACHE_FALLBACK_OUTPUT));
+  } catch {
+    console.log(CACHE_FALLBACK_OUTPUT);
+  }
+}
+
+/**
+ * Handles the statusline generation (default mode).
+ * Reads JSON from stdin, generates statusline, outputs to stdout.
+ *
+ * When CCUSAGE_EXTENDED_METRICS is enabled, includes cached extended metrics.
+ */
+function handleStatusline(): void {
   try {
     const raw = readStdinSync();
     const input = parseInput(raw);
-    const line = generateStatusline(input);
+
+    // Use extended metrics when enabled
+    const line = getExtendedMetricsEnabled()
+      ? generateStatuslineWithExtended(input, getCacheDir(), getCacheTtl())
+      : generateStatusline(input);
+
     // Print ONLY the first visible line (defense in depth)
     console.log(ensureVisibleFirstLine(line));
   } catch {
     // Ultimate fallback: print visible fallback on any unexpected error
     console.log(FALLBACK_OUTPUT);
+  }
+}
+
+/**
+ * Main entry point.
+ * Parses arguments and dispatches to appropriate handler.
+ */
+function main(): void {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--update-cache')) {
+    handleUpdateCache();
+  } else {
+    handleStatusline();
   }
 }
 
