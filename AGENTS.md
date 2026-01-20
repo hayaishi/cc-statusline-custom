@@ -355,14 +355,12 @@ export function parseInput(raw: string): ClaudeCodeInput {
 
 ## 🌐 Language Rules
 
-**All repository content must be in English:**
+**Documentation, code comments, and commit messages must be in English:**
 
-- Source code and comments
-- Variable names, function names, class names
-- Commit messages (Conventional Commits format)
 - Documentation (README, CHANGELOG, etc.)
-- Issues and Pull Requests
-- Error messages and log output
+- Commit messages (Conventional Commits)
+- Code comments and docstrings
+- User-facing messages and log output should be in English when practical
 
 ---
 
@@ -431,7 +429,7 @@ Use this format when requesting tasks from AI:
 3. ❌ Hardcoded secrets
 4. ❌ Adding features without tests
 5. ❌ Using `set -e` in shell scripts (for statusline purposes)
-6. ❌ Non-English content in repository files
+6. ❌ Non-English documentation, code comments, or commit messages
 
 ### Agent-Specific Notes
 
