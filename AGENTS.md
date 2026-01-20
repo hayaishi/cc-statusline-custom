@@ -431,24 +431,6 @@ Use this format when requesting tasks from AI:
 5. ❌ Using `set -e` in shell scripts (for statusline purposes)
 6. ❌ Non-English documentation, code comments, or commit messages
 
-### Agent-Specific Notes
-
-#### Claude Code
-- Use `/cost` to monitor token usage during long sessions
-- Leverage `CLAUDE.md` if present for project-specific context
-
-#### Gemini CLI
-- Respect the `GEMINI.md` file if present for additional context
-- Use `@workspace` for codebase-wide understanding
-
-#### Codex CLI
-- Follow the `AGENTS.md` conventions (this file)
-- Use `--model` flag appropriately for complex tasks
-
-#### GitHub Copilot / Cursor / Windsurf
-- Refer to this file when workspace instructions are needed
-- Follow existing code patterns visible in the codebase
-
 ---
 
 ## 📚 Reference Documentation
