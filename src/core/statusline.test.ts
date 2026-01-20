@@ -105,7 +105,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       // Strip ANSI for assertion
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
     });
 
     it('formats nested schema correctly', () => {
@@ -119,7 +119,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150k/200k [██████░░] 75%');
+      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] 75%');
     });
 
     it('formats flat schema (backward compat)', () => {
@@ -133,7 +133,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20k/200k [█░░░░░░░] 10%');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] 10%');
     });
 
     it('omits missing metrics gracefully', () => {
@@ -159,7 +159,7 @@ describe('generateStatusline', () => {
           current_usage: { input_tokens: 10000 },
         },
       };
-      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10k/200k [░░░░░░░░] 5%');
+      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] 5%');
     });
 
     it('returns fallback for empty object', () => {
@@ -271,7 +271,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
   });
 
   it('includes daily total in cost segment when cache has fresh daily-total.json', () => {
@@ -294,7 +294,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'daily-total.json'), JSON.stringify(dailyEntry));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.50 today | 🧠 84k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.50 today | 🧠 84.0k/200k [███░░░░░] 42%');
   });
 
   it('includes burn rate segment when cache has fresh burn-rate.json', () => {
@@ -316,7 +316,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'burn-rate.json'), JSON.stringify(burnEntry));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.12/hr | 🧠 84k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.12/hr | 🧠 84.0k/200k [███░░░░░] 42%');
   });
 
   it('includes block info in cost segment when cache has fresh block-info.json', () => {
@@ -339,7 +339,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'block-info.json'), JSON.stringify(blockEntry));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 84k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 84.0k/200k [███░░░░░] 42%');
   });
 
   it('formats full output with all cache entries', () => {
@@ -375,7 +375,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'burn-rate.json'), JSON.stringify(burnEntry));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25k/200k [█░░░░░░░] 12%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25.0k/200k [█░░░░░░░] 12%');
   });
 
   it('returns fallback when input is null and cache is empty', () => {

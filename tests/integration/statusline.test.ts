@@ -69,6 +69,22 @@ function isVisibleOutput(output: string): boolean {
 }
 
 /**
+ * Helper to assert single-line guarantee without relying on trim().
+ * - Strips ANSI escape codes
+ * - Removes only ONE trailing newline (from console.log)
+ * - Asserts no remaining newlines exist
+ * - Returns the clean output for further assertions
+ */
+function assertSingleLine(output: string): string {
+  const stripped = stripAnsi(output);
+  // Remove only one trailing newline (added by console.log)
+  const withoutTrailing = stripped.replace(/\n$/, '');
+  // Assert no embedded newlines remain
+  expect(withoutTrailing).not.toContain('\n');
+  return withoutTrailing;
+}
+
+/**
  * Helper to run the CLI via direct execution (not via node).
  * Tests shebang and execute permissions.
  */
@@ -114,30 +130,30 @@ describe('CLI Integration Tests', () => {
     it('outputs exactly one visible line for empty stdin', () => {
       const { stdout, exitCode } = runCli('');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('outputs exactly one visible line for invalid JSON', () => {
       const { stdout, exitCode } = runCli('not valid json');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('outputs exactly one visible line for valid empty object', () => {
       const { stdout, exitCode } = runCli('{}');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('outputs exactly one visible line for fixture input', () => {
       const fixture = readFileSync(FIXTURE_PATH, 'utf-8');
       const { stdout, exitCode } = runCli(fixture);
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('rejects invisible output (would fail if output were empty)', () => {
@@ -146,7 +162,8 @@ describe('CLI Integration Tests', () => {
       const testInputs = ['', 'invalid', '{}', 'null', '[]'];
       for (const input of testInputs) {
         const { stdout } = runCli(input);
-        expect(isVisibleOutput(stdout)).toBe(true);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput.length).toBeGreaterThan(0);
       }
     });
   });
@@ -184,15 +201,15 @@ describe('CLI Integration Tests', () => {
     it('handles null JSON value with visible output', () => {
       const { stdout, exitCode } = runCli('null');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('handles array JSON value with visible output', () => {
       const { stdout, exitCode } = runCli('[1, 2, 3]');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('handles very large input with visible output', () => {
@@ -203,8 +220,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(largeInput);
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('handles unicode input with visible output', () => {
@@ -214,8 +231,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(unicodeInput);
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
   });
 
@@ -254,7 +271,7 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
     });
 
     it('formats partial schema (model only)', () => {
@@ -291,7 +308,7 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 💰 $0.15 sess | 🧠 50k/200k [██░░░░░░] 25%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] 25%');
     });
 
     it('handles current_usage: null gracefully', () => {
@@ -306,8 +323,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0%');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0%');
     });
 
     it('rounds percentage with .5 up to 43', () => {
@@ -387,22 +404,22 @@ describe('CLI Integration Tests', () => {
     it('executes directly without node prefix', () => {
       const { stdout, exitCode } = runCliDirect('{}');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('handles empty input via direct execution', () => {
       const { stdout, exitCode } = runCliDirect('');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('handles invalid JSON via direct execution', () => {
       const { stdout, exitCode } = runCliDirect('not json');
       expect(exitCode).toBe(0);
-      expect(countOutputLines(stdout)).toBe(1);
-      expect(isVisibleOutput(stdout)).toBe(true);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput.length).toBeGreaterThan(0);
     });
 
     it('produces same output as node invocation', () => {
@@ -451,7 +468,7 @@ describe('CLI Integration Tests', () => {
 
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $2.50 today | 🧠 84k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $2.50 today | 🧠 84.0k/200k [███░░░░░] 42%');
     });
 
     it('includes burn rate segment when cache has fresh entry', () => {
@@ -477,7 +494,7 @@ describe('CLI Integration Tests', () => {
 
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.25/hr | 🧠 84k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.25/hr | 🧠 84.0k/200k [███░░░░░] 42%');
     });
 
     it('includes block info in cost segment when cache has fresh entry', () => {
@@ -504,7 +521,7 @@ describe('CLI Integration Tests', () => {
 
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 25k/200k [█░░░░░░░] 12%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 25.0k/200k [█░░░░░░░] 12%');
     });
 
     it('formats full output with all cache entries', () => {
@@ -549,7 +566,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       expect(stripAnsi(stdout.trim())).toBe(
-        '🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25k/200k [█░░░░░░░] 12%'
+        '🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25.0k/200k [█░░░░░░░] 12%'
       );
     });
 
@@ -573,7 +590,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Should still produce output without cache data
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
     });
   });
 });

@@ -3,6 +3,7 @@ import {
   formatCurrency,
   formatPercentage,
   formatTokens,
+  formatTokensCompact,
   formatDuration,
   formatProgressBar,
 } from './format.js';
@@ -86,26 +87,35 @@ describe('formatTokens', () => {
     expect(formatTokens(999)).toBe('999');
   });
 
-  it('formats thousands with K suffix', () => {
-    expect(formatTokens(1000)).toBe('1K');
-    expect(formatTokens(1500)).toBe('1.5K');
-    expect(formatTokens(25000)).toBe('25K');
-    expect(formatTokens(25500)).toBe('25.5K');
+  it('formats thousands with lowercase k suffix and 1 decimal', () => {
+    expect(formatTokens(1000)).toBe('1.0k');
+    expect(formatTokens(1500)).toBe('1.5k');
+    expect(formatTokens(25000)).toBe('25.0k');
+    expect(formatTokens(25500)).toBe('25.5k');
   });
 
-  it('formats millions with M suffix', () => {
-    expect(formatTokens(1000000)).toBe('1M');
-    expect(formatTokens(1500000)).toBe('1.5M');
+  it('formats millions with lowercase m suffix and 1 decimal', () => {
+    expect(formatTokens(1000000)).toBe('1.0m');
+    expect(formatTokens(1500000)).toBe('1.5m');
   });
 
-  it('rounds to 1 decimal for K/M values', () => {
-    expect(formatTokens(1234)).toBe('1.2K');
-    expect(formatTokens(1250)).toBe('1.3K');
+  it('rounds to 1 decimal for k/m values', () => {
+    expect(formatTokens(1234)).toBe('1.2k');
+    expect(formatTokens(1250)).toBe('1.3k');
   });
 
-  it('omits decimal if .0', () => {
-    expect(formatTokens(2000)).toBe('2K');
-    expect(formatTokens(10000)).toBe('10K');
+  it('always shows 1 decimal place for k/m values', () => {
+    expect(formatTokens(2000)).toBe('2.0k');
+    expect(formatTokens(10000)).toBe('10.0k');
+  });
+
+  it('promotes to m when k-rounded value >= 1000', () => {
+    // 999_999 rounds to 1000.0k, so promote to 1.0m
+    expect(formatTokens(999_999)).toBe('1.0m');
+    // 999_949 rounds to 999.9k, stays as k
+    expect(formatTokens(999_949)).toBe('999.9k');
+    // 999_950 rounds to 1000.0k, promotes to 1.0m
+    expect(formatTokens(999_950)).toBe('1.0m');
   });
 
   it('returns empty string for NaN', () => {
@@ -118,6 +128,56 @@ describe('formatTokens', () => {
 
   it('handles negative values (edge case)', () => {
     expect(formatTokens(-100)).toBe('');
+  });
+});
+
+describe('formatTokensCompact', () => {
+  it('formats zero', () => {
+    expect(formatTokensCompact(0)).toBe('0');
+  });
+
+  it('formats small numbers as-is', () => {
+    expect(formatTokensCompact(100)).toBe('100');
+    expect(formatTokensCompact(999)).toBe('999');
+  });
+
+  it('formats thousands with lowercase k suffix', () => {
+    expect(formatTokensCompact(1000)).toBe('1k');
+    expect(formatTokensCompact(1500)).toBe('1.5k');
+    expect(formatTokensCompact(25000)).toBe('25k');
+    expect(formatTokensCompact(25500)).toBe('25.5k');
+  });
+
+  it('formats millions with lowercase m suffix', () => {
+    expect(formatTokensCompact(1000000)).toBe('1m');
+    expect(formatTokensCompact(1500000)).toBe('1.5m');
+  });
+
+  it('strips .0 for round numbers', () => {
+    expect(formatTokensCompact(2000)).toBe('2k');
+    expect(formatTokensCompact(10000)).toBe('10k');
+    expect(formatTokensCompact(200000)).toBe('200k');
+  });
+
+  it('promotes to m when k-rounded value >= 1000', () => {
+    // 999_999 rounds to 1000k, so promote to 1m
+    expect(formatTokensCompact(999_999)).toBe('1m');
+    // 999_949 rounds to 999.9k, stays as k
+    expect(formatTokensCompact(999_949)).toBe('999.9k');
+    // 999_950 rounds to 1000k, promotes to 1m
+    expect(formatTokensCompact(999_950)).toBe('1m');
+  });
+
+  it('returns empty string for NaN', () => {
+    expect(formatTokensCompact(NaN)).toBe('');
+  });
+
+  it('returns empty string for Infinity', () => {
+    expect(formatTokensCompact(Infinity)).toBe('');
+  });
+
+  it('handles negative values (edge case)', () => {
+    expect(formatTokensCompact(-100)).toBe('');
   });
 });
 
@@ -201,5 +261,25 @@ describe('formatProgressBar', () => {
   it('supports custom width', () => {
     expect(formatProgressBar(50, 4)).toBe('[██░░]');
     expect(formatProgressBar(50, 10)).toBe('[█████░░░░░]');
+  });
+});
+
+describe('formatProgressBar boundary coverage', () => {
+  it('shows 0 blocks for 0-6%', () => {
+    expect(formatProgressBar(0)).toBe('[░░░░░░░░]');
+    expect(formatProgressBar(1)).toBe('[░░░░░░░░]');
+    expect(formatProgressBar(6)).toBe('[░░░░░░░░]');
+  });
+
+  it('shows 1 block for 7-18%', () => {
+    expect(formatProgressBar(7)).toBe('[█░░░░░░░]');
+    expect(formatProgressBar(12)).toBe('[█░░░░░░░]');
+    expect(formatProgressBar(18)).toBe('[█░░░░░░░]');
+  });
+
+  it('shows correct blocks at key percentages', () => {
+    expect(formatProgressBar(42)).toBe('[███░░░░░]');
+    expect(formatProgressBar(99)).toBe('[████████]');
+    expect(formatProgressBar(100)).toBe('[████████]');
   });
 });

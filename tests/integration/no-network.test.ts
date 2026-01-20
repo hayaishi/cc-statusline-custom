@@ -281,7 +281,7 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
             timeout: 500, // Should complete very fast
           }
         );
-        expect(stripAnsi(result.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84k/200k [███░░░░░] 42%');
+        expect(stripAnsi(result.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
       }
     });
 

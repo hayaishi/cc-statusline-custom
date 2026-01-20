@@ -160,14 +160,14 @@ describe('formatTokensLowercase', () => {
     expect(formatTokensLowercase(999)).toBe('999');
   });
 
-  it('formats thousands with lowercase k suffix', () => {
-    expect(formatTokensLowercase(1000)).toBe('1k');
-    expect(formatTokensLowercase(25000)).toBe('25k');
+  it('formats thousands with lowercase k suffix and 1 decimal', () => {
+    expect(formatTokensLowercase(1000)).toBe('1.0k');
+    expect(formatTokensLowercase(25000)).toBe('25.0k');
     expect(formatTokensLowercase(25500)).toBe('25.5k');
   });
 
-  it('formats millions with lowercase m suffix', () => {
-    expect(formatTokensLowercase(1000000)).toBe('1m');
+  it('formats millions with lowercase m suffix and 1 decimal', () => {
+    expect(formatTokensLowercase(1000000)).toBe('1.0m');
     expect(formatTokensLowercase(1500000)).toBe('1.5m');
   });
 });
@@ -293,7 +293,7 @@ describe('formatContextSegment', () => {
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] 42%');
   });
 
   it('uses 0 when current is null', () => {
@@ -313,7 +313,7 @@ describe('formatContextSegment', () => {
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🧠 84.0k [███░░░░░] 42%');
   });
 
   it('applies correct colors based on thresholds', () => {
@@ -327,16 +327,16 @@ describe('formatContextSegment', () => {
     const highResult = formatContextSegment(highUsage);
 
     // Strip ANSI to verify content
-    expect(stripAnsi(lowResult)).toBe('🧠 50k/200k [██░░░░░░] 25%');
-    expect(stripAnsi(medResult)).toBe('🧠 140k/200k [██████░░] 70%');
-    expect(stripAnsi(highResult)).toBe('🧠 180k/200k [███████░] 90%');
+    expect(stripAnsi(lowResult)).toBe('🧠 50.0k/200k [██░░░░░░] 25%');
+    expect(stripAnsi(medResult)).toBe('🧠 140.0k/200k [██████░░] 70%');
+    expect(stripAnsi(highResult)).toBe('🧠 180.0k/200k [███████░] 90%');
   });
 
   it('respects custom thresholds', () => {
     const usage: TokenUsage = { current: 80000, limit: 200000, percentage: 40 };
     // With custom thresholds (30, 60), 40% should be in yellow zone
     const result = formatContextSegment(usage, 30, 60);
-    expect(stripAnsi(result)).toBe('🧠 80k/200k [███░░░░░] 40%');
+    expect(stripAnsi(result)).toBe('🧠 80.0k/200k [███░░░░░] 40%');
   });
 
   it('formats high token counts correctly', () => {

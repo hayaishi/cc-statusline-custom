@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatPercentage,
   formatTokens,
+  formatTokensCompact,
   formatDuration,
   formatProgressBar,
 } from '../utils/format.js';
@@ -135,8 +136,9 @@ export function formatDailyTotal(usd: number | undefined): string {
 // ============================================================================
 
 /**
- * Formats token count with lowercase 'k' suffix.
- * Output: "25.0k" or "200k"
+ * Formats token count with lowercase 'k' suffix, always showing 1 decimal.
+ * Output: "25.0k" or "1.5m"
+ * Used for current token count (numerator).
  *
  * @param count - Token count
  * @returns Formatted string with lowercase suffix, or empty string
@@ -145,12 +147,24 @@ export function formatTokensLowercase(count: number | null): string {
   if (count === null) {
     return '';
   }
-  const formatted = formatTokens(count);
-  if (formatted === '') {
+  // formatTokens already outputs lowercase with 1 decimal
+  return formatTokens(count);
+}
+
+/**
+ * Formats token count with lowercase 'k' suffix, stripping .0 for round numbers.
+ * Output: "200k" or "2m"
+ * Used for context limit (denominator).
+ *
+ * @param count - Token count
+ * @returns Formatted string with lowercase suffix, or empty string
+ */
+export function formatTokensCompactLowercase(count: number | null): string {
+  if (count === null) {
     return '';
   }
-  // Convert K/M to lowercase k/m
-  return formatted.replace('K', 'k').replace('M', 'm');
+  // formatTokensCompact already outputs lowercase, strips .0
+  return formatTokensCompact(count);
 }
 
 /**
@@ -280,8 +294,9 @@ export function formatContextSegment(
   }
 
   // Format tokens (use 0 if current is null)
+  // Current uses always-decimal format, limit uses compact format
   const currentFormatted = formatTokensLowercase(current ?? 0);
-  const limitFormatted = limit !== null ? formatTokensLowercase(limit) : '';
+  const limitFormatted = limit !== null ? formatTokensCompactLowercase(limit) : '';
 
   // Progress bar
   const bar = formatProgressBar(percentage);
