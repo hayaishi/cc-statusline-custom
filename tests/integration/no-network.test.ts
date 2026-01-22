@@ -10,12 +10,13 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../..');
+const TEST_CACHE_ROOT = join(PROJECT_ROOT, '.tmp', 'test-cache');
 
 /**
  * Strips string literals and comments from source code for pattern scanning.
@@ -136,6 +137,16 @@ function getSourceFilesIfExists(dir: string, extensions: string[] = ['.ts', '.js
     return [];
   }
   return getSourceFiles(dir, extensions);
+}
+
+function withIsolatedCacheDir<T>(run: (cacheDir: string) => T): T {
+  mkdirSync(TEST_CACHE_ROOT, { recursive: true });
+  const cacheDir = mkdtempSync(join(TEST_CACHE_ROOT, 'no-network-'));
+  try {
+    return run(cacheDir);
+  } finally {
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
 }
 
 describe('No Network Calls Regression Test (Issue #455)', () => {
@@ -285,19 +296,22 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
         // eslint-disable-next-line no-control-regex
         text.replace(/\x1b\[[0-9;]*m/g, '');
 
-      // Run multiple times to ensure no accumulation
-      for (let i = 0; i < 5; i++) {
-        const result = execSync(
-          `echo '${input}' | node ${join(PROJECT_ROOT, 'dist/index.js')}`,
-          {
-            encoding: 'utf-8',
-            timeout: 500, // Should complete very fast
-          }
-        );
-        expect(stripAnsi(result.trim())).toBe(
-          '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
-        );
-      }
+      withIsolatedCacheDir((cacheDir) => {
+        // Run multiple times to ensure no accumulation
+        for (let i = 0; i < 5; i++) {
+          const result = execSync(
+            `echo '${input}' | node ${join(PROJECT_ROOT, 'dist/index.js')}`,
+            {
+              encoding: 'utf-8',
+              timeout: 500, // Should complete very fast
+              env: { ...process.env, CCSTATUSLINE_CACHE_DIR: cacheDir },
+            }
+          );
+          expect(stripAnsi(result.trim())).toBe(
+            '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+          );
+        }
+      });
     });
 
     it('completes rapidly without network latency', () => {
@@ -307,21 +321,24 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
         context_window: { used_percentage: 42 },
       });
 
-      const start = performance.now();
-      for (let i = 0; i < 10; i++) {
-        execSync(
-          `echo '${input}' | node ${join(PROJECT_ROOT, 'dist/index.js')}`,
-          {
-            encoding: 'utf-8',
-            timeout: 1000,
-          }
-        );
-      }
-      const totalDuration = performance.now() - start;
+      withIsolatedCacheDir((cacheDir) => {
+        const start = performance.now();
+        for (let i = 0; i < 10; i++) {
+          execSync(
+            `echo '${input}' | node ${join(PROJECT_ROOT, 'dist/index.js')}`,
+            {
+              encoding: 'utf-8',
+              timeout: 1000,
+              env: { ...process.env, CCSTATUSLINE_CACHE_DIR: cacheDir },
+            }
+          );
+        }
+        const totalDuration = performance.now() - start;
 
-      // 10 invocations should complete in under 3 seconds total
-      // (300ms each would be 3 seconds, we expect much faster)
-      expect(totalDuration).toBeLessThan(3000);
+        // 10 invocations should complete in under 3 seconds total
+        // (300ms each would be 3 seconds, we expect much faster)
+        expect(totalDuration).toBeLessThan(3000);
+      });
     });
   });
 });
