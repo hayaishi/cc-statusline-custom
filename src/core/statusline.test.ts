@@ -4,8 +4,20 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { generateStatusline, FALLBACK_OUTPUT, generateStatuslineWithExtended } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
-import type { DailyTotalEntry, BurnRateEntry, BlockInfoEntry } from '../types/cache.js';
+import type { SubscriptionUsageEntry } from '../types/cache.js';
 import { stripAnsi } from '../utils/colors.js';
+
+const CANONICAL_FULL_LINE =
+  '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] 12% | 📦 55% [████░░░░] (~3:45pm)';
+
+describe('canonical full example line', () => {
+  it('is a single line with intact context segment', () => {
+    expect(CANONICAL_FULL_LINE).not.toContain('\n');
+    expect(CANONICAL_FULL_LINE).not.toContain('\r');
+    expect(CANONICAL_FULL_LINE).toContain(' | ');
+    expect(CANONICAL_FULL_LINE).toContain('🧠 25.0k/200k [█░░░░░░░] 12%');
+  });
+});
 
 describe('generateStatusline', () => {
   const testCacheDir = join(tmpdir(), `ccusage-statusline-test-${String(process.pid)}`);
@@ -105,7 +117,9 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       // Strip ANSI for assertion
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...');
+      expect(stripAnsi(result)).not.toContain('🔥');
+      expect(stripAnsi(result)).not.toContain('left)');
     });
 
     it('formats nested schema correctly', () => {
@@ -119,7 +133,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] 75%');
+      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] 75% | 📦 Loading...');
     });
 
     it('formats flat schema (backward compat)', () => {
@@ -133,7 +147,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] 10%');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] 10% | 📦 Loading...');
     });
 
     it('omits missing metrics gracefully', () => {
@@ -141,14 +155,14 @@ describe('generateStatusline', () => {
       const modelOnly: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
       };
-      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku');
+      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 📦 Loading...');
 
       // Model + cost
       const modelAndCost: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
-      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess');
+      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 📦 Loading...');
 
       // Model + context
       const modelAndContext: ClaudeCodeInput = {
@@ -159,7 +173,7 @@ describe('generateStatusline', () => {
           current_usage: { input_tokens: 10000 },
         },
       };
-      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] 5%');
+      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] 5% | 📦 Loading...');
     });
 
     it('returns fallback for empty object', () => {
@@ -183,7 +197,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       expect(result.split('\n').length).toBe(1);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0%');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0% | 📦 Loading...');
     });
   });
 
@@ -271,13 +285,51 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...');
+    expect(stripAnsi(result)).not.toContain('🔥');
+    expect(stripAnsi(result)).not.toContain('left)');
   });
 
-  it('includes daily total in cost segment when cache has fresh daily-total.json', () => {
+  it('includes subscription usage segment when cache has fresh subscription-usage.json', () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'UTC';
+
+    try {
+      const input: ClaudeCodeInput = {
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      };
+
+      const subscriptionUsage: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
+      };
+      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+      const result = generateStatuslineWithExtended(input, testCacheDir);
+      expect(stripAnsi(result)).toBe(
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 55% [████░░░░] (~3:45pm)'
+      );
+    } finally {
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    }
+  });
+
+  it('shows fetch error when cache is invalid and lastAttemptAt is recent', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
-      cost: { total_cost_usd: 0.23 },
       context_window: {
         used_percentage: 42,
         context_window_size: 200000,
@@ -285,64 +337,22 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       },
     };
 
-    // Create fresh cache entry
-    const dailyEntry: DailyTotalEntry = {
-      cost_usd: 1.50,
-      date: new Date().toISOString().slice(0, 10),
-      updated_at: Date.now(),
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
     };
-    writeFileSync(join(testCacheDir, 'daily-total.json'), JSON.stringify(dailyEntry));
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.50 today | 🧠 84.0k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Fetch Error...');
   });
 
-  it('includes burn rate segment when cache has fresh burn-rate.json', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      cost: { total_cost_usd: 0.23 },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
+  it('formats full output with subscription usage cache', () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'UTC';
 
-    // Create fresh cache entry
-    const burnEntry: BurnRateEntry = {
-      rate_per_hour: 0.12,
-      updated_at: Date.now(),
-    };
-    writeFileSync(join(testCacheDir, 'burn-rate.json'), JSON.stringify(burnEntry));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.12/hr | 🧠 84.0k/200k [███░░░░░] 42%');
-  });
-
-  it('includes block info in cost segment when cache has fresh block-info.json', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      cost: { total_cost_usd: 0.23 },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    // Create fresh cache entries
-    const blockEntry: BlockInfoEntry = {
-      cost_usd: 0.45,
-      remaining_seconds: 9900, // 2h 45m
-      updated_at: Date.now(),
-    };
-    writeFileSync(join(testCacheDir, 'block-info.json'), JSON.stringify(blockEntry));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 84.0k/200k [███░░░░░] 42%');
-  });
-
-  it('formats full output with all cache entries', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       cost: { total_cost_usd: 0.23 },
@@ -353,29 +363,27 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       },
     };
 
-    // Create all cache entries
-    const dailyEntry: DailyTotalEntry = {
-      cost_usd: 1.23,
-      date: new Date().toISOString().slice(0, 10),
-      updated_at: Date.now(),
-    };
-    writeFileSync(join(testCacheDir, 'daily-total.json'), JSON.stringify(dailyEntry));
+    try {
+      const subscriptionUsage: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
+      };
+      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
-    const blockEntry: BlockInfoEntry = {
-      cost_usd: 0.45,
-      remaining_seconds: 9900, // 2h 45m
-      updated_at: Date.now(),
-    };
-    writeFileSync(join(testCacheDir, 'block-info.json'), JSON.stringify(blockEntry));
-
-    const burnEntry: BurnRateEntry = {
-      rate_per_hour: 0.12,
-      updated_at: Date.now(),
-    };
-    writeFileSync(join(testCacheDir, 'burn-rate.json'), JSON.stringify(burnEntry));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25.0k/200k [█░░░░░░░] 12%');
+      const result = generateStatuslineWithExtended(input, testCacheDir);
+      expect(stripAnsi(result)).toBe(CANONICAL_FULL_LINE);
+      expect(stripAnsi(result)).not.toContain('🔥');
+      expect(stripAnsi(result)).not.toContain('left)');
+    } finally {
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    }
   });
 
   it('returns fallback when input is null and cache is empty', () => {
@@ -389,10 +397,10 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     // Create corrupt cache file
-    writeFileSync(join(testCacheDir, 'daily-total.json'), 'not valid json');
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), 'not valid json');
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
   });
 
   it('is an alias for generateStatusline', () => {

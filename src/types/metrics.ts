@@ -29,10 +29,8 @@ export interface FormattedMetrics {
   readonly sessionCost?: MetricValue<string>;
   readonly contextUsage?: MetricValue<string>;
 
-  // Extended metrics (from cache, when enabled)
-  readonly dailyTotal?: MetricValue<string>;
-  readonly blockInfo?: MetricValue<string>;
-  readonly burnRate?: MetricValue<string>;
+  // Cache-derived metrics
+  readonly subscriptionUsage?: MetricValue<string>;
 }
 
 /**

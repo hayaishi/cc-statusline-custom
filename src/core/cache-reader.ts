@@ -17,7 +17,7 @@ import {
   DEFAULT_CACHE_DIR,
   DEFAULT_CACHE_TTL_SECONDS,
 } from '../types/cache.js';
-import type { CacheKey, CacheEntryBase } from '../types/cache.js';
+import type { CacheKey, CacheEntry } from '../types/cache.js';
 
 /**
  * Checks if the lock file is fresh (< threshold seconds old).
@@ -51,7 +51,7 @@ function getCacheFilePath(key: CacheKey, cacheDir: string): string {
 /**
  * Reads a cache entry synchronously.
  *
- * @param key - Cache key ('dailyTotal' | 'blockInfo' | 'burnRate')
+ * @param key - Cache key ('subscriptionUsage')
  * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/ccusage-statusline)
  * @param ttlSeconds - TTL in seconds (optional, defaults to 60)
  * @returns The cached entry or null if unavailable/invalid/stale
@@ -60,7 +60,7 @@ export function readCacheSync(
   key: CacheKey,
   cacheDir: string = DEFAULT_CACHE_DIR,
   ttlSeconds: number = DEFAULT_CACHE_TTL_SECONDS
-): CacheEntryBase | null {
+): CacheEntry | null {
   try {
     // Skip if lock file is fresh (write in progress)
     if (isLockFileFresh(cacheDir)) {
@@ -98,7 +98,7 @@ export function readCacheSync(
       return null;
     }
 
-    return parsed as CacheEntryBase;
+    return parsed as CacheEntry;
   } catch {
     // Never throw - return null on any error
     return null;
@@ -106,17 +106,58 @@ export function readCacheSync(
 }
 
 /**
- * Checks if a cache entry is stale (older than TTL).
- *
- * @param entry - Cache entry to check
- * @param ttlSeconds - TTL in seconds
- * @returns true if the entry is stale
+ * Read result that includes freshness from mtime-based TTL.
  */
-export function isCacheStale(entry: CacheEntryBase, ttlSeconds: number): boolean {
-  if (!Number.isFinite(entry.updated_at)) {
-    return true;
-  }
+export interface CacheReadWithMtime {
+  entry: CacheEntry | null;
+  isFresh: boolean;
+}
 
-  const ageSeconds = (Date.now() - entry.updated_at) / 1000;
-  return ageSeconds >= ttlSeconds;
+/**
+ * Reads a cache entry synchronously, returning freshness via mtime-based TTL.
+ * Unlike readCacheSync, stale entries are returned with isFresh=false.
+ *
+ * @param key - Cache key ('subscriptionUsage')
+ * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/ccusage-statusline)
+ * @param ttlSeconds - TTL in seconds (optional, defaults to 60)
+ * @returns Entry with freshness flag
+ */
+export function readCacheSyncWithMtime(
+  key: CacheKey,
+  cacheDir: string = DEFAULT_CACHE_DIR,
+  ttlSeconds: number = DEFAULT_CACHE_TTL_SECONDS
+): CacheReadWithMtime {
+  try {
+    if (isLockFileFresh(cacheDir)) {
+      return { entry: null, isFresh: false };
+    }
+
+    const filePath = getCacheFilePath(key, cacheDir);
+
+    if (!existsSync(filePath)) {
+      return { entry: null, isFresh: false };
+    }
+
+    const stat = statSync(filePath);
+    if (stat.size > MAX_CACHE_FILE_SIZE_BYTES) {
+      return { entry: null, isFresh: false };
+    }
+
+    const ageSeconds = (Date.now() - stat.mtimeMs) / 1000;
+    const isFresh = ageSeconds < ttlSeconds;
+
+    const content = readFileSync(filePath, 'utf-8');
+    if (content.trim() === '') {
+      return { entry: null, isFresh };
+    }
+
+    const parsed: unknown = JSON.parse(content);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return { entry: null, isFresh };
+    }
+
+    return { entry: parsed as CacheEntry, isFresh };
+  } catch {
+    return { entry: null, isFresh: false };
+  }
 }

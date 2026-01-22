@@ -44,7 +44,7 @@ module.exports = { formatCost };
 | Functions/Variables | camelCase | `getCachedData` |
 | Constants | SCREAMING_SNAKE_CASE | `DEFAULT_TTL_SECONDS` |
 | Types/Interfaces | PascalCase | `ClaudeCodeInput` |
-| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCUSAGE_CACHE_TTL` |
+| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCSTATUSLINE_CACHE_TTL` |
 
 #### Import Order
 
@@ -267,7 +267,7 @@ ccusage-statusline-custom/
 │   │   ├── oauth.ts          # OAuth API
 │   │   └── statusline.ts     # Output generation
 │   ├── presets/              # Preset configurations
-│   │   ├── percentage.ts     # Block usage percentage display
+│   │   ├── percentage.ts     # Subscription usage percentage display
 │   │   ├── simple.ts         # Simple display
 │   │   └── full.ts           # Full-featured display
 │   └── utils/                # Utilities

@@ -2,17 +2,12 @@
  * Statusline generation with legacy format parity.
  *
  * Output format:
- * 🤖 <Model> | 💰 $<session> sess / $<today> today / $<block> (<left>) | 🔥 $<rate>/hr | 🧠 <used>k/<limit>k [████░░░░] <pct>%
+ * 🤖 <Model> | 💰 $<session> sess | 🧠 <used>k/<limit>k [████░░░░] <pct>% | 📦 <pct>% [████░░░░] (~h:mmam/pm)
  */
 
 import type { ClaudeCodeInput } from '../types/claude-code.js';
-import type {
-  DailyTotalEntry,
-  BurnRateEntry,
-  BlockInfoEntry,
-  CacheEntryBase,
-} from '../types/cache.js';
-import { DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS } from '../types/cache.js';
+import type { CacheEntry } from '../types/cache.js';
+import { DEFAULT_CACHE_DIR } from '../types/cache.js';
 import {
   extractModelDisplayName,
   extractSessionCost,
@@ -21,15 +16,17 @@ import {
 import {
   formatModelSegment,
   formatCostSegment,
-  formatBurnRateSegment,
   formatContextSegment,
+  formatSubscriptionUsageSegment,
   type CostSegmentData,
 } from './formatter.js';
-import { readCacheSync } from './cache-reader.js';
+import { readCacheSyncWithMtime } from './cache-reader.js';
 import {
   getContextLowThreshold,
   getContextMediumThreshold,
+  getSubscriptionCacheTtl,
 } from '../config/env.js';
+import { formatResetTime } from '../utils/time.js';
 
 /**
  * Visible fallback output when no meaningful statusline can be generated.
@@ -38,53 +35,63 @@ import {
 export const FALLBACK_OUTPUT = '🤖 ? | ⏳ Loading...';
 
 /**
- * Type guard to check if cache entry is a DailyTotalEntry.
+ * Extracts a valid subscription usage payload from cache entry.
  */
-function isDailyTotalEntry(entry: CacheEntryBase): entry is DailyTotalEntry {
-  return 'cost_usd' in entry && 'date' in entry;
+function getValidSubscriptionUsage(
+  entry: CacheEntry
+): { utilizationPercent: number; resetsAt: string } | null {
+  const record = entry as {
+    utilizationPercent?: unknown;
+    resetsAt?: unknown;
+  };
+
+  const percentValue = record.utilizationPercent;
+  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) {
+    return null;
+  }
+
+  if (percentValue < 0 || percentValue > 100) {
+    return null;
+  }
+
+  if (typeof record.resetsAt !== 'string') {
+    return null;
+  }
+
+  if (!Number.isFinite(Date.parse(record.resetsAt))) {
+    return null;
+  }
+
+  return { utilizationPercent: percentValue, resetsAt: record.resetsAt };
 }
 
 /**
- * Type guard to check if cache entry is a BurnRateEntry.
+ * Reads the last attempt timestamp from cache entry (if valid).
  */
-function isBurnRateEntry(entry: CacheEntryBase): entry is BurnRateEntry {
-  return 'rate_per_hour' in entry;
+function getLastAttemptAt(entry: CacheEntry): number | null {
+  const record = entry as { lastAttemptAt?: unknown };
+  if (typeof record.lastAttemptAt !== 'string') {
+    return null;
+  }
+
+  const parsed = Date.parse(record.lastAttemptAt);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed;
 }
 
 /**
- * Type guard to check if cache entry is a BlockInfoEntry.
+ * Builds cost segment data from input.
  */
-function isBlockInfoEntry(entry: CacheEntryBase): entry is BlockInfoEntry {
-  return 'cost_usd' in entry && 'remaining_seconds' in entry;
-}
-
-/**
- * Builds cost segment data from input and cache.
- */
-function buildCostSegmentData(
-  input: ClaudeCodeInput,
-  cacheDir: string,
-  ttlSeconds: number
-): CostSegmentData {
+function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
   const data: CostSegmentData = {};
 
   // Session cost from input
   const sessionCost = extractSessionCost(input);
   if (sessionCost !== undefined) {
     (data as { sessionCost?: number }).sessionCost = sessionCost;
-  }
-
-  // Daily total from cache
-  const dailyEntry = readCacheSync('dailyTotal', cacheDir, ttlSeconds);
-  if (dailyEntry !== null && isDailyTotalEntry(dailyEntry)) {
-    (data as { dailyTotal?: number }).dailyTotal = dailyEntry.cost_usd;
-  }
-
-  // Block info from cache
-  const blockEntry = readCacheSync('blockInfo', cacheDir, ttlSeconds);
-  if (blockEntry !== null && isBlockInfoEntry(blockEntry)) {
-    (data as { blockCost?: number; blockTimeRemaining?: number }).blockCost = blockEntry.cost_usd;
-    (data as { blockCost?: number; blockTimeRemaining?: number }).blockTimeRemaining = blockEntry.remaining_seconds;
   }
 
   return data;
@@ -95,14 +102,13 @@ function buildCostSegmentData(
  *
  * Segment order:
  * 1. Model: "🤖 Opus"
- * 2. Cost: "💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left)"
- * 3. Burn rate: "🔥 $0.12/hr"
- * 4. Context: "🧠 25.0k/200k [████░░░░] 12%"
+ * 2. Cost: "💰 $0.23 sess"
+ * 3. Context: "🧠 25.0k/200k [████░░░░] 12%"
+ * 4. Subscription usage: "📦 55% [████░░░░] (~3:45pm)"
  */
 function composeSegments(
   input: ClaudeCodeInput,
-  cacheDir: string,
-  ttlSeconds: number
+  cacheDir: string
 ): string[] {
   const segments: string[] = [];
 
@@ -113,23 +119,14 @@ function composeSegments(
     segments.push(modelSegment);
   }
 
-  // 2. Cost segment: "💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left)"
-  const costData = buildCostSegmentData(input, cacheDir, ttlSeconds);
+  // 2. Cost segment: "💰 $0.23 sess"
+  const costData = buildCostSegmentData(input);
   const costSegment = formatCostSegment(costData);
   if (costSegment !== '') {
     segments.push(costSegment);
   }
 
-  // 3. Burn rate segment: "🔥 $0.12/hr"
-  const burnEntry = readCacheSync('burnRate', cacheDir, ttlSeconds);
-  if (burnEntry !== null && isBurnRateEntry(burnEntry)) {
-    const burnSegment = formatBurnRateSegment(burnEntry.rate_per_hour);
-    if (burnSegment !== '') {
-      segments.push(burnSegment);
-    }
-  }
-
-  // 4. Context segment: "🧠 25.0k/200k [████░░░░] 12%"
+  // 3. Context segment: "🧠 25.0k/200k [████░░░░] 12%"
   const tokenUsage = extractTokenUsage(input);
   const contextSegment = formatContextSegment(
     tokenUsage,
@@ -140,7 +137,44 @@ function composeSegments(
     segments.push(contextSegment);
   }
 
+  // 4. Subscription usage segment: "📦 55% [████░░░░] (~3:45pm)"
+  if (segments.length > 0) {
+    const subscriptionSegment = buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl());
+    if (subscriptionSegment !== '') {
+      segments.push(subscriptionSegment);
+    }
+  }
+
   return segments;
+}
+
+/**
+ * Builds the subscription usage segment from cache.
+ */
+function buildSubscriptionUsageSegment(cacheDir: string, ttlSeconds: number): string {
+  const cache = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
+
+  if (cache.entry !== null && cache.isFresh) {
+    const valid = getValidSubscriptionUsage(cache.entry);
+    if (valid !== null) {
+      const reset = formatResetTime(valid.resetsAt);
+      if (reset !== '') {
+        return formatSubscriptionUsageSegment(valid.utilizationPercent, reset);
+      }
+    }
+  }
+
+  if (cache.entry !== null) {
+    const lastAttemptAt = getLastAttemptAt(cache.entry);
+    if (lastAttemptAt !== null) {
+      const ageSeconds = (Date.now() - lastAttemptAt) / 1000;
+      if (ageSeconds < ttlSeconds) {
+        return '📦 Fetch Error...';
+      }
+    }
+  }
+
+  return '📦 Loading...';
 }
 
 /**
@@ -162,7 +196,7 @@ function ensureVisibleOutput(text: string): string {
 /**
  * Generates a statusline string from Claude Code input.
  *
- * Always reads from cache when available (unified extended mode).
+ * Always reads subscription usage from cache when available.
  *
  * Guarantees:
  * - NEVER throws (catches all errors internally)
@@ -171,13 +205,11 @@ function ensureVisibleOutput(text: string): string {
  *
  * @param input - Parsed input from Claude Code, or null if parsing failed
  * @param cacheDir - Cache directory (optional, defaults to ~/.cache/ccusage-statusline)
- * @param ttlSeconds - Cache TTL in seconds (optional, defaults to 60)
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
   input: ClaudeCodeInput | null,
-  cacheDir: string = DEFAULT_CACHE_DIR,
-  ttlSeconds: number = DEFAULT_CACHE_TTL_SECONDS
+  cacheDir: string = DEFAULT_CACHE_DIR
 ): string {
   try {
     // Handle null/missing input
@@ -186,7 +218,7 @@ export function generateStatusline(
     }
 
     // Compose all segments
-    const segments = composeSegments(input, cacheDir, ttlSeconds);
+    const segments = composeSegments(input, cacheDir);
 
     // If no segments, return fallback
     if (segments.length === 0) {

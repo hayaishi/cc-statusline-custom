@@ -3,13 +3,11 @@ import {
   formatModelIndicator,
   formatSessionCost,
   formatContextUsage,
-  formatBurnRate,
-  formatDailyTotal,
   formatTokensLowercase,
   formatModelSegment,
   formatCostSegment,
-  formatBurnRateSegment,
   formatContextSegment,
+  formatSubscriptionUsageSegment,
 } from './formatter.js';
 import { stripAnsi } from '../utils/colors.js';
 import type { TokenUsage } from './parser.js';
@@ -103,49 +101,6 @@ describe('formatContextUsage', () => {
   });
 });
 
-describe('formatBurnRate', () => {
-  it('returns empty string for undefined', () => {
-    expect(formatBurnRate(undefined)).toBe('');
-  });
-
-  it('returns empty string for NaN', () => {
-    expect(formatBurnRate(NaN)).toBe('');
-  });
-
-  it('returns empty string for negative', () => {
-    expect(formatBurnRate(-1)).toBe('');
-  });
-
-  it('formats zero rate', () => {
-    expect(formatBurnRate(0)).toBe('$0.00/hr');
-  });
-
-  it('formats hourly rates', () => {
-    expect(formatBurnRate(0.12)).toBe('$0.12/hr');
-    expect(formatBurnRate(1.5)).toBe('$1.50/hr');
-  });
-});
-
-describe('formatDailyTotal', () => {
-  it('returns empty string for undefined', () => {
-    expect(formatDailyTotal(undefined)).toBe('');
-  });
-
-  it('returns empty string for NaN', () => {
-    expect(formatDailyTotal(NaN)).toBe('');
-  });
-
-  it('returns empty string for negative', () => {
-    expect(formatDailyTotal(-1)).toBe('');
-  });
-
-  it('formats daily total', () => {
-    expect(formatDailyTotal(0)).toBe('$0.00 today');
-    expect(formatDailyTotal(1.23)).toBe('$1.23 today');
-    expect(formatDailyTotal(12.5)).toBe('$12.50 today');
-  });
-});
-
 // ============================================================================
 // NEW SEGMENT FORMATTER TESTS
 // ============================================================================
@@ -208,67 +163,19 @@ describe('formatCostSegment', () => {
     expect(formatCostSegment({ sessionCost: 0.23 })).toBe('💰 $0.23 sess');
   });
 
-  it('formats session and daily total', () => {
-    expect(formatCostSegment({ sessionCost: 0.23, dailyTotal: 1.23 }))
-      .toBe('💰 $0.23 sess / $1.23 today');
-  });
-
-  it('formats full cost segment with block', () => {
-    expect(formatCostSegment({
-      sessionCost: 0.23,
-      dailyTotal: 1.23,
-      blockCost: 0.45,
-      blockTimeRemaining: 9900, // 2h 45m
-    })).toBe('💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left)');
-  });
-
-  it('formats block cost without time remaining', () => {
-    expect(formatCostSegment({
-      sessionCost: 0.23,
-      blockCost: 0.45,
-    })).toBe('💰 $0.23 sess / $0.45');
-  });
-
-  it('formats block cost with zero time remaining', () => {
-    expect(formatCostSegment({
-      sessionCost: 0.23,
-      blockCost: 0.45,
-      blockTimeRemaining: 0,
-    })).toBe('💰 $0.23 sess / $0.45');
-  });
-
-  it('handles only daily total', () => {
-    expect(formatCostSegment({ dailyTotal: 1.23 }))
-      .toBe('💰 $1.23 today');
-  });
-
-  it('handles only block cost', () => {
-    expect(formatCostSegment({ blockCost: 0.45, blockTimeRemaining: 3600 }))
-      .toBe('💰 $0.45 (1h 0m left)');
-  });
-
   it('ignores invalid session cost', () => {
-    expect(formatCostSegment({ sessionCost: NaN, dailyTotal: 1.23 }))
-      .toBe('💰 $1.23 today');
+    expect(formatCostSegment({ sessionCost: NaN })).toBe('');
   });
 });
 
-describe('formatBurnRateSegment', () => {
-  it('returns empty string for undefined', () => {
-    expect(formatBurnRateSegment(undefined)).toBe('');
+describe('formatSubscriptionUsageSegment', () => {
+  it('returns empty string for invalid inputs', () => {
+    expect(formatSubscriptionUsageSegment(Number.NaN, '~3:45pm')).toBe('');
+    expect(formatSubscriptionUsageSegment(55, '')).toBe('');
   });
 
-  it('returns empty string for NaN', () => {
-    expect(formatBurnRateSegment(NaN)).toBe('');
-  });
-
-  it('formats burn rate with emoji', () => {
-    expect(formatBurnRateSegment(0.12)).toBe('🔥 $0.12/hr');
-    expect(formatBurnRateSegment(1.5)).toBe('🔥 $1.50/hr');
-  });
-
-  it('formats zero burn rate', () => {
-    expect(formatBurnRateSegment(0)).toBe('🔥 $0.00/hr');
+  it('formats subscription usage with emoji', () => {
+    expect(formatSubscriptionUsageSegment(55, '~3:45pm')).toBe('📦 55% [████░░░░] (~3:45pm)');
   });
 });
 

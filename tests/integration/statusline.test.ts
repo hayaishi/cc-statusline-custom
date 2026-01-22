@@ -269,9 +269,11 @@ describe('CLI Integration Tests', () => {
           },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe(
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+      );
     });
 
     it('formats partial schema (model only)', () => {
@@ -279,9 +281,9 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         model: { display_name: 'Claude Sonnet 4' },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 📦 Loading...');
     });
 
     it('formats partial schema (model + cost)', () => {
@@ -290,9 +292,9 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Haiku | 💰 $0.01 sess');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Haiku | 💰 $0.01 sess | 📦 Loading...');
     });
 
     it('formats backward-compatible flat schema', () => {
@@ -306,9 +308,11 @@ describe('CLI Integration Tests', () => {
           current_usage: { input_tokens: 50000 },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] 25%');
+      expect(stripAnsi(stdout.trim())).toBe(
+        '🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] 25% | 📦 Loading...'
+      );
     });
 
     it('handles current_usage: null gracefully', () => {
@@ -321,10 +325,10 @@ describe('CLI Integration Tests', () => {
           current_usage: null,
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0%');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0% | 📦 Loading...');
     });
 
     it('rounds percentage with .5 up to 43', () => {
@@ -337,7 +341,7 @@ describe('CLI Integration Tests', () => {
           current_usage: { input_tokens: 85000 },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       expect(stripAnsi(stdout.trim())).toContain('43%');
     });
@@ -357,10 +361,10 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         cost: { total_cost_usd: 0.50 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Only cost segment
-      expect(stripAnsi(stdout.trim())).toBe('💰 $0.50 sess');
+      expect(stripAnsi(stdout.trim())).toBe('💰 $0.50 sess | 📦 Loading...');
     });
 
     it('handles invalid cost gracefully', () => {
@@ -369,10 +373,10 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: NaN },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Only model is valid
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 📦 Loading...');
     });
 
     it('handles missing context_window gracefully', () => {
@@ -381,9 +385,9 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess');
+      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
     });
   });
 
@@ -442,70 +446,17 @@ describe('CLI Integration Tests', () => {
       }
     });
 
-    it('includes daily total in cost segment when cache has fresh entry', () => {
-      // Create test cache directory
-      mkdirSync(testCacheDir, { recursive: true });
-
-      // Write fresh cache entries
-      writeFileSync(
-        join(testCacheDir, 'daily-total.json'),
-        JSON.stringify({
-          cost_usd: 2.50,
-          date: new Date().toISOString().slice(0, 10),
-          updated_at: Date.now(),
-        })
-      );
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-        cost: { total_cost_usd: 0.23 },
-        context_window: {
-          used_percentage: 42,
-          context_window_size: 200000,
-          current_usage: { input_tokens: 84000 },
-        },
-      });
-
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
-      expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $2.50 today | 🧠 84.0k/200k [███░░░░░] 42%');
-    });
-
-    it('includes burn rate segment when cache has fresh entry', () => {
+    it('renders subscription usage segment when cache has subscription-usage.json', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
       writeFileSync(
-        join(testCacheDir, 'burn-rate.json'),
+        join(testCacheDir, 'subscription-usage.json'),
         JSON.stringify({
-          rate_per_hour: 0.25,
-          updated_at: Date.now(),
-        })
-      );
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-        cost: { total_cost_usd: 0.23 },
-        context_window: {
-          used_percentage: 42,
-          context_window_size: 200000,
-          current_usage: { input_tokens: 84000 },
-        },
-      });
-
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
-      expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🔥 $0.25/hr | 🧠 84.0k/200k [███░░░░░] 42%');
-    });
-
-    it('includes block info in cost segment when cache has fresh entry', () => {
-      mkdirSync(testCacheDir, { recursive: true });
-
-      writeFileSync(
-        join(testCacheDir, 'block-info.json'),
-        JSON.stringify({
-          cost_usd: 0.45,
-          remaining_seconds: 9900, // 2h 45m
-          updated_at: Date.now(),
+          utilizationPercent: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+          lastError: null,
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
       );
 
@@ -519,54 +470,12 @@ describe('CLI Integration Tests', () => {
         },
       });
 
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
-      expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess / $0.45 (2h 45m left) | 🧠 25.0k/200k [█░░░░░░░] 12%');
-    });
-
-    it('formats full output with all cache entries', () => {
-      mkdirSync(testCacheDir, { recursive: true });
-
-      writeFileSync(
-        join(testCacheDir, 'daily-total.json'),
-        JSON.stringify({
-          cost_usd: 1.23,
-          date: new Date().toISOString().slice(0, 10),
-          updated_at: Date.now(),
-        })
-      );
-
-      writeFileSync(
-        join(testCacheDir, 'block-info.json'),
-        JSON.stringify({
-          cost_usd: 0.45,
-          remaining_seconds: 9900,
-          updated_at: Date.now(),
-        })
-      );
-
-      writeFileSync(
-        join(testCacheDir, 'burn-rate.json'),
-        JSON.stringify({
-          rate_per_hour: 0.12,
-          updated_at: Date.now(),
-        })
-      );
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-        cost: { total_cost_usd: 0.23 },
-        context_window: {
-          used_percentage: 12,
-          context_window_size: 200000,
-          current_usage: { input_tokens: 25000 },
-        },
+      const { stdout, exitCode } = runCli(input, {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
-
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       expect(stripAnsi(stdout.trim())).toBe(
-        '🤖 Opus | 💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left) | 🔥 $0.12/hr | 🧠 25.0k/200k [█░░░░░░░] 12%'
+        '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] 12% | 📦 55% [████░░░░] (~3:45pm)'
       );
     });
 
@@ -587,10 +496,12 @@ describe('CLI Integration Tests', () => {
         },
       });
 
-      const { stdout, exitCode } = runCli(input, { env: { CCUSAGE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Should still produce output without cache data
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42%');
+      expect(stripAnsi(stdout.trim())).toBe(
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+      );
     });
   });
 });

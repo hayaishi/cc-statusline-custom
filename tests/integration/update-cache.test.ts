@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 describe('--update-cache integration', () => {
   const distPath = join(process.cwd(), 'dist', 'index.js');
   const testCacheDir = join(tmpdir(), `ccusage-statusline-update-cache-test-${String(process.pid)}`);
+  const updaterMocksUrl = pathToFileURL(
+    join(process.cwd(), 'tests', 'helpers', 'updater-mocks.mjs')
+  ).href;
 
   beforeAll(() => {
     // Ensure project is built
@@ -32,11 +36,15 @@ describe('--update-cache integration', () => {
    */
   function runUpdateCache(env: Record<string, string> = {}): { stdout: string; exitCode: number } {
     try {
+      const nodeOptions = [process.env.NODE_OPTIONS, `--import ${updaterMocksUrl}`]
+        .filter(Boolean)
+        .join(' ');
       const stdout = execSync(`node ${distPath} --update-cache`, {
         encoding: 'utf-8',
         env: {
           ...process.env,
-          CCUSAGE_CACHE_DIR: testCacheDir,
+          NODE_OPTIONS: nodeOptions,
+          CCSTATUSLINE_CACHE_DIR: testCacheDir,
           ...env,
         },
         timeout: 5000,
@@ -75,12 +83,27 @@ describe('--update-cache integration', () => {
     expect(stdout).toContain('Cache updated');
   });
 
-  it('creates cache files', () => {
+  it('creates only subscription-usage.json', () => {
     runUpdateCache();
 
-    expect(existsSync(join(testCacheDir, 'daily-total.json'))).toBe(true);
-    expect(existsSync(join(testCacheDir, 'block-info.json'))).toBe(true);
-    expect(existsSync(join(testCacheDir, 'burn-rate.json'))).toBe(true);
+    expect(existsSync(join(testCacheDir, 'subscription-usage.json'))).toBe(true);
+
+    const entries = readdirSync(testCacheDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => name !== 'cache.lock');
+
+    expect(entries.sort()).toEqual(['subscription-usage.json']);
+  });
+
+  it('uses mocked OAuth usage in subscription-usage.json', () => {
+    runUpdateCache();
+
+    const content = readFileSync(join(testCacheDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { utilizationPercent?: number; resetsAt?: string };
+
+    expect(parsed.utilizationPercent).toBe(55);
+    expect(parsed.resetsAt).toBe('2026-01-20T15:45:00Z');
   });
 
   it('removes lock file after completion', () => {

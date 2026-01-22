@@ -10,7 +10,6 @@ import {
   formatPercentage,
   formatTokens,
   formatTokensCompact,
-  formatDuration,
   formatProgressBar,
 } from '../utils/format.js';
 import { colorByThreshold } from '../utils/colors.js';
@@ -21,8 +20,8 @@ import type { TokenUsage } from './parser.js';
  */
 const EMOJI_MODEL = '🤖';
 const EMOJI_COST = '💰';
-const EMOJI_BURN = '🔥';
 const EMOJI_CONTEXT = '🧠';
+const EMOJI_SUBSCRIPTION = '📦';
 
 /**
  * Model family patterns for extraction from display names or IDs.
@@ -95,42 +94,6 @@ export function formatContextUsage(pct: number | undefined): string {
   return formatPercentage(pct);
 }
 
-/**
- * Formats burn rate for statusline display.
- * (Kept for backward compatibility)
- *
- * @param ratePerHour - Cost per hour in USD
- * @returns Formatted rate string or empty string
- */
-export function formatBurnRate(ratePerHour: number | undefined): string {
-  if (ratePerHour === undefined) {
-    return '';
-  }
-  const formatted = formatCurrency(ratePerHour);
-  if (formatted === '') {
-    return '';
-  }
-  return formatted + '/hr';
-}
-
-/**
- * Formats daily total for statusline display.
- * (Kept for backward compatibility)
- *
- * @param usd - Daily total in USD
- * @returns Formatted daily total or empty string
- */
-export function formatDailyTotal(usd: number | undefined): string {
-  if (usd === undefined) {
-    return '';
-  }
-  const formatted = formatCurrency(usd);
-  if (formatted === '') {
-    return '';
-  }
-  return formatted + ' today';
-}
-
 // ============================================================================
 // NEW SEGMENT FORMATTERS (with emoji prefixes)
 // ============================================================================
@@ -190,80 +153,27 @@ export function formatModelSegment(displayName: string | undefined): string {
  */
 export interface CostSegmentData {
   readonly sessionCost?: number;
-  readonly dailyTotal?: number;
-  readonly blockCost?: number;
-  readonly blockTimeRemaining?: number; // seconds
 }
 
 /**
  * Formats the unified cost segment with emoji prefix.
  * Output examples:
- * - Full: "💰 $0.23 sess / $1.23 today / $0.45 (2h 45m left)"
- * - No block: "💰 $0.23 sess / $1.23 today"
- * - Minimal: "💰 $0.23 sess"
+ * - "💰 $0.23 sess"
  *
  * @param data - Cost segment data
  * @returns Formatted cost segment or empty string
  */
 export function formatCostSegment(data: CostSegmentData): string {
-  const parts: string[] = [];
-
-  // Session cost (always first if available)
-  if (data.sessionCost !== undefined) {
-    const formatted = formatCurrency(data.sessionCost);
-    if (formatted !== '') {
-      parts.push(`${formatted} sess`);
-    }
-  }
-
-  // Daily total
-  if (data.dailyTotal !== undefined) {
-    const formatted = formatCurrency(data.dailyTotal);
-    if (formatted !== '') {
-      parts.push(`${formatted} today`);
-    }
-  }
-
-  // Block info with time remaining
-  if (data.blockCost !== undefined) {
-    const costFormatted = formatCurrency(data.blockCost);
-    if (costFormatted !== '') {
-      if (data.blockTimeRemaining !== undefined && data.blockTimeRemaining > 0) {
-        const duration = formatDuration(data.blockTimeRemaining);
-        if (duration !== '') {
-          parts.push(`${costFormatted} (${duration} left)`);
-        } else {
-          parts.push(costFormatted);
-        }
-      } else {
-        parts.push(costFormatted);
-      }
-    }
-  }
-
-  if (parts.length === 0) {
+  if (data.sessionCost === undefined) {
     return '';
   }
 
-  return `${EMOJI_COST} ${parts.join(' / ')}`;
-}
-
-/**
- * Formats the burn rate segment with emoji prefix.
- * Output: "🔥 $0.12/hr"
- *
- * @param ratePerHour - Cost per hour in USD
- * @returns Formatted burn rate segment or empty string
- */
-export function formatBurnRateSegment(ratePerHour: number | undefined): string {
-  if (ratePerHour === undefined) {
-    return '';
-  }
-  const formatted = formatCurrency(ratePerHour);
+  const formatted = formatCurrency(data.sessionCost);
   if (formatted === '') {
     return '';
   }
-  return `${EMOJI_BURN} ${formatted}/hr`;
+
+  return `${EMOJI_COST} ${formatted} sess`;
 }
 
 /**
@@ -316,4 +226,25 @@ export function formatContextSegment(
   } else {
     return `${EMOJI_CONTEXT} ${coloredBar} ${coloredPct}`;
   }
+}
+
+/**
+ * Formats the subscription usage segment with emoji, percent, bar, and reset time.
+ * Output: "📦 55% [████░░░░] (~3:45pm)"
+ *
+ * @param percent - Utilization percentage (integer 0-100)
+ * @param reset - Reset time string like "~3:45pm"
+ * @returns Formatted subscription usage segment or empty string
+ */
+export function formatSubscriptionUsageSegment(percent: number, reset: string): string {
+  if (!Number.isFinite(percent) || reset.trim() === '') {
+    return '';
+  }
+
+  const bar = formatProgressBar(percent);
+  if (bar === '') {
+    return '';
+  }
+
+  return `${EMOJI_SUBSCRIPTION} ${String(percent)}% ${bar} (${reset})`;
 }

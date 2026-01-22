@@ -1,7 +1,7 @@
 /**
  * Type definitions for cache entries.
  *
- * These types define the structure of cached extended metrics.
+ * These types define the structure of cached subscription usage metrics.
  */
 
 import { homedir } from 'node:os';
@@ -39,57 +39,34 @@ export const LOCK_FILE_ACTIVE_THRESHOLD_SECONDS = 5;
  * Cache file names.
  */
 export const CACHE_FILE_NAMES = {
-  dailyTotal: 'daily-total.json',
-  blockInfo: 'block-info.json',
-  burnRate: 'burn-rate.json',
+  subscriptionUsage: 'subscription-usage.json',
   lock: 'cache.lock',
 } as const;
 
 /**
  * Cache key type.
  */
-export type CacheKey = 'dailyTotal' | 'blockInfo' | 'burnRate';
+export type CacheKey = 'subscriptionUsage';
 
 /**
- * Base cache entry with common metadata.
+ * Subscription usage cache entry.
  */
-export interface CacheEntryBase {
-  readonly updated_at: number; // Unix timestamp in milliseconds
-}
-
-/**
- * Daily total cost cache entry.
- */
-export interface DailyTotalEntry extends CacheEntryBase {
-  readonly cost_usd: number;
-  readonly date: string; // YYYY-MM-DD format
-}
-
-/**
- * Block info cache entry.
- */
-export interface BlockInfoEntry extends CacheEntryBase {
-  readonly cost_usd: number;
-  readonly remaining_seconds: number;
-}
-
-/**
- * Burn rate cache entry.
- */
-export interface BurnRateEntry extends CacheEntryBase {
-  readonly rate_per_hour: number;
+export interface SubscriptionUsageEntry {
+  readonly utilizationPercent?: number;
+  readonly resetsAt?: string;
+  readonly lastError: string | null;
+  readonly lastAttemptAt?: string;
+  readonly updatedAt?: string;
 }
 
 /**
  * Union of all cache entry types.
  */
-export type CacheEntry = DailyTotalEntry | BlockInfoEntry | BurnRateEntry;
+export type CacheEntry = SubscriptionUsageEntry;
 
 /**
  * Map of cache keys to their entry types.
  */
 export interface CacheEntryMap {
-  dailyTotal: DailyTotalEntry;
-  blockInfo: BlockInfoEntry;
-  burnRate: BurnRateEntry;
+  subscriptionUsage: SubscriptionUsageEntry;
 }

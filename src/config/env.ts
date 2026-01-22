@@ -8,14 +8,27 @@
 import { DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS } from '../types/cache.js';
 import { DEFAULT_CONTEXT_THRESHOLDS } from '../types/metrics.js';
 
+function parseTtlSeconds(value: string | undefined, defaultSeconds: number): number {
+  if (value === undefined) {
+    return defaultSeconds;
+  }
+
+  const parsed = Math.floor(Number(value));
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return defaultSeconds;
+  }
+
+  return parsed;
+}
+
 /**
  * Gets whether extended metrics are enabled.
- * Extended metrics include daily total, block info, and burn rate.
+ * Extended metrics include subscription usage.
  *
- * @returns true if CCUSAGE_EXTENDED_METRICS is "true" or "1"
+ * @returns true if CCSTATUSLINE_EXTENDED_METRICS is "true" or "1"
  */
 export function getExtendedMetricsEnabled(): boolean {
-  const value = process.env.CCUSAGE_EXTENDED_METRICS?.toLowerCase();
+  const value = process.env.CCSTATUSLINE_EXTENDED_METRICS?.toLowerCase();
   return value === 'true' || value === '1';
 }
 
@@ -25,17 +38,16 @@ export function getExtendedMetricsEnabled(): boolean {
  * @returns Cache TTL (default: 60 seconds)
  */
 export function getCacheTtl(): number {
-  const value = process.env.CCUSAGE_CACHE_TTL;
-  if (value === undefined) {
-    return DEFAULT_CACHE_TTL_SECONDS;
-  }
+  return parseTtlSeconds(process.env.CCSTATUSLINE_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
+}
 
-  const parsed = Math.floor(Number(value));
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    return DEFAULT_CACHE_TTL_SECONDS;
-  }
-
-  return parsed;
+/**
+ * Gets the subscription usage cache TTL in seconds.
+ *
+ * @returns Subscription cache TTL (default: 60 seconds)
+ */
+export function getSubscriptionCacheTtl(): number {
+  return parseTtlSeconds(process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
 }
 
 /**
@@ -44,7 +56,7 @@ export function getCacheTtl(): number {
  * @returns Cache directory path (default: ~/.cache/ccusage-statusline)
  */
 export function getCacheDir(): string {
-  const value = process.env.CCUSAGE_CACHE_DIR?.trim();
+  const value = process.env.CCSTATUSLINE_CACHE_DIR?.trim();
   if (value === undefined || value === '') {
     return DEFAULT_CACHE_DIR;
   }
@@ -57,7 +69,7 @@ export function getCacheDir(): string {
  * @returns Threshold percentage 0-100 (default: 50)
  */
 export function getContextLowThreshold(): number {
-  const value = process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD;
+  const value = process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD;
   if (value === undefined) {
     return DEFAULT_CONTEXT_THRESHOLDS.low;
   }
@@ -76,7 +88,7 @@ export function getContextLowThreshold(): number {
  * @returns Threshold percentage 0-100 (default: 80)
  */
 export function getContextMediumThreshold(): number {
-  const value = process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD;
+  const value = process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD;
   if (value === undefined) {
     return DEFAULT_CONTEXT_THRESHOLDS.medium;
   }
@@ -92,9 +104,9 @@ export function getContextMediumThreshold(): number {
 /**
  * Gets whether debug mode is enabled.
  *
- * @returns true if CCUSAGE_DEBUG is "true" or "1"
+ * @returns true if CCSTATUSLINE_DEBUG is "true" or "1"
  */
 export function getDebugEnabled(): boolean {
-  const value = process.env.CCUSAGE_DEBUG?.toLowerCase();
+  const value = process.env.CCSTATUSLINE_DEBUG?.toLowerCase();
   return value === 'true' || value === '1';
 }

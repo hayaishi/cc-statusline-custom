@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   readCacheSync,
-  isCacheStale,
+  readCacheSyncWithMtime,
 } from './cache-reader.js';
-import type { DailyTotalEntry, BlockInfoEntry, BurnRateEntry } from '../types/cache.js';
+import type { SubscriptionUsageEntry } from '../types/cache.js';
 
 describe('cache-reader', () => {
   const testDir = join(tmpdir(), `ccusage-statusline-test-${String(process.pid)}`);
@@ -27,82 +27,63 @@ describe('cache-reader', () => {
 
   describe('readCacheSync', () => {
     it('returns null for non-existent file', () => {
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
     it('returns null for empty file', () => {
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       writeFileSync(filePath, '');
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
     it('returns null for invalid JSON', () => {
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       writeFileSync(filePath, 'not json');
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
     it('returns null for non-object JSON', () => {
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       writeFileSync(filePath, '[]');
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
     it('returns null for file exceeding max size', () => {
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       // Create a file larger than 1KB
       const largeContent = JSON.stringify({ data: 'x'.repeat(2000) });
       writeFileSync(filePath, largeContent);
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
-    it('reads valid daily-total.json', () => {
-      const filePath = join(testDir, 'daily-total.json');
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+    it('reads valid subscription-usage.json', () => {
+      const filePath = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
       };
       writeFileSync(filePath, JSON.stringify(entry));
-      const result = readCacheSync('dailyTotal', testDir);
-      expect(result).toEqual(entry);
-    });
-
-    it('reads valid block-info.json', () => {
-      const filePath = join(testDir, 'block-info.json');
-      const entry: BlockInfoEntry = {
-        cost_usd: 0.45,
-        remaining_seconds: 9900,
-        updated_at: Date.now(),
-      };
-      writeFileSync(filePath, JSON.stringify(entry));
-      const result = readCacheSync('blockInfo', testDir);
-      expect(result).toEqual(entry);
-    });
-
-    it('reads valid burn-rate.json', () => {
-      const filePath = join(testDir, 'burn-rate.json');
-      const entry: BurnRateEntry = {
-        rate_per_hour: 0.12,
-        updated_at: Date.now(),
-      };
-      writeFileSync(filePath, JSON.stringify(entry));
-      const result = readCacheSync('burnRate', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toEqual(entry);
     });
 
     it('skips read when lock file is fresh (< 5 seconds old)', () => {
       // Create valid cache file
-      const cacheFile = join(testDir, 'daily-total.json');
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
       };
       writeFileSync(cacheFile, JSON.stringify(entry));
 
@@ -111,17 +92,19 @@ describe('cache-reader', () => {
       writeFileSync(lockFile, 'locked');
 
       // Should return null because lock file is fresh
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
     });
 
     it('reads cache when lock file is stale (> 5 seconds old)', () => {
       // Create valid cache file
-      const cacheFile = join(testDir, 'daily-total.json');
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
       };
       writeFileSync(cacheFile, JSON.stringify(entry));
 
@@ -133,17 +116,19 @@ describe('cache-reader', () => {
       const oldTime = new Date(Date.now() - 10000);
       utimesSync(lockFile, oldTime, oldTime);
 
-      const result = readCacheSync('dailyTotal', testDir);
+      const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toEqual(entry);
     });
 
     describe('mtime-based TTL guard', () => {
       it('returns null when file mtime exceeds TTL', () => {
-        const cacheFile = join(testDir, 'daily-total.json');
-        const entry: DailyTotalEntry = {
-          cost_usd: 1.23,
-          date: '2026-01-19',
-          updated_at: Date.now(),
+        const cacheFile = join(testDir, 'subscription-usage.json');
+        const entry: SubscriptionUsageEntry = {
+          utilizationPercent: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+          updatedAt: '2026-01-20T10:00:00Z',
+          lastError: null,
+          lastAttemptAt: '2026-01-20T10:00:00Z',
         };
         writeFileSync(cacheFile, JSON.stringify(entry));
 
@@ -151,30 +136,34 @@ describe('cache-reader', () => {
         const oldTime = new Date(Date.now() - 120000);
         utimesSync(cacheFile, oldTime, oldTime);
 
-        const result = readCacheSync('dailyTotal', testDir);
+        const result = readCacheSync('subscriptionUsage', testDir);
         expect(result).toBeNull();
       });
 
       it('reads cache when file mtime is within TTL', () => {
-        const cacheFile = join(testDir, 'daily-total.json');
-        const entry: DailyTotalEntry = {
-          cost_usd: 1.23,
-          date: '2026-01-19',
-          updated_at: Date.now(),
+        const cacheFile = join(testDir, 'subscription-usage.json');
+        const entry: SubscriptionUsageEntry = {
+          utilizationPercent: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+          updatedAt: '2026-01-20T10:00:00Z',
+          lastError: null,
+          lastAttemptAt: '2026-01-20T10:00:00Z',
         };
         writeFileSync(cacheFile, JSON.stringify(entry));
 
         // File just created, mtime is fresh (within 60s TTL)
-        const result = readCacheSync('dailyTotal', testDir);
+        const result = readCacheSync('subscriptionUsage', testDir);
         expect(result).toEqual(entry);
       });
 
       it('returns null at exactly TTL boundary', () => {
-        const cacheFile = join(testDir, 'daily-total.json');
-        const entry: DailyTotalEntry = {
-          cost_usd: 1.23,
-          date: '2026-01-19',
-          updated_at: Date.now(),
+        const cacheFile = join(testDir, 'subscription-usage.json');
+        const entry: SubscriptionUsageEntry = {
+          utilizationPercent: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+          updatedAt: '2026-01-20T10:00:00Z',
+          lastError: null,
+          lastAttemptAt: '2026-01-20T10:00:00Z',
         };
         writeFileSync(cacheFile, JSON.stringify(entry));
 
@@ -182,16 +171,18 @@ describe('cache-reader', () => {
         const exactlyTtl = new Date(Date.now() - 60000);
         utimesSync(cacheFile, exactlyTtl, exactlyTtl);
 
-        const result = readCacheSync('dailyTotal', testDir);
+        const result = readCacheSync('subscriptionUsage', testDir);
         expect(result).toBeNull();
       });
 
       it('respects custom TTL parameter', () => {
-        const cacheFile = join(testDir, 'daily-total.json');
-        const entry: DailyTotalEntry = {
-          cost_usd: 1.23,
-          date: '2026-01-19',
-          updated_at: Date.now(),
+        const cacheFile = join(testDir, 'subscription-usage.json');
+        const entry: SubscriptionUsageEntry = {
+          utilizationPercent: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+          updatedAt: '2026-01-20T10:00:00Z',
+          lastError: null,
+          lastAttemptAt: '2026-01-20T10:00:00Z',
         };
         writeFileSync(cacheFile, JSON.stringify(entry));
 
@@ -200,51 +191,50 @@ describe('cache-reader', () => {
         utimesSync(cacheFile, thirtySecondsAgo, thirtySecondsAgo);
 
         // With TTL of 20 seconds, should return null
-        const resultStale = readCacheSync('dailyTotal', testDir, 20);
+        const resultStale = readCacheSync('subscriptionUsage', testDir, 20);
         expect(resultStale).toBeNull();
 
         // With TTL of 60 seconds, should return entry
-        const resultFresh = readCacheSync('dailyTotal', testDir, 60);
+        const resultFresh = readCacheSync('subscriptionUsage', testDir, 60);
         expect(resultFresh).toEqual(entry);
       });
     });
   });
 
-  describe('isCacheStale', () => {
-    it('returns true for entries older than TTL', () => {
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now() - 120000, // 120 seconds ago
+  describe('readCacheSyncWithMtime', () => {
+    it('returns entry with isFresh=false when mtime exceeds TTL', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
       };
-      expect(isCacheStale(entry, 60)).toBe(true);
+      writeFileSync(cacheFile, JSON.stringify(entry));
+
+      const oldTime = new Date(Date.now() - 120000);
+      utimesSync(cacheFile, oldTime, oldTime);
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.isFresh).toBe(false);
+      expect(result.entry).toEqual(entry);
     });
 
-    it('returns false for entries within TTL', () => {
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now() - 30000, // 30 seconds ago
+    it('returns entry with isFresh=true when mtime is within TTL', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
       };
-      expect(isCacheStale(entry, 60)).toBe(false);
-    });
+      writeFileSync(cacheFile, JSON.stringify(entry));
 
-    it('returns true for entries at exactly TTL boundary', () => {
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now() - 60000, // exactly 60 seconds ago
-      };
-      expect(isCacheStale(entry, 60)).toBe(true);
-    });
-
-    it('returns true for entries with invalid updated_at', () => {
-      const entry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: NaN,
-      } as DailyTotalEntry;
-      expect(isCacheStale(entry, 60)).toBe(true);
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.isFresh).toBe(true);
+      expect(result.entry).toEqual(entry);
     });
   });
 });

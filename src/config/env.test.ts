@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   getExtendedMetricsEnabled,
   getCacheTtl,
+  getSubscriptionCacheTtl,
   getCacheDir,
   getContextLowThreshold,
   getContextMediumThreshold,
@@ -22,159 +23,219 @@ describe('env config', () => {
 
   describe('getExtendedMetricsEnabled', () => {
     it('returns false by default', () => {
-      delete process.env.CCUSAGE_EXTENDED_METRICS;
+      delete process.env.CCSTATUSLINE_EXTENDED_METRICS;
       expect(getExtendedMetricsEnabled()).toBe(false);
     });
 
     it('returns true when set to "true"', () => {
-      process.env.CCUSAGE_EXTENDED_METRICS = 'true';
+      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'true';
       expect(getExtendedMetricsEnabled()).toBe(true);
     });
 
     it('returns true when set to "1"', () => {
-      process.env.CCUSAGE_EXTENDED_METRICS = '1';
+      process.env.CCSTATUSLINE_EXTENDED_METRICS = '1';
       expect(getExtendedMetricsEnabled()).toBe(true);
     });
 
     it('returns false when set to "false"', () => {
-      process.env.CCUSAGE_EXTENDED_METRICS = 'false';
+      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'false';
       expect(getExtendedMetricsEnabled()).toBe(false);
     });
 
     it('returns false when set to "0"', () => {
-      process.env.CCUSAGE_EXTENDED_METRICS = '0';
+      process.env.CCSTATUSLINE_EXTENDED_METRICS = '0';
       expect(getExtendedMetricsEnabled()).toBe(false);
     });
 
     it('returns false for invalid values', () => {
-      process.env.CCUSAGE_EXTENDED_METRICS = 'invalid';
+      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'invalid';
       expect(getExtendedMetricsEnabled()).toBe(false);
     });
   });
 
   describe('getCacheTtl', () => {
     it('returns 60 by default', () => {
-      delete process.env.CCUSAGE_CACHE_TTL;
+      delete process.env.CCSTATUSLINE_CACHE_TTL;
       expect(getCacheTtl()).toBe(60);
     });
 
     it('parses valid integer values', () => {
-      process.env.CCUSAGE_CACHE_TTL = '120';
+      process.env.CCSTATUSLINE_CACHE_TTL = '120';
       expect(getCacheTtl()).toBe(120);
     });
 
     it('returns default for non-numeric values', () => {
-      process.env.CCUSAGE_CACHE_TTL = 'abc';
+      process.env.CCSTATUSLINE_CACHE_TTL = 'abc';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('returns default for negative values', () => {
-      process.env.CCUSAGE_CACHE_TTL = '-10';
+      process.env.CCSTATUSLINE_CACHE_TTL = '-10';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('returns default for zero', () => {
-      process.env.CCUSAGE_CACHE_TTL = '0';
+      process.env.CCSTATUSLINE_CACHE_TTL = '0';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('handles float values by flooring', () => {
-      process.env.CCUSAGE_CACHE_TTL = '45.7';
+      process.env.CCSTATUSLINE_CACHE_TTL = '45.7';
       expect(getCacheTtl()).toBe(45);
+    });
+  });
+
+  describe('getSubscriptionCacheTtl', () => {
+    it('returns 60 by default', () => {
+      delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
+      expect(getSubscriptionCacheTtl()).toBe(60);
+    });
+
+    it('parses valid integer values', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '120';
+      expect(getSubscriptionCacheTtl()).toBe(120);
+    });
+
+    it('returns default for non-numeric values', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = 'abc';
+      expect(getSubscriptionCacheTtl()).toBe(60);
+    });
+
+    it('returns default for negative values', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '-10';
+      expect(getSubscriptionCacheTtl()).toBe(60);
+    });
+
+    it('returns default for zero', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '0';
+      expect(getSubscriptionCacheTtl()).toBe(60);
+    });
+
+    it('handles float values by flooring', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '45.7';
+      expect(getSubscriptionCacheTtl()).toBe(45);
     });
   });
 
   describe('getCacheDir', () => {
     it('returns default path when not set', () => {
-      delete process.env.CCUSAGE_CACHE_DIR;
+      delete process.env.CCSTATUSLINE_CACHE_DIR;
       const result = getCacheDir();
       expect(result).toContain('.cache');
       expect(result).toContain('ccusage-statusline');
     });
 
     it('returns custom path when set', () => {
-      process.env.CCUSAGE_CACHE_DIR = '/custom/cache/path';
+      process.env.CCSTATUSLINE_CACHE_DIR = '/custom/cache/path';
       expect(getCacheDir()).toBe('/custom/cache/path');
     });
 
     it('trims whitespace', () => {
-      process.env.CCUSAGE_CACHE_DIR = '  /custom/path  ';
+      process.env.CCSTATUSLINE_CACHE_DIR = '  /custom/path  ';
       expect(getCacheDir()).toBe('/custom/path');
     });
   });
 
   describe('getContextLowThreshold', () => {
     it('returns 50 by default', () => {
-      delete process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD;
+      delete process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD;
       expect(getContextLowThreshold()).toBe(50);
     });
 
     it('parses valid integer values', () => {
-      process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD = '30';
+      process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD = '30';
       expect(getContextLowThreshold()).toBe(30);
     });
 
     it('clamps to 0-100 range (below)', () => {
-      process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD = '-10';
+      process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD = '-10';
       expect(getContextLowThreshold()).toBe(0);
     });
 
     it('clamps to 0-100 range (above)', () => {
-      process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD = '150';
+      process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD = '150';
       expect(getContextLowThreshold()).toBe(100);
     });
 
     it('returns default for non-numeric values', () => {
-      process.env.CCUSAGE_CONTEXT_LOW_THRESHOLD = 'invalid';
+      process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD = 'invalid';
       expect(getContextLowThreshold()).toBe(50);
     });
   });
 
   describe('getContextMediumThreshold', () => {
     it('returns 80 by default', () => {
-      delete process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD;
+      delete process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD;
       expect(getContextMediumThreshold()).toBe(80);
     });
 
     it('parses valid integer values', () => {
-      process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD = '70';
+      process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD = '70';
       expect(getContextMediumThreshold()).toBe(70);
     });
 
     it('clamps to 0-100 range (below)', () => {
-      process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD = '-10';
+      process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD = '-10';
       expect(getContextMediumThreshold()).toBe(0);
     });
 
     it('clamps to 0-100 range (above)', () => {
-      process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD = '150';
+      process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD = '150';
       expect(getContextMediumThreshold()).toBe(100);
     });
 
     it('returns default for non-numeric values', () => {
-      process.env.CCUSAGE_CONTEXT_MEDIUM_THRESHOLD = 'invalid';
+      process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD = 'invalid';
       expect(getContextMediumThreshold()).toBe(80);
     });
   });
 
   describe('getDebugEnabled', () => {
     it('returns false by default', () => {
-      delete process.env.CCUSAGE_DEBUG;
+      delete process.env.CCSTATUSLINE_DEBUG;
       expect(getDebugEnabled()).toBe(false);
     });
 
     it('returns true when set to "true"', () => {
-      process.env.CCUSAGE_DEBUG = 'true';
+      process.env.CCSTATUSLINE_DEBUG = 'true';
       expect(getDebugEnabled()).toBe(true);
     });
 
     it('returns true when set to "1"', () => {
-      process.env.CCUSAGE_DEBUG = '1';
+      process.env.CCSTATUSLINE_DEBUG = '1';
       expect(getDebugEnabled()).toBe(true);
     });
 
     it('returns false for other values', () => {
-      process.env.CCUSAGE_DEBUG = 'yes';
+      process.env.CCSTATUSLINE_DEBUG = 'yes';
+      expect(getDebugEnabled()).toBe(false);
+    });
+  });
+
+  describe('ignores legacy env variables', () => {
+    const legacyPrefix = ['CC', 'USAGE', '_'].join('');
+
+    it('ignores legacy cache TTL when new var is unset', () => {
+      process.env[`${legacyPrefix}CACHE_TTL`] = '999';
+      delete process.env.CCSTATUSLINE_CACHE_TTL;
+      expect(getCacheTtl()).toBe(60);
+    });
+
+    it('ignores legacy subscription cache TTL when new var is unset', () => {
+      process.env[`${legacyPrefix}SUBSCRIPTION_CACHE_TTL`] = '999';
+      delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
+      expect(getSubscriptionCacheTtl()).toBe(60);
+    });
+
+    it('ignores legacy extended metrics flag when new var is unset', () => {
+      process.env[`${legacyPrefix}EXTENDED_METRICS`] = 'true';
+      delete process.env.CCSTATUSLINE_EXTENDED_METRICS;
+      expect(getExtendedMetricsEnabled()).toBe(false);
+    });
+
+    it('ignores legacy debug flag when new var is unset', () => {
+      process.env[`${legacyPrefix}DEBUG`] = 'true';
+      delete process.env.CCSTATUSLINE_DEBUG;
       expect(getDebugEnabled()).toBe(false);
     });
   });

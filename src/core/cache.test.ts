@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync, utimesSync 
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { writeCacheAtomic, acquireLock, releaseLock } from './cache.js';
-import type { DailyTotalEntry } from '../types/cache.js';
+import type { SubscriptionUsageEntry } from '../types/cache.js';
 
 describe('cache', () => {
   const testDir = join(tmpdir(), `ccusage-statusline-cache-test-${String(process.pid)}`);
@@ -22,54 +22,62 @@ describe('cache', () => {
 
   describe('writeCacheAtomic', () => {
     it('writes cache file atomically', () => {
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      writeCacheAtomic('dailyTotal', entry, testDir);
+      writeCacheAtomic('subscriptionUsage', entry, testDir);
 
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       expect(existsSync(filePath)).toBe(true);
 
       const content = readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(content) as DailyTotalEntry;
+      const parsed = JSON.parse(content) as SubscriptionUsageEntry;
       expect(parsed).toEqual(entry);
     });
 
     it('creates cache directory if it does not exist', () => {
       const nestedDir = join(testDir, 'nested', 'cache');
-      const entry: DailyTotalEntry = {
-        cost_usd: 1.23,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      writeCacheAtomic('dailyTotal', entry, nestedDir);
+      writeCacheAtomic('subscriptionUsage', entry, nestedDir);
 
-      const filePath = join(nestedDir, 'daily-total.json');
+      const filePath = join(nestedDir, 'subscription-usage.json');
       expect(existsSync(filePath)).toBe(true);
     });
 
     it('overwrites existing cache file', () => {
-      const entry1: DailyTotalEntry = {
-        cost_usd: 1.00,
-        date: '2026-01-18',
-        updated_at: Date.now() - 1000,
+      const entry1: SubscriptionUsageEntry = {
+        utilizationPercent: 10,
+        resetsAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      const entry2: DailyTotalEntry = {
-        cost_usd: 2.00,
-        date: '2026-01-19',
-        updated_at: Date.now(),
+      const entry2: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      writeCacheAtomic('dailyTotal', entry1, testDir);
-      writeCacheAtomic('dailyTotal', entry2, testDir);
+      writeCacheAtomic('subscriptionUsage', entry1, testDir);
+      writeCacheAtomic('subscriptionUsage', entry2, testDir);
 
-      const filePath = join(testDir, 'daily-total.json');
+      const filePath = join(testDir, 'subscription-usage.json');
       const content = readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(content) as DailyTotalEntry;
-      expect(parsed.cost_usd).toBe(2.00);
+      const parsed = JSON.parse(content) as SubscriptionUsageEntry;
+      expect(parsed.utilizationPercent).toBe(55);
     });
   });
 

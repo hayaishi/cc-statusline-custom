@@ -21,7 +21,7 @@ import {
   LOCK_FILE_STALE_THRESHOLD_SECONDS,
   DEFAULT_CACHE_DIR,
 } from '../types/cache.js';
-import type { CacheKey, CacheEntryBase } from '../types/cache.js';
+import type { CacheKey, CacheEntry } from '../types/cache.js';
 
 /**
  * Gets the file path for a cache key.
@@ -55,7 +55,7 @@ function ensureDir(dirPath: string): void {
  */
 export function writeCacheAtomic(
   key: CacheKey,
-  entry: CacheEntryBase,
+  entry: CacheEntry,
   cacheDir: string = DEFAULT_CACHE_DIR
 ): void {
   ensureDir(cacheDir);
