@@ -25,8 +25,136 @@ import {
   getContextLowThreshold,
   getContextMediumThreshold,
   getSubscriptionCacheTtl,
+  getSegmentsConfig,
 } from '../config/env.js';
 import { formatResetTime } from '../utils/time.js';
+
+/**
+ * Canonical segment identifiers.
+ */
+export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage';
+
+/**
+ * Default segment order (matches original hardcoded behavior).
+ */
+export const DEFAULT_SEGMENT_ORDER: readonly SegmentId[] = [
+  'model',
+  'cost_session',
+  'context',
+  'subscription_usage',
+] as const;
+
+/**
+ * Alias mappings to canonical identifiers.
+ * Keys are lowercase for case-insensitive lookup.
+ */
+const SEGMENT_ALIASES: Record<string, SegmentId> = {
+  // Canonical (identity)
+  model: 'model',
+  cost_session: 'cost_session',
+  context: 'context',
+  subscription_usage: 'subscription_usage',
+
+  // Cost aliases
+  cost: 'cost_session',
+  cost_usd: 'cost_session',
+  cost_sess: 'cost_session',
+  sess: 'cost_session',
+
+  // Context aliases
+  ctx: 'context',
+
+  // Subscription aliases
+  usage: 'subscription_usage',
+  subscription: 'subscription_usage',
+  sub_usage: 'subscription_usage',
+  sub: 'subscription_usage',
+};
+
+/**
+ * Normalizes a segment identifier to its canonical form.
+ *
+ * @param id - User-provided segment identifier
+ * @returns Canonical SegmentId or null if unknown
+ */
+export function normalizeSegmentId(id: string): SegmentId | null {
+  const normalized = id.trim().toLowerCase();
+  if (normalized === '') {
+    return null;
+  }
+  return SEGMENT_ALIASES[normalized] ?? null;
+}
+
+/**
+ * Parses a comma-separated segment list string.
+ *
+ * - Normalizes aliases to canonical identifiers
+ * - Ignores unknown identifiers (no error)
+ * - Removes duplicates (keeps first occurrence)
+ *
+ * @param csv - Comma-separated segment identifiers
+ * @returns Array of canonical SegmentIds (may be empty)
+ */
+export function parseSegmentList(csv: string): SegmentId[] {
+  const seen = new Set<SegmentId>();
+  const result: SegmentId[] = [];
+
+  const parts = csv.split(',');
+  for (const part of parts) {
+    const canonical = normalizeSegmentId(part);
+    if (canonical !== null && !seen.has(canonical)) {
+      seen.add(canonical);
+      result.push(canonical);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Resolves the final segment order based on CLI args and environment.
+ *
+ * Resolution order:
+ * 1. If CLI flag is present (cliValue !== undefined):
+ *    - Parse it; if valid segments found, use them
+ *    - If empty/invalid, use DEFAULT (do NOT fall back to env)
+ * 2. If CLI flag is NOT present (cliValue === undefined):
+ *    - Check environment variable CCSTATUSLINE_SEGMENTS
+ *    - If set and valid, use it; otherwise use DEFAULT
+ *
+ * @param cliValue - Value from CLI --segments or -s flag (undefined if flag not present, '' if present but no value)
+ * @param envValue - Optional explicit env value (used for testing). If undefined, reads from process.env.
+ * @returns Final segment order to use
+ */
+export function resolveSegmentOrder(
+  cliValue: string | undefined,
+  envValue?: string
+): readonly SegmentId[] {
+  // 1. If CLI flag is present (even if empty/invalid), use CLI result or DEFAULT
+  //    Do NOT fall back to env when CLI flag is present
+  if (cliValue !== undefined) {
+    if (cliValue.trim() !== '') {
+      const parsed = parseSegmentList(cliValue);
+      if (parsed.length > 0) {
+        return parsed;
+      }
+    }
+    // CLI flag present but empty/invalid => use DEFAULT (no env fallback)
+    return DEFAULT_SEGMENT_ORDER;
+  }
+
+  // 2. CLI flag not present => consult environment variable
+  const envSegments = envValue ?? getSegmentsConfig();
+  if (envSegments !== undefined && envSegments.trim() !== '') {
+    const parsed = parseSegmentList(envSegments);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  // 3. Default
+  return DEFAULT_SEGMENT_ORDER;
+}
 
 /**
  * Visible fallback output when no meaningful statusline can be generated.
@@ -98,50 +226,65 @@ function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
 }
 
 /**
- * Composes all segments into the legacy format statusline.
+ * Segment builder function type.
+ * Returns the segment string, or empty string if the segment should be omitted.
+ */
+type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string) => string;
+
+/**
+ * Creates the segment builder registry.
+ * Each builder returns an empty string if the segment should be omitted.
+ */
+function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
+  return {
+    model: (input) => {
+      const modelName = extractModelDisplayName(input);
+      return formatModelSegment(modelName);
+    },
+    cost_session: (input) => {
+      const costData = buildCostSegmentData(input);
+      return formatCostSegment(costData);
+    },
+    context: (input) => {
+      const tokenUsage = extractTokenUsage(input);
+      return formatContextSegment(
+        tokenUsage,
+        getContextLowThreshold(),
+        getContextMediumThreshold()
+      );
+    },
+    subscription_usage: (_input, cacheDir) => {
+      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl());
+    },
+  };
+}
+
+/**
+ * Composes segments in the specified order.
  *
- * Segment order:
- * 1. Model: "🤖 Opus"
- * 2. Cost: "💰 $0.23 sess"
- * 3. Context: "🧠 25.0k/200k [████░░░░] 12%"
- * 4. Subscription usage: "📦 55% [████░░░░] (~3:45pm)"
+ * @param input - Parsed input
+ * @param cacheDir - Cache directory
+ * @param segmentOrder - Order of segments to render
  */
 function composeSegments(
   input: ClaudeCodeInput,
-  cacheDir: string
+  cacheDir: string,
+  segmentOrder: readonly SegmentId[]
 ): string[] {
+  const builders = createSegmentBuilders();
   const segments: string[] = [];
 
-  // 1. Model segment: "🤖 Opus"
-  const modelName = extractModelDisplayName(input);
-  const modelSegment = formatModelSegment(modelName);
-  if (modelSegment !== '') {
-    segments.push(modelSegment);
-  }
+  for (const segmentId of segmentOrder) {
+    const builder = builders[segmentId];
 
-  // 2. Cost segment: "💰 $0.23 sess"
-  const costData = buildCostSegmentData(input);
-  const costSegment = formatCostSegment(costData);
-  if (costSegment !== '') {
-    segments.push(costSegment);
-  }
+    // Special case: subscription_usage only renders if we have other segments
+    if (segmentId === 'subscription_usage' && segments.length === 0) {
+      continue;
+    }
 
-  // 3. Context segment: "🧠 25.0k/200k [████░░░░] 12%"
-  const tokenUsage = extractTokenUsage(input);
-  const contextSegment = formatContextSegment(
-    tokenUsage,
-    getContextLowThreshold(),
-    getContextMediumThreshold()
-  );
-  if (contextSegment !== '') {
-    segments.push(contextSegment);
-  }
-
-  // 4. Subscription usage segment: "📦 55% [████░░░░] (~3:45pm)"
-  if (segments.length > 0) {
-    const subscriptionSegment = buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl());
-    if (subscriptionSegment !== '') {
-      segments.push(subscriptionSegment);
+    const segment = builder(input, cacheDir);
+    if (segment !== '') {
+      segments.push(segment);
     }
   }
 
@@ -205,11 +348,13 @@ function ensureVisibleOutput(text: string): string {
  *
  * @param input - Parsed input from Claude Code, or null if parsing failed
  * @param cacheDir - Cache directory (optional, defaults to ~/.cache/ccusage-statusline)
+ * @param segments - Segment order (optional, defaults to DEFAULT_SEGMENT_ORDER)
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
   input: ClaudeCodeInput | null,
-  cacheDir: string = DEFAULT_CACHE_DIR
+  cacheDir: string = DEFAULT_CACHE_DIR,
+  segments?: readonly SegmentId[]
 ): string {
   try {
     // Handle null/missing input
@@ -217,16 +362,19 @@ export function generateStatusline(
       return FALLBACK_OUTPUT;
     }
 
+    // Use provided segment order or default
+    const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
+
     // Compose all segments
-    const segments = composeSegments(input, cacheDir);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder);
 
     // If no segments, return fallback
-    if (segments.length === 0) {
+    if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;
     }
 
     // Join segments with " | " separator
-    const output = segments.join(' | ');
+    const output = composedSegments.join(' | ');
 
     // Ensure single line and non-empty output
     return ensureVisibleOutput(output);

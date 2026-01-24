@@ -7,6 +7,7 @@ import {
   getContextLowThreshold,
   getContextMediumThreshold,
   getDebugEnabled,
+  getSegmentsConfig,
 } from './env.js';
 
 describe('env config', () => {
@@ -237,6 +238,38 @@ describe('env config', () => {
       process.env[`${legacyPrefix}DEBUG`] = 'true';
       delete process.env.CCSTATUSLINE_DEBUG;
       expect(getDebugEnabled()).toBe(false);
+    });
+  });
+
+  describe('getSegmentsConfig', () => {
+    it('returns undefined when not set', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      expect(getSegmentsConfig()).toBeUndefined();
+    });
+
+    it('returns undefined for empty string', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = '';
+      expect(getSegmentsConfig()).toBeUndefined();
+    });
+
+    it('returns undefined for whitespace-only', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = '   ';
+      expect(getSegmentsConfig()).toBeUndefined();
+    });
+
+    it('returns trimmed value when set', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = '  model,context  ';
+      expect(getSegmentsConfig()).toBe('model,context');
+    });
+
+    it('preserves case as-is (normalization happens at parse time)', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'MODEL,Context';
+      expect(getSegmentsConfig()).toBe('MODEL,Context');
+    });
+
+    it('returns value with commas and spaces', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'model, context, cost';
+      expect(getSegmentsConfig()).toBe('model, context, cost');
     });
   });
 });

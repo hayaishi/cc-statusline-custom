@@ -19,8 +19,9 @@
  */
 
 import { readStdinSync } from './utils/stdin.js';
+import { parseSegmentsArg } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
-import { generateStatusline, FALLBACK_OUTPUT } from './core/statusline.js';
+import { generateStatusline, FALLBACK_OUTPUT, resolveSegmentOrder } from './core/statusline.js';
 import { getCacheDir } from './config/env.js';
 
 /**
@@ -62,14 +63,19 @@ async function handleUpdateCache(): Promise<void> {
  * Reads JSON from stdin, generates statusline, outputs to stdout.
  *
  * Always reads from cache when available for subscription usage.
+ *
+ * @param segmentsArg - Value from CLI --segments or -s flag (undefined if not provided)
  */
-function handleStatusline(): void {
+function handleStatusline(segmentsArg: string | undefined): void {
   try {
     const raw = readStdinSync();
     const input = parseInput(raw);
 
+    // Resolve segment order: CLI > env > default
+    const segmentOrder = resolveSegmentOrder(segmentsArg);
+
     // Generate statusline (reads cache for subscription usage)
-    const line = generateStatusline(input, getCacheDir());
+    const line = generateStatusline(input, getCacheDir(), segmentOrder);
 
     // Print ONLY the first visible line (defense in depth)
     console.log(ensureVisibleFirstLine(line));
@@ -89,7 +95,8 @@ async function main(): Promise<void> {
   if (args.includes('--update-cache')) {
     await handleUpdateCache();
   } else {
-    handleStatusline();
+    const segmentsArg = parseSegmentsArg(args);
+    handleStatusline(segmentsArg);
   }
 }
 

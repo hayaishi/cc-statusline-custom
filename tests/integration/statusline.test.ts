@@ -271,7 +271,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe(
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe(
         '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
       );
     });
@@ -283,7 +284,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Sonnet | 📦 Loading...');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Sonnet | 📦 Loading...');
     });
 
     it('formats partial schema (model + cost)', () => {
@@ -294,7 +296,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Haiku | 💰 $0.01 sess | 📦 Loading...');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 sess | 📦 Loading...');
     });
 
     it('formats backward-compatible flat schema', () => {
@@ -310,7 +313,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe(
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe(
         '🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] 25% | 📦 Loading...'
       );
     });
@@ -343,7 +347,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toContain('43%');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toContain('43%');
     });
   });
 
@@ -364,7 +369,8 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Only cost segment
-      expect(stripAnsi(stdout.trim())).toBe('💰 $0.50 sess | 📦 Loading...');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('💰 $0.50 sess | 📦 Loading...');
     });
 
     it('handles invalid cost gracefully', () => {
@@ -376,7 +382,8 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Only model is valid
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 📦 Loading...');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
     });
 
     it('handles missing context_window gracefully', () => {
@@ -387,7 +394,8 @@ describe('CLI Integration Tests', () => {
       });
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
     });
   });
 
@@ -474,7 +482,8 @@ describe('CLI Integration Tests', () => {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
       expect(exitCode).toBe(0);
-      expect(stripAnsi(stdout.trim())).toBe(
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe(
         '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] 12% | 📦 55% [████░░░░] (~3:45pm)'
       );
     });
@@ -499,9 +508,404 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Should still produce output without cache data
-      expect(stripAnsi(stdout.trim())).toBe(
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe(
         '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
       );
+    });
+  });
+
+  describe('CLI --segments flag', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-segments-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    function runCliWithSegments(
+      stdin: string,
+      segmentsFlag: string,
+      env?: Record<string, string>
+    ): { stdout: string; exitCode: number } {
+      const execOptions: ExecSyncOptions = {
+        input: stdin,
+        encoding: 'utf-8',
+        cwd: PROJECT_ROOT,
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, CCSTATUSLINE_CACHE_DIR: testCacheDir, ...env },
+      };
+
+      try {
+        const stdout = execSync(`node ${CLI_PATH} ${segmentsFlag}`, execOptions);
+        return { stdout: String(stdout), exitCode: 0 };
+      } catch (error) {
+        const execError = error as { status?: number; stdout?: Buffer | string };
+        return {
+          stdout: String(execError.stdout ?? ''),
+          exitCode: execError.status ?? 1,
+        };
+      }
+    }
+
+    it('respects --segments=<csv> flag for order', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '--segments=context,model');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🧠 84.0k/200k [███░░░░░] 42% | 🤖 Opus');
+    });
+
+    it('respects -s <csv> short flag', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s cost_session,model');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('💰 $0.23 sess | 🤖 Opus');
+    });
+
+    it('CLI flag overrides environment variable', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(
+        input,
+        '--segments=model',
+        { CCSTATUSLINE_SEGMENTS: 'cost_session,model' }
+      );
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus');
+    });
+
+    it('uses environment variable when CLI flag absent', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCli(input, {
+        env: {
+          CCSTATUSLINE_CACHE_DIR: testCacheDir,
+          CCSTATUSLINE_SEGMENTS: 'cost_session,model',
+        },
+      });
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('💰 $0.23 sess | 🤖 Opus');
+    });
+
+    it('normalizes aliases (sub -> subscription_usage)', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,sub');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
+    });
+
+    it('normalizes ctx alias to context', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,ctx');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42%');
+    });
+
+    it('normalizes cost_usd alias to cost_session', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,cost_usd');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess');
+    });
+
+    it('ignores unknown segments gracefully', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,unknown,cost_session');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess');
+    });
+
+    it('falls back to default when all segments unknown', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s unknown,invalid');
+      expect(exitCode).toBe(0);
+      // Default order: model, cost_session, context, subscription_usage
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
+    });
+
+    it('maintains single-line output invariant', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,cost_session');
+      expect(exitCode).toBe(0);
+      assertSingleLine(stdout);
+    });
+
+    it('always exits with code 0', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const { exitCode: exit1 } = runCliWithSegments('{}', '-s unknown');
+      const { exitCode: exit2 } = runCliWithSegments('invalid', '-s model');
+      const { exitCode: exit3 } = runCliWithSegments('', '-s context');
+      expect(exit1).toBe(0);
+      expect(exit2).toBe(0);
+      expect(exit3).toBe(0);
+    });
+
+    describe('last-wins semantics for multiple flags', () => {
+      it('uses last --segments value when multiple provided', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // Last --segments=model should win over first --segments=cost_session
+        const { stdout, exitCode } = runCliWithSegments(input, '--segments=cost_session --segments=model');
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toBe('🤖 Opus');
+      });
+
+      it('uses last -s value when multiple provided', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // Last -s model should win over first -s cost_session
+        const { stdout, exitCode } = runCliWithSegments(input, '-s cost_session -s model');
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toBe('🤖 Opus');
+      });
+
+      it('uses last value when mixing --segments and -s', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // -s cost_session (last) should win over --segments=model (first)
+        const { stdout, exitCode } = runCliWithSegments(input, '--segments=model -s cost_session');
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toBe('💰 $0.23 sess');
+      });
+    });
+
+    it('handles --segments with space separator', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      // Use shell form to test --segments value as separate arg
+      const { stdout, exitCode } = runCliWithSegments(input, '--segments model,cost_session');
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess');
+    });
+
+    it('falls back to default when --segments value is empty', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '--segments=');
+      expect(exitCode).toBe(0);
+      // Default order used
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
+    });
+
+    it('falls back to default when -s is at end without value', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCliWithSegments(input, '-s');
+      expect(exitCode).toBe(0);
+      // Default order used when no value provided
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
+    });
+
+    it('does not consume another flag as segment value', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      // -s followed by a flag-like arg should not use it as the value
+      // Instead, -s should be ignored and default order used
+      const { stdout, exitCode } = runCliWithSegments(input, '-s --some-other-flag');
+      expect(exitCode).toBe(0);
+      // Default order used since -s has no valid value (--some-other-flag starts with -)
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
+    });
+
+    // CLI precedence tests: CLI present but invalid should NOT fall back to env
+    describe('CLI precedence over env (no env fallback when CLI flag present)', () => {
+      it('uses DEFAULT when CLI has all unknown tokens even if env is valid', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // CLI: --segments=unknown (invalid), ENV: model (valid)
+        // Expected: DEFAULT order (not env), because CLI flag is present
+        const { stdout, exitCode } = runCliWithSegments(
+          input,
+          '--segments=unknown',
+          { CCSTATUSLINE_SEGMENTS: 'model' }
+        );
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        // Default order: model, cost_session, context, subscription_usage
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      });
+
+      it('uses DEFAULT when CLI --segments is at end without value even if env is valid', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // CLI: --segments (no value), ENV: context,model (valid)
+        // Expected: DEFAULT order (not env), because CLI flag is present
+        const { stdout, exitCode } = runCliWithSegments(
+          input,
+          '--segments',
+          { CCSTATUSLINE_SEGMENTS: 'context,model' }
+        );
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        // Default order, not env's context,model
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      });
+
+      it('uses DEFAULT when CLI --segments= has empty value even if env is valid', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // CLI: --segments= (empty), ENV: cost_session,model (valid)
+        // Expected: DEFAULT order (not env), because CLI flag is present
+        const { stdout, exitCode } = runCliWithSegments(
+          input,
+          '--segments=',
+          { CCSTATUSLINE_SEGMENTS: 'cost_session,model' }
+        );
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        // Default order, not env's cost_session,model
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      });
+
+      it('uses DEFAULT when -s is at end without value even if env is valid', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // CLI: -s (no value), ENV: cost_session (valid)
+        // Expected: DEFAULT order (not env), because CLI flag is present
+        const { stdout, exitCode } = runCliWithSegments(
+          input,
+          '-s',
+          { CCSTATUSLINE_SEGMENTS: 'cost_session' }
+        );
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        // Default order, not env's cost_session only
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      });
+
+      it('uses DEFAULT when -s followed by flag even if env is valid', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+        });
+
+        // CLI: -s --foo (flag-like next arg), ENV: model (valid)
+        // Expected: DEFAULT order (not env), because CLI flag is present
+        const { stdout, exitCode } = runCliWithSegments(
+          input,
+          '-s --foo',
+          { CCSTATUSLINE_SEGMENTS: 'model' }
+        );
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        // Default order, not env's model only
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+      });
     });
   });
 });

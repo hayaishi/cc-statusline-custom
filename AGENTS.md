@@ -271,6 +271,7 @@ ccusage-statusline-custom/
 │   │   ├── simple.ts         # Simple display
 │   │   └── full.ts           # Full-featured display
 │   └── utils/                # Utilities
+│       ├── cli-args.ts       # CLI argument parsing
 │       ├── colors.ts         # ANSI colors
 │       ├── progress-bar.ts   # Progress bar
 │       └── time.ts           # Time processing
@@ -453,6 +454,7 @@ Use this format when requesting tasks from AI:
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-01-24 | 1.1.0 | Add `--segments`/`-s` CLI option for segment order/visibility |
 | 2026-01-18 | 1.0.0 | Initial version |
 
 ---

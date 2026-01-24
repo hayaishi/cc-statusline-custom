@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { generateStatusline, FALLBACK_OUTPUT, generateStatuslineWithExtended } from './statusline.js';
+import {
+  generateStatusline,
+  FALLBACK_OUTPUT,
+  generateStatuslineWithExtended,
+  normalizeSegmentId,
+  parseSegmentList,
+  resolveSegmentOrder,
+  DEFAULT_SEGMENT_ORDER,
+} from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
 import { stripAnsi } from '../utils/colors.js';
@@ -405,5 +413,314 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
   it('is an alias for generateStatusline', () => {
     expect(generateStatuslineWithExtended).toBe(generateStatusline);
+  });
+});
+
+describe('segment configuration', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('DEFAULT_SEGMENT_ORDER', () => {
+    it('has the expected default order', () => {
+      expect(DEFAULT_SEGMENT_ORDER).toEqual([
+        'model',
+        'cost_session',
+        'context',
+        'subscription_usage',
+      ]);
+    });
+  });
+
+  describe('normalizeSegmentId', () => {
+    it('passes through canonical identifiers unchanged', () => {
+      expect(normalizeSegmentId('model')).toBe('model');
+      expect(normalizeSegmentId('cost_session')).toBe('cost_session');
+      expect(normalizeSegmentId('context')).toBe('context');
+      expect(normalizeSegmentId('subscription_usage')).toBe('subscription_usage');
+    });
+
+    it('normalizes cost alias to cost_session', () => {
+      expect(normalizeSegmentId('cost')).toBe('cost_session');
+    });
+
+    it('normalizes cost_usd alias to cost_session', () => {
+      expect(normalizeSegmentId('cost_usd')).toBe('cost_session');
+    });
+
+    it('normalizes cost_sess alias to cost_session', () => {
+      expect(normalizeSegmentId('cost_sess')).toBe('cost_session');
+    });
+
+    it('normalizes sess alias to cost_session', () => {
+      expect(normalizeSegmentId('sess')).toBe('cost_session');
+    });
+
+    it('normalizes ctx alias to context', () => {
+      expect(normalizeSegmentId('ctx')).toBe('context');
+    });
+
+    it('normalizes usage alias to subscription_usage', () => {
+      expect(normalizeSegmentId('usage')).toBe('subscription_usage');
+    });
+
+    it('normalizes subscription alias to subscription_usage', () => {
+      expect(normalizeSegmentId('subscription')).toBe('subscription_usage');
+    });
+
+    it('normalizes sub_usage alias to subscription_usage', () => {
+      expect(normalizeSegmentId('sub_usage')).toBe('subscription_usage');
+    });
+
+    it('normalizes sub alias to subscription_usage', () => {
+      expect(normalizeSegmentId('sub')).toBe('subscription_usage');
+    });
+
+    it('returns null for unknown identifiers', () => {
+      expect(normalizeSegmentId('unknown')).toBeNull();
+      expect(normalizeSegmentId('invalid')).toBeNull();
+      expect(normalizeSegmentId('')).toBeNull();
+    });
+
+    it('is case-insensitive', () => {
+      expect(normalizeSegmentId('MODEL')).toBe('model');
+      expect(normalizeSegmentId('Cost_Session')).toBe('cost_session');
+      expect(normalizeSegmentId('CONTEXT')).toBe('context');
+      expect(normalizeSegmentId('CTX')).toBe('context');
+      expect(normalizeSegmentId('SUB')).toBe('subscription_usage');
+    });
+
+    it('trims whitespace', () => {
+      expect(normalizeSegmentId('  model  ')).toBe('model');
+      expect(normalizeSegmentId('\tcontext\n')).toBe('context');
+    });
+  });
+
+  describe('parseSegmentList', () => {
+    it('parses comma-separated canonical identifiers', () => {
+      const result = parseSegmentList('model,cost_session,context');
+      expect(result).toEqual(['model', 'cost_session', 'context']);
+    });
+
+    it('normalizes aliases during parsing', () => {
+      const result = parseSegmentList('model,cost_usd,ctx,sub');
+      expect(result).toEqual(['model', 'cost_session', 'context', 'subscription_usage']);
+    });
+
+    it('ignores unknown identifiers silently', () => {
+      const result = parseSegmentList('model,unknown,context,invalid');
+      expect(result).toEqual(['model', 'context']);
+    });
+
+    it('removes duplicates (keeps first occurrence)', () => {
+      const result = parseSegmentList('model,cost_session,model,context');
+      expect(result).toEqual(['model', 'cost_session', 'context']);
+    });
+
+    it('handles aliases resolving to same canonical (dedup)', () => {
+      const result = parseSegmentList('cost_usd,cost_session,sess');
+      expect(result).toEqual(['cost_session']);
+    });
+
+    it('returns empty array for all-unknown input', () => {
+      const result = parseSegmentList('unknown,invalid,foo');
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array for empty string', () => {
+      const result = parseSegmentList('');
+      expect(result).toEqual([]);
+    });
+
+    it('handles whitespace around identifiers', () => {
+      const result = parseSegmentList('  model , context , sub  ');
+      expect(result).toEqual(['model', 'context', 'subscription_usage']);
+    });
+
+    it('handles only whitespace', () => {
+      const result = parseSegmentList('   ');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('resolveSegmentOrder', () => {
+    it('returns CLI value when provided', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      const result = resolveSegmentOrder('model,context');
+      expect(result).toEqual(['model', 'context']);
+    });
+
+    it('returns env value when CLI is undefined', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
+      const result = resolveSegmentOrder(undefined);
+      expect(result).toEqual(['context', 'model']);
+    });
+
+    it('CLI overrides env', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
+      const result = resolveSegmentOrder('model,cost_session');
+      expect(result).toEqual(['model', 'cost_session']);
+    });
+
+    it('returns default when both CLI and env are absent', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      const result = resolveSegmentOrder(undefined);
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when CLI is empty string', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      const result = resolveSegmentOrder('');
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when env is empty string', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = '';
+      const result = resolveSegmentOrder(undefined);
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when CLI resolves to empty (all unknown)', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      const result = resolveSegmentOrder('unknown,invalid');
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when env resolves to empty (all unknown)', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'unknown,invalid';
+      const result = resolveSegmentOrder(undefined);
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('accepts explicit env parameter instead of reading from process.env', () => {
+      delete process.env.CCSTATUSLINE_SEGMENTS;
+      const result = resolveSegmentOrder(undefined, 'context,model');
+      expect(result).toEqual(['context', 'model']);
+    });
+
+    // New tests for CLI precedence: CLI present but invalid should NOT fall back to env
+    it('returns default when CLI is empty string even if env is set (no env fallback)', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
+      const result = resolveSegmentOrder('');
+      // CLI flag present but empty => DEFAULT, not env
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when CLI has all unknown tokens even if env is valid (no env fallback)', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
+      const result = resolveSegmentOrder('unknown,invalid');
+      // CLI flag present but all unknown => DEFAULT, not env
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+
+    it('returns default when CLI is whitespace-only even if env is valid (no env fallback)', () => {
+      process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
+      const result = resolveSegmentOrder('   ');
+      // CLI flag present but whitespace => DEFAULT, not env
+      expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+  });
+});
+
+describe('generateStatusline with custom segment order', () => {
+  const testCacheDir = join(tmpdir(), `ccusage-statusline-order-test-${String(process.pid)}`);
+
+  beforeEach(() => {
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('renders segments in specified order', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      cost: { total_cost_usd: 0.23 },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    // Reverse order: context, cost, model (no subscription)
+    const result = generateStatusline(input, testCacheDir, ['context', 'cost_session', 'model']);
+    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] 42% | 💰 $0.23 sess | 🤖 Opus');
+  });
+
+  it('renders only requested segments', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      cost: { total_cost_usd: 0.23 },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    // Only model and context
+    const result = generateStatusline(input, testCacheDir, ['model', 'context']);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42%');
+  });
+
+  it('skips segments that have no data', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      // No cost, no context
+    };
+
+    // Request all four, but only model has data (subscription_usage needs prior segments)
+    const result = generateStatusline(input, testCacheDir, ['cost_session', 'model', 'context', 'subscription_usage']);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
+  });
+
+  it('uses default order when segments is undefined', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      cost: { total_cost_usd: 0.23 },
+    };
+
+    const result = generateStatusline(input, testCacheDir, undefined);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+  });
+
+  it('returns fallback when no requested segments have data', () => {
+    const input: ClaudeCodeInput = {};
+
+    const result = generateStatusline(input, testCacheDir, ['model', 'cost_session']);
+    expect(result).toBe(FALLBACK_OUTPUT);
+  });
+
+  it('subscription_usage only renders if other segments exist first', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+    };
+
+    // Request subscription first, then model
+    const result = generateStatusline(input, testCacheDir, ['subscription_usage', 'model']);
+    // subscription_usage is skipped because no prior segments, then model is added
+    expect(stripAnsi(result)).toBe('🤖 Opus');
+  });
+
+  it('renders subscription_usage when requested after other segments', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+    };
+
+    // Request model first, then subscription
+    const result = generateStatusline(input, testCacheDir, ['model', 'subscription_usage']);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
   });
 });

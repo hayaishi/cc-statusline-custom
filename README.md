@@ -57,6 +57,36 @@ Update the cache (out-of-band):
 ~/git/ccusage-statusline-custom/dist/index.js --update-cache
 ```
 
+### Segment Order/Visibility
+
+Control which segments are shown and their order:
+
+```bash
+# Show only model and context
+./dist/index.js --segments=model,context
+
+# Short form
+./dist/index.js -s model,ctx
+
+# Reverse order
+./dist/index.js -s context,cost_session,model
+```
+
+Available segment identifiers:
+
+| Canonical ID | Aliases |
+|--------------|---------|
+| `model` | - |
+| `cost_session` | `cost`, `cost_usd`, `cost_sess`, `sess` |
+| `context` | `ctx` |
+| `subscription_usage` | `usage`, `subscription`, `sub_usage`, `sub` |
+
+Resolution order: **CLI > ENV > DEFAULT**
+
+- Unknown tokens are silently ignored
+- Empty/invalid CLI values fall back to default (not env)
+- If multiple `--segments`/`-s` flags are provided, the last one wins
+
 ## Claude Code Integration
 
 ```json
@@ -223,6 +253,7 @@ Environment variables (only these affect behavior):
 | `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` | `60` | Subscription usage cache TTL (seconds, mtime-based) |
 | `CCSTATUSLINE_CONTEXT_LOW_THRESHOLD` | `50` | Green threshold for context usage (%) |
 | `CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD` | `80` | Yellow threshold for context usage (%) |
+| `CCSTATUSLINE_SEGMENTS` | (none) | Segment order/visibility (comma-separated) |
 
 `CCSTATUSLINE_EXTENDED_METRICS` is parsed but currently unused (no effect).
 
@@ -276,6 +307,7 @@ src/
 │   ├── token.ts          # OAuth token lookup
 │   └── update-cache.ts   # Cache update logic
 └── utils/
+    ├── cli-args.ts       # CLI argument parsing
     ├── colors.ts         # ANSI coloring
     ├── format.ts         # Number formatting
     ├── stdin.ts          # Stdin reading

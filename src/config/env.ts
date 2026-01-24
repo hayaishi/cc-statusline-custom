@@ -110,3 +110,17 @@ export function getDebugEnabled(): boolean {
   const value = process.env.CCSTATUSLINE_DEBUG?.toLowerCase();
   return value === 'true' || value === '1';
 }
+
+/**
+ * Gets the raw segments configuration from environment.
+ * Normalization and parsing happens in statusline.ts.
+ *
+ * @returns Raw segments string or undefined if not set/empty
+ */
+export function getSegmentsConfig(): string | undefined {
+  const value = process.env.CCSTATUSLINE_SEGMENTS?.trim();
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  return value;
+}
