@@ -163,14 +163,14 @@ describe('generateStatusline', () => {
       const modelOnly: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
       };
-      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 📦 Loading...');
+      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
 
       // Model + cost
       const modelAndCost: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
-      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 📦 Loading...');
+      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
 
       // Model + context
       const modelAndContext: ClaudeCodeInput = {
@@ -184,8 +184,9 @@ describe('generateStatusline', () => {
       expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] 5% | 📦 Loading...');
     });
 
-    it('returns fallback for empty object', () => {
-      expect(generateStatusline({}, testCacheDir)).toBe(FALLBACK_OUTPUT);
+    it('returns context placeholder for empty object', () => {
+      // Empty object now shows context placeholder instead of fallback
+      expect(stripAnsi(generateStatusline({}, testCacheDir))).toBe('🧠 [░░░░░░░░] 0% | 📦 Loading...');
     });
 
     it('returns fallback for null', () => {
@@ -408,7 +409,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), 'not valid json');
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
   });
 
   it('is an alias for generateStatusline', () => {
@@ -675,15 +676,15 @@ describe('generateStatusline with custom segment order', () => {
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42%');
   });
 
-  it('skips segments that have no data', () => {
+  it('shows placeholder for context when data is missing', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       // No cost, no context
     };
 
-    // Request all four, but only model has data (subscription_usage needs prior segments)
+    // Request all four - context shows placeholder, cost is skipped
     const result = generateStatusline(input, testCacheDir, ['cost_session', 'model', 'context', 'subscription_usage']);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
   });
 
   it('uses default order when segments is undefined', () => {
@@ -693,7 +694,7 @@ describe('generateStatusline with custom segment order', () => {
     };
 
     const result = generateStatusline(input, testCacheDir, undefined);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
   });
 
   it('returns fallback when no requested segments have data', () => {

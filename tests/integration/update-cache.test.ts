@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { assertSingleLine } from '../helpers/assertions.js';
 
 describe('--update-cache integration', () => {
   const distPath = join(process.cwd(), 'dist', 'index.js');
@@ -49,11 +50,11 @@ describe('--update-cache integration', () => {
         },
         timeout: 5000,
       });
-      return { stdout: stdout.trim(), exitCode: 0 };
+      return { stdout: stdout, exitCode: 0 };
     } catch (error) {
       const execError = error as { stdout?: string; status?: number };
       return {
-        stdout: (execError.stdout ?? '').trim(),
+        stdout: (execError.stdout ?? ''),
         exitCode: execError.status ?? 1,
       };
     }
@@ -66,21 +67,14 @@ describe('--update-cache integration', () => {
 
   it('produces a visible single line output', () => {
     const { stdout } = runUpdateCache();
-
-    // Should not be empty
-    expect(stdout.length).toBeGreaterThan(0);
-
-    // Should be a single line
-    const lines = stdout.split('\n');
-    expect(lines.length).toBe(1);
-
-    // Should not be whitespace-only
-    expect(stdout.trim()).not.toBe('');
+    const cleanOutput = assertSingleLine(stdout);
+    expect(cleanOutput.length).toBeGreaterThan(0);
   });
 
   it('outputs success message on successful update', () => {
     const { stdout } = runUpdateCache();
-    expect(stdout).toContain('Cache updated');
+    const cleanOutput = assertSingleLine(stdout);
+    expect(cleanOutput).toContain('Cache updated');
   });
 
   it('creates only subscription-usage.json', () => {
@@ -123,8 +117,9 @@ describe('--update-cache integration', () => {
     // Should still exit 0 (never throws)
     expect(exitCode).toBe(0);
 
+    const cleanOutput = assertSingleLine(stdout);
     // Should contain error message
-    expect(stdout).toContain('lock');
+    expect(cleanOutput).toContain('lock');
   });
 
   describe('does not affect statusline hot path', () => {
@@ -132,11 +127,13 @@ describe('--update-cache integration', () => {
       const stdout = execSync(`echo '{}' | node ${distPath}`, {
         encoding: 'utf-8',
         timeout: 5000,
-      }).trim();
+      });
+      const cleanOutput = assertSingleLine(stdout);
 
-      // Should produce visible output (fallback in bootstrap phase)
-      expect(stdout.length).toBeGreaterThan(0);
-      expect(stdout).toContain('?'); // Fallback contains '?'
+      // Should produce visible output with context placeholder
+      expect(cleanOutput.length).toBeGreaterThan(0);
+      expect(cleanOutput).toContain('🧠'); // Context segment placeholder
+      expect(cleanOutput).toContain('0%'); // Zero percentage indicator
     });
   });
 });

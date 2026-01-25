@@ -180,17 +180,59 @@ describe('formatSubscriptionUsageSegment', () => {
 });
 
 describe('formatContextSegment', () => {
-  it('returns empty string for undefined', () => {
-    expect(formatContextSegment(undefined)).toBe('');
+  it('returns placeholder with bar for undefined', () => {
+    const result = formatContextSegment(undefined);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
   });
 
-  it('returns empty string when percentage is null', () => {
+  it('returns placeholder with bar when percentage is null', () => {
     const usage: TokenUsage = {
       current: 84000,
       limit: 200000,
       percentage: null,
     };
-    expect(formatContextSegment(usage)).toBe('');
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+  });
+
+  it('returns placeholder with bar when percentage is undefined', () => {
+    const usage: TokenUsage = {
+      current: 84000,
+      limit: 200000,
+      percentage: undefined as unknown as number,
+    };
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+  });
+
+  it('returns placeholder with bar when percentage is NaN', () => {
+    const usage: TokenUsage = {
+      current: 84000,
+      limit: 200000,
+      percentage: Number.NaN,
+    };
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+  });
+
+  it('returns placeholder with bar when percentage is Infinity', () => {
+    const usage: TokenUsage = {
+      current: 84000,
+      limit: 200000,
+      percentage: Number.POSITIVE_INFINITY,
+    };
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+  });
+
+  it('returns placeholder with bar when percentage is -Infinity', () => {
+    const usage: TokenUsage = {
+      current: 84000,
+      limit: 200000,
+      percentage: Number.NEGATIVE_INFINITY,
+    };
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
   });
 
   it('formats full context segment', () => {

@@ -12,7 +12,7 @@ import {
   formatTokensCompact,
   formatProgressBar,
 } from '../utils/format.js';
-import { colorByThreshold } from '../utils/colors.js';
+import { colorByThreshold, dim } from '../utils/colors.js';
 import type { TokenUsage } from './parser.js';
 
 /**
@@ -192,15 +192,22 @@ export function formatContextSegment(
   lowThreshold: number = 50,
   mediumThreshold: number = 80
 ): string {
+  // Generate placeholder for missing/invalid data
+  const makePlaceholder = (): string => {
+    const bar = formatProgressBar(0);
+    // Use neutral/dim styling for placeholder cases
+    return `${EMOJI_CONTEXT} ${dim(bar)} ${dim('0%')}`;
+  };
+
   if (usage === undefined) {
-    return '';
+    return makePlaceholder();
   }
 
   const { current, limit, percentage } = usage;
 
-  // If no percentage, we can't render anything meaningful
-  if (percentage === null) {
-    return '';
+  // If no percentage or invalid, show placeholder
+  if (percentage === null || percentage === undefined || !Number.isFinite(percentage)) {
+    return makePlaceholder();
   }
 
   // Format tokens (use 0 if current is null)
