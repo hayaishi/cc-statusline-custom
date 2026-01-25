@@ -57,6 +57,15 @@ export interface SubscriptionUsageEntry {
   readonly lastError: string | null;
   readonly lastAttemptAt?: string;
   readonly updatedAt?: string;
+  readonly window?: 'five_hour' | 'seven_day';
+  readonly fiveHour?: {
+    readonly utilizationPercent: number;
+    readonly resetsAt: string;
+  };
+  readonly sevenDay?: {
+    readonly utilizationPercent: number;
+    readonly resetsAt: string;
+  };
 }
 
 /**

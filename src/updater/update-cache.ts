@@ -71,27 +71,65 @@ async function buildSubscriptionUsageEntry(): Promise<SubscriptionUsageEntry> {
     return { ...base, lastError: 'token_missing' };
   }
 
-  let usage;
+  let usage: OAuthUsage;
   try {
     usage = await fetchUsage(token);
   } catch {
     return { ...base, lastError: 'oauth_fetch_failed' };
   }
 
-  const normalized = normalizeUtilizationPercent(usage.utilization);
+  // Determine which window to use
+  // Priority: 7-day window if utilization is 100% or more
+  // Otherwise: 5-hour window (default)
+  let selectedWindow = usage.fiveHour;
+  let windowType: 'five_hour' | 'seven_day' = 'five_hour';
+
+  const sevenDayPercent = usage.sevenDay
+    ? normalizeUtilizationPercent(usage.sevenDay.utilization)
+    : null;
+  if (usage.sevenDay && sevenDayPercent !== null && sevenDayPercent >= 100) {
+    selectedWindow = usage.sevenDay;
+    windowType = 'seven_day';
+  }
+
+  const normalized = normalizeUtilizationPercent(selectedWindow.utilization);
   if (normalized === null) {
     return { ...base, lastError: 'utilization_invalid' };
   }
 
-  if (!Number.isFinite(Date.parse(usage.resetsAt))) {
+  if (!Number.isFinite(Date.parse(selectedWindow.resetsAt))) {
     return { ...base, lastError: 'resets_at_invalid' };
+  }
+
+  // Populate detailed window data
+  const fiveHourPercent = normalizeUtilizationPercent(usage.fiveHour.utilization);
+  const fiveHourEntry =
+    fiveHourPercent !== null
+      ? {
+          utilizationPercent: fiveHourPercent,
+          resetsAt: usage.fiveHour.resetsAt,
+        }
+      : undefined;
+
+  let sevenDayEntry: { utilizationPercent: number; resetsAt: string } | undefined;
+  if (usage.sevenDay) {
+    const sevenDayPercent = normalizeUtilizationPercent(usage.sevenDay.utilization);
+    if (sevenDayPercent !== null) {
+      sevenDayEntry = {
+        utilizationPercent: sevenDayPercent,
+        resetsAt: usage.sevenDay.resetsAt,
+      };
+    }
   }
 
   return {
     ...base,
     utilizationPercent: normalized,
-    resetsAt: usage.resetsAt,
+    resetsAt: selectedWindow.resetsAt,
     lastError: null,
+    window: windowType,
+    ...(fiveHourEntry ? { fiveHour: fiveHourEntry } : {}),
+    ...(sevenDayEntry ? { sevenDay: sevenDayEntry } : {}),
   };
 }
 

@@ -5,9 +5,11 @@ import { tmpdir } from 'node:os';
 import type { OAuthUsage } from './oauth.js';
 
 const mockGetOAuthToken = vi.fn((): string | null => 'test-token');
-const mockFetchOAuthUsage = vi.fn(async (): Promise<OAuthUsage> => ({
-  utilization: 55,
-  resetsAt: '2026-01-20T15:45:00Z',
+const mockFetchOAuthUsage = vi.fn((): Promise<OAuthUsage> => Promise.resolve({
+  fiveHour: {
+    utilization: 55,
+    resetsAt: '2026-01-20T15:45:00Z',
+  },
 }));
 
 vi.mock('./token.js', () => ({
@@ -36,6 +38,13 @@ describe('update-cache', () => {
     }
     mockGetOAuthToken.mockClear();
     mockFetchOAuthUsage.mockClear();
+    // Reset default mock implementation
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+    });
   });
 
   afterEach(() => {
@@ -44,7 +53,7 @@ describe('update-cache', () => {
     }
   });
 
-  it('returns success result', async () => {
+  it('should return success result when update completes', async () => {
     const result = await updateCache(testDir);
     expect(result.success).toBe(true);
     expect(result.message).toContain('Cache updated');
@@ -52,20 +61,20 @@ describe('update-cache', () => {
     expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
   });
 
-  it('normalizes utilization with rounding and clamping', () => {
+  it('should normalize utilization when rounding and clamping', () => {
     expect(normalizeUtilizationPercent(42.5)).toBe(43);
     expect(normalizeUtilizationPercent(42.4)).toBe(42);
     expect(normalizeUtilizationPercent(150)).toBe(100);
     expect(normalizeUtilizationPercent(-10)).toBe(0);
   });
 
-  it('treats non-finite utilization as invalid', () => {
+  it('should return null when utilization is non-finite', () => {
     expect(normalizeUtilizationPercent(Number.NaN)).toBeNull();
     expect(normalizeUtilizationPercent(Number.POSITIVE_INFINITY)).toBeNull();
     expect(normalizeUtilizationPercent(Number.NEGATIVE_INFINITY)).toBeNull();
   });
 
-  it('creates subscription-usage.json', async () => {
+  it('should create subscription-usage.json when using default 5h data', async () => {
     await updateCache(testDir);
 
     const filePath = join(testDir, 'subscription-usage.json');
@@ -76,15 +85,110 @@ describe('update-cache', () => {
       lastError: string | null;
       utilizationPercent?: number;
       resetsAt?: string;
-      lastAttemptAt?: string;
+      window?: string;
+      fiveHour?: { utilizationPercent: number; resetsAt: string };
+      sevenDay?: { utilizationPercent: number; resetsAt: string };
     };
-    expect(parsed.lastError === null || typeof parsed.lastError === 'string').toBe(true);
     expect(parsed.utilizationPercent).toBe(55);
     expect(parsed.resetsAt).toBe('2026-01-20T15:45:00Z');
-    expect(typeof parsed.lastAttemptAt).toBe('string');
+    expect(parsed.window).toBe('five_hour');
+    expect(parsed.fiveHour).toEqual({
+      utilizationPercent: 55,
+      resetsAt: '2026-01-20T15:45:00Z',
+    });
+    expect(parsed.sevenDay).toBeUndefined();
   });
 
-  it('writes only subscription-usage.json', async () => {
+  it('should use 7d window when utilization is 100% or more', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 10,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+      sevenDay: {
+        utilization: 100, // 100%
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as {
+      utilizationPercent?: number;
+      resetsAt?: string;
+      window?: string;
+      fiveHour?: { utilizationPercent: number; resetsAt: string };
+      sevenDay?: { utilizationPercent: number; resetsAt: string };
+    };
+    expect(parsed.utilizationPercent).toBe(100);
+    expect(parsed.resetsAt).toBe('2026-01-27T15:45:00Z');
+    expect(parsed.window).toBe('seven_day');
+    expect(parsed.fiveHour).toEqual({
+      utilizationPercent: 10,
+      resetsAt: '2026-01-20T15:45:00Z',
+    });
+    expect(parsed.sevenDay).toEqual({
+      utilizationPercent: 100,
+      resetsAt: '2026-01-27T15:45:00Z',
+    });
+  });
+
+  it('should prioritize 5h window when 7d utilization is less than 100%', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 100,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+      sevenDay: {
+        utilization: 90, // 90%
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as {
+      utilizationPercent?: number;
+      resetsAt?: string;
+      window?: string;
+      fiveHour?: { utilizationPercent: number; resetsAt: string };
+      sevenDay?: { utilizationPercent: number; resetsAt: string };
+    };
+    expect(parsed.utilizationPercent).toBe(100);
+    expect(parsed.resetsAt).toBe('2026-01-20T15:45:00Z');
+    expect(parsed.window).toBe('five_hour');
+    expect(parsed.fiveHour).toEqual({
+      utilizationPercent: 100,
+      resetsAt: '2026-01-20T15:45:00Z',
+    });
+    expect(parsed.sevenDay).toEqual({
+      utilizationPercent: 90,
+      resetsAt: '2026-01-27T15:45:00Z',
+    });
+  });
+
+  it('should use 5h window when 7d is missing', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 60,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as {
+      utilizationPercent?: number;
+      resetsAt?: string;
+    };
+    expect(parsed.utilizationPercent).toBe(60);
+    expect(parsed.resetsAt).toBe('2026-01-20T15:45:00Z');
+  });
+
+  it('should write only subscription-usage.json when updating cache', async () => {
     await updateCache(testDir);
 
     const entries = readdirSync(testDir, { withFileTypes: true })
@@ -95,14 +199,7 @@ describe('update-cache', () => {
     expect(entries.sort()).toEqual(['subscription-usage.json']);
   });
 
-  it('releases lock after update', async () => {
-    await updateCache(testDir);
-
-    const lockPath = join(testDir, 'cache.lock');
-    expect(existsSync(lockPath)).toBe(false);
-  });
-
-  it('returns error result if lock cannot be acquired', async () => {
+  it('should return error result when lock cannot be acquired', async () => {
     const lockPath = join(testDir, 'cache.lock');
     writeFileSync(lockPath, 'locked');
 
@@ -112,7 +209,7 @@ describe('update-cache', () => {
     expect(result.message).toContain('lock');
   });
 
-  it('records token errors without calling OAuth', async () => {
+  it('should record token error when token is missing', async () => {
     mockGetOAuthToken.mockReturnValueOnce(null);
 
     await updateCache(testDir);
@@ -122,5 +219,69 @@ describe('update-cache', () => {
     expect(parsed.lastError).toBe('token_missing');
     expect(typeof parsed.lastAttemptAt).toBe('string');
     expect(mockFetchOAuthUsage).not.toHaveBeenCalled();
+  });
+
+  it('should release lock after successful update', async () => {
+    await updateCache(testDir);
+
+    const lockPath = join(testDir, 'cache.lock');
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  it('should use 5h window when 7d utilization rounds to 99%', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+      sevenDay: {
+        utilization: 99.4, // rounds to 99, not 100
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { window?: string };
+    expect(parsed.window).toBe('five_hour');
+  });
+
+  it('should use 7d window when 7d utilization rounds to 100%', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+      sevenDay: {
+        utilization: 99.5, // rounds to 100
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { window?: string };
+    expect(parsed.window).toBe('seven_day');
+  });
+
+  it('should return error when 7d has invalid resetsAt', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+      sevenDay: {
+        utilization: 100,
+        resetsAt: 'invalid-date',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string };
+    expect(parsed.lastError).toBe('resets_at_invalid');
   });
 });
