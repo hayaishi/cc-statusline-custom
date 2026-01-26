@@ -70,3 +70,23 @@ export function parseSegmentsArg(args: string[]): string | undefined {
 
   return result;
 }
+
+/**
+ * Checks if --no-emojis flag is present.
+ *
+ * @param args - CLI arguments
+ * @returns true if flag present, undefined otherwise
+ */
+export function parseNoEmojisArg(args: string[]): boolean | undefined {
+  return args.includes('--no-emojis') ? true : undefined;
+}
+
+/**
+ * Checks if --no-bars flag is present.
+ *
+ * @param args - CLI arguments
+ * @returns true if flag present, undefined otherwise
+ */
+export function parseNoBarsArg(args: string[]): boolean | undefined {
+  return args.includes('--no-bars') ? true : undefined;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -112,5 +112,45 @@ describe('parseSegmentsArg', () => {
     it('handles comma-separated values with spaces', () => {
       expect(parseSegmentsArg(['--segments=model, context, cost'])).toBe('model, context, cost');
     });
+  });
+});
+
+describe('parseNoEmojisArg', () => {
+  it('returns undefined when flag not present', () => {
+    expect(parseNoEmojisArg([])).toBeUndefined();
+    expect(parseNoEmojisArg(['--segments=model'])).toBeUndefined();
+  });
+
+  it('returns true when flag present', () => {
+    expect(parseNoEmojisArg(['--no-emojis'])).toBe(true);
+  });
+
+  it('handles flag in various positions', () => {
+    expect(parseNoEmojisArg(['--no-emojis', '--segments=model'])).toBe(true);
+    expect(parseNoEmojisArg(['--segments=model', '--no-emojis'])).toBe(true);
+  });
+
+  it('handles multiple occurrences (always true if any present)', () => {
+    expect(parseNoEmojisArg(['--no-emojis', '--no-emojis'])).toBe(true);
+  });
+});
+
+describe('parseNoBarsArg', () => {
+  it('returns undefined when flag not present', () => {
+    expect(parseNoBarsArg([])).toBeUndefined();
+    expect(parseNoBarsArg(['--segments=model'])).toBeUndefined();
+  });
+
+  it('returns true when flag present', () => {
+    expect(parseNoBarsArg(['--no-bars'])).toBe(true);
+  });
+
+  it('handles flag in various positions', () => {
+    expect(parseNoBarsArg(['--no-bars', '--segments=model'])).toBe(true);
+    expect(parseNoBarsArg(['--segments=model', '--no-bars'])).toBe(true);
+  });
+
+  it('handles multiple occurrences (always true if any present)', () => {
+    expect(parseNoBarsArg(['--no-bars', '--no-bars'])).toBe(true);
   });
 });

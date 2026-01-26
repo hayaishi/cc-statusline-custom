@@ -16,6 +16,22 @@ import { colorByThreshold, dim } from '../utils/colors.js';
 import type { TokenUsage } from './parser.js';
 
 /**
+ * Display rendering options for segments.
+ */
+export interface RenderOptions {
+  readonly showEmojis: boolean;
+  readonly showBars: boolean;
+}
+
+/**
+ * Default render options (all features enabled).
+ */
+export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
+  showEmojis: true,
+  showBars: true,
+};
+
+/**
  * Segment emoji prefixes.
  */
 const EMOJI_MODEL = '🤖';
@@ -131,13 +147,17 @@ export function formatTokensCompactLowercase(count: number | null): string {
 }
 
 /**
- * Formats the model segment with emoji prefix.
- * Output: "🤖 Opus" or "🤖 ?" for empty/unknown
+ * Formats the model segment with optional emoji prefix.
+ * Output: "🤖 Opus" or "Opus" (when emojis disabled)
  *
  * @param displayName - Model display name or ID
+ * @param options - Render options
  * @returns Formatted model segment or empty string
  */
-export function formatModelSegment(displayName: string | undefined): string {
+export function formatModelSegment(
+  displayName: string | undefined,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+): string {
   if (displayName === undefined || displayName.trim() === '') {
     return '';
   }
@@ -145,7 +165,8 @@ export function formatModelSegment(displayName: string | undefined): string {
   if (family === '') {
     return '';
   }
-  return `${EMOJI_MODEL} ${family}`;
+  const prefix = options.showEmojis ? `${EMOJI_MODEL} ` : '';
+  return `${prefix}${family}`;
 }
 
 /**
@@ -156,14 +177,18 @@ export interface CostSegmentData {
 }
 
 /**
- * Formats the unified cost segment with emoji prefix.
+ * Formats the unified cost segment with optional emoji prefix.
  * Output examples:
- * - "💰 $0.23 sess"
+ * - "💰 $0.23 sess" or "$0.23 sess" (when emojis disabled)
  *
  * @param data - Cost segment data
+ * @param options - Render options
  * @returns Formatted cost segment or empty string
  */
-export function formatCostSegment(data: CostSegmentData): string {
+export function formatCostSegment(
+  data: CostSegmentData,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+): string {
   if (data.sessionCost === undefined) {
     return '';
   }
@@ -173,30 +198,40 @@ export function formatCostSegment(data: CostSegmentData): string {
     return '';
   }
 
-  return `${EMOJI_COST} ${formatted} sess`;
+  const prefix = options.showEmojis ? `${EMOJI_COST} ` : '';
+  return `${prefix}${formatted} sess`;
 }
 
 /**
  * Formats the context segment with emoji, tokens, bar, and percentage.
- * Output: "🧠 25.0k/200k [████░░░░] 12%"
+ * Output: "🧠 25.0k/200k [████░░░░] (12%)"
  *
  * If current tokens are null (current_usage was null), shows "0.0k" for tokens.
  *
  * @param usage - Token usage data
  * @param lowThreshold - Green zone upper bound (exclusive)
  * @param mediumThreshold - Yellow zone upper bound (exclusive)
+ * @param options - Render options for emojis and bars
  * @returns Formatted context segment or empty string
  */
 export function formatContextSegment(
   usage: TokenUsage | undefined,
   lowThreshold: number = 50,
-  mediumThreshold: number = 80
+  mediumThreshold: number = 80,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
 ): string {
+  // Prefix: emoji or text label
+  const prefix = options.showEmojis ? `${EMOJI_CONTEXT} ` : 'ctx: ';
+
   // Generate placeholder for missing/invalid data
   const makePlaceholder = (): string => {
-    const bar = formatProgressBar(0);
-    // Use neutral/dim styling for placeholder cases
-    return `${EMOJI_CONTEXT} ${dim(bar)} ${dim('0%')}`;
+    if (options.showBars) {
+      const bar = formatProgressBar(0);
+      // Use neutral/dim styling for placeholder cases
+      return `${prefix}${dim(bar)} ${dim('(0%)')}`;
+    } else {
+      return `${prefix}${dim('(0%)')}`;
+    }
   };
 
   if (usage === undefined) {
@@ -215,23 +250,34 @@ export function formatContextSegment(
   const currentFormatted = formatTokensLowercase(current ?? 0);
   const limitFormatted = limit !== null ? formatTokensCompactLowercase(limit) : '';
 
-  // Progress bar
-  const bar = formatProgressBar(percentage);
+  // Progress bar (conditional)
+  const bar = options.showBars ? formatProgressBar(percentage) : '';
 
-  // Percentage text
-  const pctText = `${percentage}%`;
+  // Percentage text (wrapped in parentheses)
+  const pctText = `(${percentage}%)`;
 
   // Apply threshold-based coloring to bar and percentage
-  const coloredBar = colorByThreshold(bar, percentage, lowThreshold, mediumThreshold);
+  const coloredBar = bar !== '' ? colorByThreshold(bar, percentage, lowThreshold, mediumThreshold) : '';
   const coloredPct = colorByThreshold(pctText, percentage, lowThreshold, mediumThreshold);
 
-  // Build the context segment
-  if (limitFormatted !== '' && currentFormatted !== '') {
-    return `${EMOJI_CONTEXT} ${currentFormatted}/${limitFormatted} ${coloredBar} ${coloredPct}`;
-  } else if (currentFormatted !== '') {
-    return `${EMOJI_CONTEXT} ${currentFormatted} ${coloredBar} ${coloredPct}`;
+  // Build token string
+  const tokens = limitFormatted !== '' && currentFormatted !== ''
+    ? `${currentFormatted}/${limitFormatted}`
+    : currentFormatted;
+
+  // Build the context segment with conditional spacing
+  if (tokens !== '') {
+    if (coloredBar !== '') {
+      return `${prefix}${tokens} ${coloredBar} ${coloredPct}`;
+    } else {
+      return `${prefix}${tokens} ${coloredPct}`;
+    }
   } else {
-    return `${EMOJI_CONTEXT} ${coloredBar} ${coloredPct}`;
+    if (coloredBar !== '') {
+      return `${prefix}${coloredBar} ${coloredPct}`;
+    } else {
+      return `${prefix}${coloredPct}`;
+    }
   }
 }
 
@@ -241,17 +287,28 @@ export function formatContextSegment(
  *
  * @param percent - Utilization percentage (integer 0-100)
  * @param reset - Reset time string like "~3:45pm"
+ * @param options - Render options for emojis and bars
  * @returns Formatted subscription usage segment or empty string
  */
-export function formatSubscriptionUsageSegment(percent: number, reset: string): string {
+export function formatSubscriptionUsageSegment(
+  percent: number,
+  reset: string,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+): string {
   if (!Number.isFinite(percent) || reset.trim() === '') {
     return '';
   }
 
-  const bar = formatProgressBar(percent);
-  if (bar === '') {
-    return '';
-  }
+  // Prefix: emoji or text label
+  const prefix = options.showEmojis ? `${EMOJI_SUBSCRIPTION} ` : 'usage: ';
 
-  return `${EMOJI_SUBSCRIPTION} ${String(percent)}% ${bar} (${reset})`;
+  if (options.showBars) {
+    const bar = formatProgressBar(percent);
+    if (bar === '') {
+      return '';
+    }
+    return `${prefix}${String(percent)}% ${bar} (${reset})`;
+  } else {
+    return `${prefix}${String(percent)}% (${reset})`;
+  }
 }

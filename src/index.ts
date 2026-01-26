@@ -19,9 +19,9 @@
  */
 
 import { readStdinSync } from './utils/stdin.js';
-import { parseSegmentsArg } from './utils/cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
-import { generateStatusline, FALLBACK_OUTPUT, resolveSegmentOrder } from './core/statusline.js';
+import { generateStatusline, FALLBACK_OUTPUT, resolveSegmentOrder, resolveRenderOptions } from './core/statusline.js';
 import { getCacheDir } from './config/env.js';
 
 /**
@@ -64,18 +64,24 @@ async function handleUpdateCache(): Promise<void> {
  *
  * Always reads from cache when available for subscription usage.
  *
- * @param segmentsArg - Value from CLI --segments or -s flag (undefined if not provided)
+ * @param args - CLI arguments
  */
-function handleStatusline(segmentsArg: string | undefined): void {
+function handleStatusline(args: string[]): void {
   try {
     const raw = readStdinSync();
     const input = parseInput(raw);
 
-    // Resolve segment order: CLI > env > default
+    // Parse CLI flags
+    const segmentsArg = parseSegmentsArg(args);
+    const noEmojisCli = parseNoEmojisArg(args);
+    const noBarsCli = parseNoBarsArg(args);
+
+    // Resolve configuration
     const segmentOrder = resolveSegmentOrder(segmentsArg);
+    const renderOptions = resolveRenderOptions(noEmojisCli, noBarsCli);
 
     // Generate statusline (reads cache for subscription usage)
-    const line = generateStatusline(input, getCacheDir(), segmentOrder);
+    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions);
 
     // Print ONLY the first visible line (defense in depth)
     console.log(ensureVisibleFirstLine(line));
@@ -95,8 +101,7 @@ async function main(): Promise<void> {
   if (args.includes('--update-cache')) {
     await handleUpdateCache();
   } else {
-    const segmentsArg = parseSegmentsArg(args);
-    handleStatusline(segmentsArg);
+    handleStatusline(args);
   }
 }
 

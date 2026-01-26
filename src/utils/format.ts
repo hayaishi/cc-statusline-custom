@@ -37,7 +37,7 @@ export function formatPercentage(pct: number): string {
   }
   // Clamp to 0-100 range
   const clamped = Math.max(0, Math.min(100, pct));
-  return String(Math.round(clamped)) + '%';
+  return '(' + String(Math.round(clamped)) + '%)';
 }
 
 /**

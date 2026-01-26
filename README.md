@@ -7,7 +7,7 @@ Custom statusline integration for Claude Code that renders model, session cost, 
 The statusline output is a single line with ` | ` separators and emoji-prefixed segments:
 
 ```
-🤖 <Model> | 💰 $<session> sess | 🧠 <used>/<limit> [████░░░░] <pct>% | 📦 <pct>% [████░░░░] (~h:mmam/pm)
+🤖 <Model> | 💰 $<session> sess | 🧠 <used>/<limit> [████░░░░] (<pct>%) | 📦 <pct>% [████░░░░] (~h:mmam/pm)
 ```
 
 Segments are omitted when their input data is missing or invalid. The 📦 segment is appended only if at least one other segment is present. When nothing can be rendered, the fallback is:
@@ -19,9 +19,15 @@ Segments are omitted when their input data is missing or invalid. The 📦 segme
 ## Output Examples
 
 ```
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 55% [████░░░░] (~3:45pm)
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...
-🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Fetch Error...
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3:45pm)
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...
+🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Fetch Error...
+
+# --no-emojis
+Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | usage: 55% [████░░░░] (~3:45pm)
+
+# --no-bars
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)
 ```
 
 ## Installation
@@ -86,6 +92,36 @@ Resolution order: **CLI > ENV > DEFAULT**
 - Unknown tokens are silently ignored
 - Empty/invalid CLI values fall back to default (not env)
 - If multiple `--segments`/`-s` flags are provided, the last one wins
+
+### Display Options
+
+Control emoji and progress bar rendering.
+
+```bash
+# Disable emojis (adds text labels: ctx:, usage:)
+./dist/index.js --no-emojis
+
+# Disable progress bars
+./dist/index.js --no-bars
+
+# Combine options
+./dist/index.js --no-emojis --no-bars
+```
+
+Environment variables:
+- `CCSTATUSLINE_NO_EMOJIS=true` or `1` to disable emojis
+- `CCSTATUSLINE_NO_BARS=true` or `1` to disable bars
+
+Resolution order: **CLI > ENV > DEFAULT** (default: emojis and bars enabled)
+
+Output examples:
+
+| Options | Output |
+|---------|--------|
+| (default) | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3:45pm)` |
+| `--no-emojis` | `Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | usage: 55% [████░░░░] (~3:45pm)` |
+| `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)` |
+| `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | usage: 55% (~3:45pm)` |
 
 ## Claude Code Integration
 
@@ -208,6 +244,7 @@ Notes:
   - Limit (denominator): compact k/m without `.0` (`200k`, `2m`).
   - Values under 1000 are shown as integers (`999`).
 - Progress bars are 8 characters wide and use `█` (filled) and `░` (empty).
+- Context percentage is displayed in parentheses: `(42%)`.
 - Context bars and percentages are colorized (green/yellow/red) based on thresholds when ANSI colors are enabled.
 - Reset time is rendered in local time as `~h:mmam/pm` (lowercase am/pm).
 
@@ -254,6 +291,8 @@ Environment variables (only these affect behavior):
 | `CCSTATUSLINE_CONTEXT_LOW_THRESHOLD` | `50` | Green threshold for context usage (%) |
 | `CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD` | `80` | Yellow threshold for context usage (%) |
 | `CCSTATUSLINE_SEGMENTS` | (none) | Segment order/visibility (comma-separated) |
+| `CCSTATUSLINE_NO_EMOJIS` | `false` | Disable emoji prefixes (`true` or `1` to enable) |
+| `CCSTATUSLINE_NO_BARS` | `false` | Disable progress bars (`true` or `1` to enable) |
 
 `CCSTATUSLINE_EXTENDED_METRICS` is parsed but currently unused (no effect).
 

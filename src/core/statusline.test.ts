@@ -9,6 +9,7 @@ import {
   normalizeSegmentId,
   parseSegmentList,
   resolveSegmentOrder,
+  resolveRenderOptions,
   DEFAULT_SEGMENT_ORDER,
 } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
@@ -16,14 +17,14 @@ import type { SubscriptionUsageEntry } from '../types/cache.js';
 import { stripAnsi } from '../utils/colors.js';
 
 const CANONICAL_FULL_LINE =
-  '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] 12% | 📦 55% [████░░░░] (~3:45pm)';
+  '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] (12%) | 📦 55% [████░░░░] (~3:45pm)';
 
 describe('canonical full example line', () => {
   it('is a single line with intact context segment', () => {
     expect(CANONICAL_FULL_LINE).not.toContain('\n');
     expect(CANONICAL_FULL_LINE).not.toContain('\r');
     expect(CANONICAL_FULL_LINE).toContain(' | ');
-    expect(CANONICAL_FULL_LINE).toContain('🧠 25.0k/200k [█░░░░░░░] 12%');
+    expect(CANONICAL_FULL_LINE).toContain('🧠 25.0k/200k [█░░░░░░░] (12%)');
   });
 });
 
@@ -125,7 +126,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       // Strip ANSI for assertion
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...');
       expect(stripAnsi(result)).not.toContain('🔥');
       expect(stripAnsi(result)).not.toContain('left)');
     });
@@ -141,7 +142,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] 75% | 📦 Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] (75%) | 📦 Loading...');
     });
 
     it('formats flat schema (backward compat)', () => {
@@ -155,7 +156,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] 10% | 📦 Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] (10%) | 📦 Loading...');
     });
 
     it('omits missing metrics gracefully', () => {
@@ -163,14 +164,14 @@ describe('generateStatusline', () => {
       const modelOnly: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
       };
-      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
 
       // Model + cost
       const modelAndCost: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
-      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
 
       // Model + context
       const modelAndContext: ClaudeCodeInput = {
@@ -181,12 +182,12 @@ describe('generateStatusline', () => {
           current_usage: { input_tokens: 10000 },
         },
       };
-      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] 5% | 📦 Loading...');
+      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10.0k/200k [░░░░░░░░] (5%) | 📦 Loading...');
     });
 
     it('returns context placeholder for empty object', () => {
       // Empty object now shows context placeholder instead of fallback
-      expect(stripAnsi(generateStatusline({}, testCacheDir))).toBe('🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(stripAnsi(generateStatusline({}, testCacheDir))).toBe('🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('returns fallback for null', () => {
@@ -206,7 +207,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       expect(result.split('\n').length).toBe(1);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0% | 📦 Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] (0%) | 📦 Loading...');
     });
   });
 
@@ -294,7 +295,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...');
     expect(stripAnsi(result)).not.toContain('🔥');
     expect(stripAnsi(result)).not.toContain('left)');
   });
@@ -325,7 +326,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 55% [████░░░░] (~3:45pm)'
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3:45pm)'
       );
     } finally {
       if (originalTz === undefined) {
@@ -355,7 +356,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Fetch Error...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Fetch Error...');
   });
 
   it('formats full output with subscription usage cache', () => {
@@ -409,7 +410,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), 'not valid json');
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
   });
 
   it('is an alias for generateStatusline', () => {
@@ -657,7 +658,7 @@ describe('generateStatusline with custom segment order', () => {
 
     // Reverse order: context, cost, model (no subscription)
     const result = generateStatusline(input, testCacheDir, ['context', 'cost_session', 'model']);
-    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] 42% | 💰 $0.23 sess | 🤖 Opus');
+    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] (42%) | 💰 $0.23 sess | 🤖 Opus');
   });
 
   it('renders only requested segments', () => {
@@ -673,7 +674,7 @@ describe('generateStatusline with custom segment order', () => {
 
     // Only model and context
     const result = generateStatusline(input, testCacheDir, ['model', 'context']);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%)');
   });
 
   it('shows placeholder for context when data is missing', () => {
@@ -684,7 +685,7 @@ describe('generateStatusline with custom segment order', () => {
 
     // Request all four - context shows placeholder, cost is skipped
     const result = generateStatusline(input, testCacheDir, ['cost_session', 'model', 'context', 'subscription_usage']);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
   });
 
   it('uses default order when segments is undefined', () => {
@@ -694,7 +695,7 @@ describe('generateStatusline with custom segment order', () => {
     };
 
     const result = generateStatusline(input, testCacheDir, undefined);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
   });
 
   it('returns fallback when no requested segments have data', () => {
@@ -723,5 +724,75 @@ describe('generateStatusline with custom segment order', () => {
     // Request model first, then subscription
     const result = generateStatusline(input, testCacheDir, ['model', 'subscription_usage']);
     expect(stripAnsi(result)).toBe('🤖 Opus | 📦 Loading...');
+  });
+});
+
+describe('resolveRenderOptions', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('emoji precedence', () => {
+    it('uses CLI flag when CLI disables', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'false';
+      const opts = resolveRenderOptions(true, undefined);
+      expect(opts.showEmojis).toBe(false);
+    });
+
+    it('falls back to env when CLI undefined', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'true';
+      const opts = resolveRenderOptions(undefined, undefined);
+      expect(opts.showEmojis).toBe(false);
+
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'false';
+      const opts2 = resolveRenderOptions(undefined, undefined);
+      expect(opts2.showEmojis).toBe(true);
+    });
+
+    it('defaults to enabled when both undefined', () => {
+      delete process.env.CCSTATUSLINE_NO_EMOJIS;
+      const opts = resolveRenderOptions(undefined, undefined);
+      expect(opts.showEmojis).toBe(true);
+    });
+  });
+
+  describe('bars precedence', () => {
+    it('uses CLI flag when CLI disables', () => {
+      process.env.CCSTATUSLINE_NO_BARS = 'false';
+      const opts = resolveRenderOptions(undefined, true);
+      expect(opts.showBars).toBe(false);
+    });
+
+    it('falls back to env when CLI undefined', () => {
+      process.env.CCSTATUSLINE_NO_BARS = 'true';
+      const opts = resolveRenderOptions(undefined, undefined);
+      expect(opts.showBars).toBe(false);
+
+      process.env.CCSTATUSLINE_NO_BARS = 'false';
+      const opts2 = resolveRenderOptions(undefined, undefined);
+      expect(opts2.showBars).toBe(true);
+    });
+
+    it('defaults to enabled when both undefined', () => {
+      delete process.env.CCSTATUSLINE_NO_BARS;
+      const opts = resolveRenderOptions(undefined, undefined);
+      expect(opts.showBars).toBe(true);
+    });
+  });
+
+  describe('independent resolution', () => {
+    it('resolves emojis and bars independently', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'true';
+      process.env.CCSTATUSLINE_NO_BARS = 'false';
+      const opts = resolveRenderOptions(undefined, true);
+      expect(opts.showEmojis).toBe(false);
+      expect(opts.showBars).toBe(false);
+    });
   });
 });

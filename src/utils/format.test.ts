@@ -45,35 +45,26 @@ describe('formatCurrency', () => {
 });
 
 describe('formatPercentage', () => {
-  it('formats zero', () => {
-    expect(formatPercentage(0)).toBe('0%');
+  it('wraps percentage in parentheses', () => {
+    expect(formatPercentage(42)).toBe('(42%)');
+    expect(formatPercentage(0)).toBe('(0%)');
+    expect(formatPercentage(100)).toBe('(100%)');
   });
 
-  it('formats integer percentages', () => {
-    expect(formatPercentage(42)).toBe('42%');
-    expect(formatPercentage(100)).toBe('100%');
+  it('rounds at 0.5 boundary', () => {
+    expect(formatPercentage(42.4)).toBe('(42%)');
+    expect(formatPercentage(42.5)).toBe('(43%)');
+    expect(formatPercentage(42.9)).toBe('(43%)');
   });
 
-  it('rounds decimal percentages', () => {
-    expect(formatPercentage(42.4)).toBe('42%');
-    expect(formatPercentage(42.5)).toBe('43%');
-    expect(formatPercentage(42.9)).toBe('43%');
+  it('clamps out of range values', () => {
+    expect(formatPercentage(-10)).toBe('(0%)');
+    expect(formatPercentage(150)).toBe('(100%)');
   });
 
-  it('returns empty string for NaN', () => {
+  it('returns empty string for invalid input', () => {
     expect(formatPercentage(NaN)).toBe('');
-  });
-
-  it('returns empty string for Infinity', () => {
     expect(formatPercentage(Infinity)).toBe('');
-  });
-
-  it('clamps negative to 0', () => {
-    expect(formatPercentage(-10)).toBe('0%');
-  });
-
-  it('clamps above 100 to 100', () => {
-    expect(formatPercentage(150)).toBe('100%');
   });
 });
 

@@ -124,3 +124,23 @@ export function getSegmentsConfig(): string | undefined {
   }
   return value;
 }
+
+/**
+ * Gets whether emojis are enabled.
+ *
+ * @returns false if CCSTATUSLINE_NO_EMOJIS is "true" or "1", true otherwise
+ */
+export function getEmojisEnabled(): boolean {
+  const value = process.env.CCSTATUSLINE_NO_EMOJIS?.toLowerCase();
+  return !(value === 'true' || value === '1');
+}
+
+/**
+ * Gets whether progress bars are enabled.
+ *
+ * @returns false if CCSTATUSLINE_NO_BARS is "true" or "1", true otherwise
+ */
+export function getBarsEnabled(): boolean {
+  const value = process.env.CCSTATUSLINE_NO_BARS?.toLowerCase();
+  return !(value === 'true' || value === '1');
+}

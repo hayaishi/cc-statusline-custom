@@ -8,6 +8,8 @@ import {
   getContextMediumThreshold,
   getDebugEnabled,
   getSegmentsConfig,
+  getEmojisEnabled,
+  getBarsEnabled,
 } from './env.js';
 
 describe('env config', () => {
@@ -270,6 +272,78 @@ describe('env config', () => {
     it('returns value with commas and spaces', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'model, context, cost';
       expect(getSegmentsConfig()).toBe('model, context, cost');
+    });
+  });
+
+  describe('getEmojisEnabled', () => {
+    it('returns true by default', () => {
+      delete process.env.CCSTATUSLINE_NO_EMOJIS;
+      expect(getEmojisEnabled()).toBe(true);
+    });
+
+    it('returns false when NO_EMOJIS=true', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'true';
+      expect(getEmojisEnabled()).toBe(false);
+    });
+
+    it('returns false when NO_EMOJIS=1', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = '1';
+      expect(getEmojisEnabled()).toBe(false);
+    });
+
+    it('returns true for other values', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'false';
+      expect(getEmojisEnabled()).toBe(true);
+
+      process.env.CCSTATUSLINE_NO_EMOJIS = '0';
+      expect(getEmojisEnabled()).toBe(true);
+
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'yes';
+      expect(getEmojisEnabled()).toBe(true);
+    });
+
+    it('is case-insensitive', () => {
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'TRUE';
+      expect(getEmojisEnabled()).toBe(false);
+
+      process.env.CCSTATUSLINE_NO_EMOJIS = 'True';
+      expect(getEmojisEnabled()).toBe(false);
+    });
+  });
+
+  describe('getBarsEnabled', () => {
+    it('returns true by default', () => {
+      delete process.env.CCSTATUSLINE_NO_BARS;
+      expect(getBarsEnabled()).toBe(true);
+    });
+
+    it('returns false when NO_BARS=true', () => {
+      process.env.CCSTATUSLINE_NO_BARS = 'true';
+      expect(getBarsEnabled()).toBe(false);
+    });
+
+    it('returns false when NO_BARS=1', () => {
+      process.env.CCSTATUSLINE_NO_BARS = '1';
+      expect(getBarsEnabled()).toBe(false);
+    });
+
+    it('returns true for other values', () => {
+      process.env.CCSTATUSLINE_NO_BARS = 'false';
+      expect(getBarsEnabled()).toBe(true);
+
+      process.env.CCSTATUSLINE_NO_BARS = '0';
+      expect(getBarsEnabled()).toBe(true);
+
+      process.env.CCSTATUSLINE_NO_BARS = 'yes';
+      expect(getBarsEnabled()).toBe(true);
+    });
+
+    it('is case-insensitive', () => {
+      process.env.CCSTATUSLINE_NO_BARS = 'TRUE';
+      expect(getBarsEnabled()).toBe(false);
+
+      process.env.CCSTATUSLINE_NO_BARS = 'True';
+      expect(getBarsEnabled()).toBe(false);
     });
   });
 });

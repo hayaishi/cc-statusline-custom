@@ -18,6 +18,7 @@ import {
   formatCostSegment,
   formatContextSegment,
   formatSubscriptionUsageSegment,
+  DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
 } from './formatter.js';
 import { readCacheSyncWithMtime } from './cache-reader.js';
@@ -26,8 +27,11 @@ import {
   getContextMediumThreshold,
   getSubscriptionCacheTtl,
   getSegmentsConfig,
+  getEmojisEnabled,
+  getBarsEnabled,
 } from '../config/env.js';
 import { formatResetTime } from '../utils/time.js';
+import type { RenderOptions } from './formatter.js';
 
 /**
  * Canonical segment identifiers.
@@ -157,6 +161,26 @@ export function resolveSegmentOrder(
 }
 
 /**
+ * Resolves render options with precedence: CLI > env > default.
+ *
+ * @param noEmojisCli - true if --no-emojis flag present, undefined otherwise
+ * @param noBarsCli - true if --no-bars flag present, undefined otherwise
+ * @returns Resolved render options
+ */
+export function resolveRenderOptions(
+  noEmojisCli: boolean | undefined,
+  noBarsCli: boolean | undefined
+): RenderOptions {
+  const emojisFromEnv = getEmojisEnabled();
+  const barsFromEnv = getBarsEnabled();
+
+  return {
+    showEmojis: noEmojisCli !== undefined ? !noEmojisCli : emojisFromEnv,
+    showBars: noBarsCli !== undefined ? !noBarsCli : barsFromEnv,
+  };
+}
+
+/**
  * Visible fallback output when no meaningful statusline can be generated.
  * MUST be non-empty to satisfy AGENTS.md "NEVER silent" requirement.
  */
@@ -229,7 +253,7 @@ function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
  * Segment builder function type.
  * Returns the segment string, or empty string if the segment should be omitted.
  */
-type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string) => string;
+type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: RenderOptions) => string;
 
 /**
  * Creates the segment builder registry.
@@ -237,24 +261,25 @@ type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string) => string;
  */
 function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
   return {
-    model: (input) => {
+    model: (input, _cacheDir, options) => {
       const modelName = extractModelDisplayName(input);
-      return formatModelSegment(modelName);
+      return formatModelSegment(modelName, options);
     },
-    cost_session: (input) => {
+    cost_session: (input, _cacheDir, options) => {
       const costData = buildCostSegmentData(input);
-      return formatCostSegment(costData);
+      return formatCostSegment(costData, options);
     },
-    context: (input) => {
+    context: (input, _cacheDir, options) => {
       const tokenUsage = extractTokenUsage(input);
       return formatContextSegment(
         tokenUsage,
         getContextLowThreshold(),
-        getContextMediumThreshold()
+        getContextMediumThreshold(),
+        options
       );
     },
-    subscription_usage: (_input, cacheDir) => {
-      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl());
+    subscription_usage: (_input, cacheDir, options) => {
+      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options);
     },
   };
 }
@@ -265,11 +290,13 @@ function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
  * @param input - Parsed input
  * @param cacheDir - Cache directory
  * @param segmentOrder - Order of segments to render
+ * @param renderOptions - Render options for emojis and bars
  */
 function composeSegments(
   input: ClaudeCodeInput,
   cacheDir: string,
-  segmentOrder: readonly SegmentId[]
+  segmentOrder: readonly SegmentId[],
+  renderOptions: RenderOptions
 ): string[] {
   const builders = createSegmentBuilders();
   const segments: string[] = [];
@@ -282,7 +309,7 @@ function composeSegments(
       continue;
     }
 
-    const segment = builder(input, cacheDir);
+    const segment = builder(input, cacheDir, renderOptions);
     if (segment !== '') {
       segments.push(segment);
     }
@@ -294,15 +321,20 @@ function composeSegments(
 /**
  * Builds the subscription usage segment from cache.
  */
-function buildSubscriptionUsageSegment(cacheDir: string, ttlSeconds: number): string {
+function buildSubscriptionUsageSegment(
+  cacheDir: string,
+  ttlSeconds: number,
+  options: RenderOptions
+): string {
   const cache = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
+  const prefix = options.showEmojis ? '📦 ' : 'usage: ';
 
   if (cache.entry !== null && cache.isFresh) {
     const valid = getValidSubscriptionUsage(cache.entry);
     if (valid !== null) {
       const reset = formatResetTime(valid.resetsAt);
       if (reset !== '') {
-        return formatSubscriptionUsageSegment(valid.utilizationPercent, reset);
+        return formatSubscriptionUsageSegment(valid.utilizationPercent, reset, options);
       }
     }
   }
@@ -312,12 +344,12 @@ function buildSubscriptionUsageSegment(cacheDir: string, ttlSeconds: number): st
     if (lastAttemptAt !== null) {
       const ageSeconds = (Date.now() - lastAttemptAt) / 1000;
       if (ageSeconds < ttlSeconds) {
-        return '📦 Fetch Error...';
+        return `${prefix}Fetch Error...`;
       }
     }
   }
 
-  return '📦 Loading...';
+  return `${prefix}Loading...`;
 }
 
 /**
@@ -349,12 +381,14 @@ function ensureVisibleOutput(text: string): string {
  * @param input - Parsed input from Claude Code, or null if parsing failed
  * @param cacheDir - Cache directory (optional, defaults to ~/.cache/ccusage-statusline)
  * @param segments - Segment order (optional, defaults to DEFAULT_SEGMENT_ORDER)
+ * @param renderOptions - Render options for emojis and bars (optional)
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
   input: ClaudeCodeInput | null,
   cacheDir: string = DEFAULT_CACHE_DIR,
-  segments?: readonly SegmentId[]
+  segments?: readonly SegmentId[],
+  renderOptions?: RenderOptions
 ): string {
   try {
     // Handle null/missing input
@@ -365,8 +399,11 @@ export function generateStatusline(
     // Use provided segment order or default
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
 
+    // Use provided render options or default
+    const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
+
     // Compose all segments
-    const composedSegments = composeSegments(input, cacheDir, segmentOrder);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options);
 
     // If no segments, return fallback
     if (composedSegments.length === 0) {

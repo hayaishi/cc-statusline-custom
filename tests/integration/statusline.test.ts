@@ -12,11 +12,12 @@ const CLI_PATH = join(PROJECT_ROOT, 'dist/index.js');
 const FIXTURE_PATH = join(PROJECT_ROOT, 'tests/fixtures/claude-code-input.json');
 
 /**
- * Helper to run the CLI with given stdin input.
+ * Helper to run the CLI with given stdin input and optional CLI flags.
  * Returns stdout output and exit code.
  */
 function runCli(
   stdin: string,
+  args: string[] = [],
   options?: { timeout?: number; env?: Record<string, string> }
 ): { stdout: string; exitCode: number } {
   const execOptions: ExecSyncOptions = {
@@ -28,8 +29,10 @@ function runCli(
     env: { ...process.env, ...options?.env },
   };
 
+  const cliArgs = args.length > 0 ? ` ${args.join(' ')}` : '';
+
   try {
-    const stdout = execSync(`node ${CLI_PATH}`, execOptions);
+    const stdout = execSync(`node ${CLI_PATH}${cliArgs}`, execOptions);
     return { stdout: String(stdout), exitCode: 0 };
   } catch (error) {
     // execSync throws on non-zero exit
@@ -166,7 +169,7 @@ describe('CLI Integration Tests', () => {
   describe('performance', () => {
     it('completes within 300ms', () => {
       const start = performance.now();
-      runCli('{}', { timeout: 1000 });
+      runCli('{}', [], { timeout: 1000 });
       const duration = performance.now() - start;
 
       // Allow some margin for test environment variance
@@ -246,11 +249,11 @@ describe('CLI Integration Tests', () => {
           },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...'
       );
     });
 
@@ -259,10 +262,10 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         model: { display_name: 'Claude Sonnet 4' },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Sonnet | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Sonnet | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('formats partial schema (model + cost)', () => {
@@ -271,10 +274,10 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('formats backward-compatible flat schema', () => {
@@ -288,11 +291,11 @@ describe('CLI Integration Tests', () => {
           current_usage: { input_tokens: 50000 },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] 25% | 📦 Loading...'
+        '🤖 Sonnet | 💰 $0.15 sess | 🧠 50.0k/200k [██░░░░░░] (25%) | 📦 Loading...'
       );
     });
 
@@ -306,10 +309,10 @@ describe('CLI Integration Tests', () => {
           current_usage: null,
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0/200k [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('rounds percentage with .5 up to 43', () => {
@@ -322,7 +325,7 @@ describe('CLI Integration Tests', () => {
           current_usage: { input_tokens: 85000 },
         },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toContain('43%');
@@ -343,11 +346,11 @@ describe('CLI Integration Tests', () => {
       const input = JSON.stringify({
         cost: { total_cost_usd: 0.50 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // cost + context placeholder
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('💰 $0.50 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('💰 $0.50 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('handles invalid cost gracefully', () => {
@@ -356,11 +359,11 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: NaN },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // model + context placeholder (cost is invalid, skipped)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('handles missing context_window gracefully', () => {
@@ -369,10 +372,10 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
       });
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
   });
 
@@ -455,13 +458,13 @@ describe('CLI Integration Tests', () => {
         },
       });
 
-      const { stdout, exitCode } = runCli(input, {
+      const { stdout, exitCode } = runCli(input, [], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] 12% | 📦 55% [████░░░░] (~3:45pm)'
+        '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] (12%) | 📦 55% [████░░░░] (~3:45pm)'
       );
     });
 
@@ -482,12 +485,12 @@ describe('CLI Integration Tests', () => {
         },
       });
 
-      const { stdout, exitCode } = runCli(input, { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
+      const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       // Should still produce output without cache data
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...'
       );
     });
   });
@@ -542,7 +545,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCliWithSegments(input, '--segments=context,model');
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🧠 84.0k/200k [███░░░░░] 42% | 🤖 Opus');
+      expect(cleanOutput).toBe('🧠 84.0k/200k [███░░░░░] (42%) | 🤖 Opus');
     });
 
     it('respects -s <csv> short flag', () => {
@@ -582,7 +585,7 @@ describe('CLI Integration Tests', () => {
         cost: { total_cost_usd: 0.23 },
       });
 
-      const { stdout, exitCode } = runCli(input, {
+      const { stdout, exitCode } = runCli(input, [], {
         env: {
           CCSTATUSLINE_CACHE_DIR: testCacheDir,
           CCSTATUSLINE_SEGMENTS: 'cost_session,model',
@@ -619,7 +622,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCliWithSegments(input, '-s model,ctx');
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] 42%');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%)');
     });
 
     it('normalizes cost_usd alias to cost_session', () => {
@@ -658,7 +661,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order: model, cost_session, context, subscription_usage
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('maintains single-line output invariant', () => {
@@ -751,7 +754,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('falls back to default when -s is at end without value', () => {
@@ -764,7 +767,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used when no value provided
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     it('does not consume another flag as segment value', () => {
@@ -779,7 +782,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used since -s has no valid value (--some-other-flag starts with -)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
     });
 
     // CLI precedence tests: CLI present but invalid should NOT fall back to env
@@ -801,7 +804,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order: model, cost_session, context, subscription_usage
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
       });
 
       it('uses DEFAULT when CLI --segments is at end without value even if env is valid', () => {
@@ -821,7 +824,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's context,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
       });
 
       it('uses DEFAULT when CLI --segments= has empty value even if env is valid', () => {
@@ -841,7 +844,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
       });
 
       it('uses DEFAULT when -s is at end without value even if env is valid', () => {
@@ -861,7 +864,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
       });
 
       it('uses DEFAULT when -s followed by flag even if env is valid', () => {
@@ -881,7 +884,358 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's model only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] 0% | 📦 Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | 📦 Loading...');
+      });
+    });
+  });
+
+  describe('display toggles (--no-emojis, --no-bars)', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-toggles-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    describe('--no-emojis flag', () => {
+      it('removes emojis and adds ctx/usage labels', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        // No emojis
+        expect(cleanOutput).not.toContain('🤖');
+        expect(cleanOutput).not.toContain('💰');
+        expect(cleanOutput).not.toContain('🧠');
+        expect(cleanOutput).not.toContain('📦');
+
+        // Has labels
+        expect(cleanOutput).toContain('ctx:');
+        expect(cleanOutput).toContain('usage:');
+
+        // Still has other content
+        expect(cleanOutput).toContain('Opus');
+        expect(cleanOutput).toContain('$0.23');
+        expect(cleanOutput).toContain('[███');
+      });
+
+      it('works with custom segment order', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis', '--segments=context,model'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        expect(cleanOutput).toContain('ctx:');
+        expect(cleanOutput).toContain('Opus');
+        expect(cleanOutput).not.toContain('🧠');
+
+        // Verify order (ctx before model)
+        const ctxIndex = cleanOutput.indexOf('ctx:');
+        const modelIndex = cleanOutput.indexOf('Opus');
+        expect(ctxIndex).toBeLessThan(modelIndex);
+      });
+    });
+
+    describe('--no-bars flag', () => {
+      it('removes progress bars from context and subscription segments', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        // No bars
+        expect(cleanOutput).not.toContain('[');
+        expect(cleanOutput).not.toContain('█');
+        expect(cleanOutput).not.toContain('░');
+
+        // Still has percentages and emojis
+        expect(cleanOutput).toContain('🧠');
+        expect(cleanOutput).toContain('(42%)');
+        expect(cleanOutput).toContain('📦');
+      });
+    });
+
+    describe('combined --no-emojis --no-bars', () => {
+      it('applies both transformations', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          cost: { total_cost_usd: 0.23 },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis', '--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        // No emojis, no bars
+        expect(cleanOutput).not.toContain('🧠');
+        expect(cleanOutput).not.toContain('[');
+
+        // Has labels and percentages
+        expect(cleanOutput).toContain('ctx:');
+        expect(cleanOutput).toContain('usage:');
+        expect(cleanOutput).toContain('(42%)');
+        expect(cleanOutput).toContain('84.0k/200k');
+      });
+    });
+
+    describe('environment variable precedence', () => {
+      it('CLI --no-emojis overrides env', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, CCSTATUSLINE_NO_EMOJIS: 'false' },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        // CLI wins: no emojis
+        expect(cleanOutput).not.toContain('🧠');
+        expect(cleanOutput).toContain('ctx:');
+      });
+
+      it('env CCSTATUSLINE_NO_EMOJIS=true disables emojis when no CLI flag', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, [], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, CCSTATUSLINE_NO_EMOJIS: 'true' },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        expect(cleanOutput).not.toContain('🧠');
+        expect(cleanOutput).toContain('ctx:');
+      });
+
+      it('CLI --no-bars overrides env', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, CCSTATUSLINE_NO_BARS: 'false' },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        expect(cleanOutput).not.toContain('[');
+      });
+
+      it('env CCSTATUSLINE_NO_BARS=1 disables bars when no CLI flag', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, [], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, CCSTATUSLINE_NO_BARS: '1' },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        expect(cleanOutput).not.toContain('[');
+      });
+
+      it('resolves emojis and bars independently', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, CCSTATUSLINE_NO_BARS: 'true' },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+
+        // Both disabled
+        expect(cleanOutput).not.toContain('🧠');
+        expect(cleanOutput).not.toContain('[');
+        expect(cleanOutput).toContain('ctx:');
+      });
+    });
+
+    describe('edge cases', () => {
+      it('preserves single-line invariant with no-bars', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        assertSingleLine(stdout); // Throws if multiple lines
+      });
+
+      it('preserves single-line invariant with placeholder state and no-bars', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus' },
+          // Missing context data
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        assertSingleLine(stdout);
+      });
+
+      it('handles unknown state gracefully with toggles', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus' },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis', '--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toContain('Opus');
+        // Explicit assertion for placeholder format (contiguous check)
+        expect(cleanOutput).toContain('ctx: (0%)');
+      });
+    });
+
+    describe('context percent parentheses', () => {
+      it('wraps percent in parentheses by default', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, [], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toMatch(/\(\d+%\)/);
+      });
+
+      it('preserves parentheses with --no-emojis', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-emojis'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toMatch(/ctx:.*\(\d+%\)/);
+      });
+
+      it('preserves parentheses with --no-bars', () => {
+        mkdirSync(testCacheDir, { recursive: true });
+        const input = JSON.stringify({
+          model: { display_name: 'Claude Opus 4.5' },
+          context_window: {
+            used_percentage: 42,
+            context_window_size: 200000,
+            current_usage: { input_tokens: 84000 },
+          },
+        });
+
+        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+          env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        });
+        expect(exitCode).toBe(0);
+        const cleanOutput = assertSingleLine(stdout);
+        expect(cleanOutput).toMatch(/\(\d+%\)/);
       });
     });
   });

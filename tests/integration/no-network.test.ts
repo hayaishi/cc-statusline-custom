@@ -13,6 +13,7 @@ import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertSingleLine } from '../helpers/assertions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../..');
@@ -291,11 +292,6 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
         },
       });
 
-      // Strip ANSI codes for comparison
-      const stripAnsi = (text: string): string =>
-        // eslint-disable-next-line no-control-regex
-        text.replace(/\x1b\[[0-9;]*m/g, '');
-
       withIsolatedCacheDir((cacheDir) => {
         // Run multiple times to ensure no accumulation
         for (let i = 0; i < 5; i++) {
@@ -307,8 +303,9 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
               env: { ...process.env, CCSTATUSLINE_CACHE_DIR: cacheDir },
             }
           );
-          expect(stripAnsi(result.trim())).toBe(
-            '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] 42% | 📦 Loading...'
+          const cleanOutput = assertSingleLine(result);
+          expect(cleanOutput).toBe(
+            '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...'
           );
         }
       });

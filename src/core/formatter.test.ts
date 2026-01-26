@@ -8,6 +8,7 @@ import {
   formatCostSegment,
   formatContextSegment,
   formatSubscriptionUsageSegment,
+  DEFAULT_RENDER_OPTIONS,
 } from './formatter.js';
 import { stripAnsi } from '../utils/colors.js';
 import type { TokenUsage } from './parser.js';
@@ -81,23 +82,23 @@ describe('formatContextUsage', () => {
     expect(formatContextUsage(NaN)).toBe('');
   });
 
-  it('formats zero percentage', () => {
-    expect(formatContextUsage(0)).toBe('0%');
+  it('formats zero percentage with parentheses', () => {
+    expect(formatContextUsage(0)).toBe('(0%)');
   });
 
-  it('formats percentage values', () => {
-    expect(formatContextUsage(42)).toBe('42%');
-    expect(formatContextUsage(100)).toBe('100%');
+  it('formats percentage values with parentheses', () => {
+    expect(formatContextUsage(42)).toBe('(42%)');
+    expect(formatContextUsage(100)).toBe('(100%)');
   });
 
   it('rounds decimal percentages', () => {
-    expect(formatContextUsage(42.4)).toBe('42%');
-    expect(formatContextUsage(42.6)).toBe('43%');
+    expect(formatContextUsage(42.4)).toBe('(42%)');
+    expect(formatContextUsage(42.6)).toBe('(43%)');
   });
 
   it('clamps to 0-100 range', () => {
-    expect(formatContextUsage(-10)).toBe('0%');
-    expect(formatContextUsage(150)).toBe('100%');
+    expect(formatContextUsage(-10)).toBe('(0%)');
+    expect(formatContextUsage(150)).toBe('(100%)');
   });
 });
 
@@ -182,7 +183,7 @@ describe('formatSubscriptionUsageSegment', () => {
 describe('formatContextSegment', () => {
   it('returns placeholder with bar for undefined', () => {
     const result = formatContextSegment(undefined);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is null', () => {
@@ -192,7 +193,7 @@ describe('formatContextSegment', () => {
       percentage: null,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is undefined', () => {
@@ -202,7 +203,7 @@ describe('formatContextSegment', () => {
       percentage: undefined as unknown as number,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is NaN', () => {
@@ -212,7 +213,7 @@ describe('formatContextSegment', () => {
       percentage: Number.NaN,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is Infinity', () => {
@@ -222,7 +223,7 @@ describe('formatContextSegment', () => {
       percentage: Number.POSITIVE_INFINITY,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is -Infinity', () => {
@@ -232,17 +233,17 @@ describe('formatContextSegment', () => {
       percentage: Number.NEGATIVE_INFINITY,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
   });
 
-  it('formats full context segment', () => {
+  it('formats full context segment with parentheses around percent', () => {
     const usage: TokenUsage = {
       current: 84000,
       limit: 200000,
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] (42%)');
   });
 
   it('uses 0 when current is null', () => {
@@ -252,7 +253,7 @@ describe('formatContextSegment', () => {
       percentage: 0,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 0/200k [░░░░░░░░] 0%');
+    expect(stripAnsi(result)).toBe('🧠 0/200k [░░░░░░░░] (0%)');
   });
 
   it('handles missing limit', () => {
@@ -262,7 +263,7 @@ describe('formatContextSegment', () => {
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84.0k [███░░░░░] 42%');
+    expect(stripAnsi(result)).toBe('🧠 84.0k [███░░░░░] (42%)');
   });
 
   it('applies correct colors based on thresholds', () => {
@@ -276,16 +277,16 @@ describe('formatContextSegment', () => {
     const highResult = formatContextSegment(highUsage);
 
     // Strip ANSI to verify content
-    expect(stripAnsi(lowResult)).toBe('🧠 50.0k/200k [██░░░░░░] 25%');
-    expect(stripAnsi(medResult)).toBe('🧠 140.0k/200k [██████░░] 70%');
-    expect(stripAnsi(highResult)).toBe('🧠 180.0k/200k [███████░] 90%');
+    expect(stripAnsi(lowResult)).toBe('🧠 50.0k/200k [██░░░░░░] (25%)');
+    expect(stripAnsi(medResult)).toBe('🧠 140.0k/200k [██████░░] (70%)');
+    expect(stripAnsi(highResult)).toBe('🧠 180.0k/200k [███████░] (90%)');
   });
 
   it('respects custom thresholds', () => {
     const usage: TokenUsage = { current: 80000, limit: 200000, percentage: 40 };
     // With custom thresholds (30, 60), 40% should be in yellow zone
     const result = formatContextSegment(usage, 30, 60);
-    expect(stripAnsi(result)).toBe('🧠 80.0k/200k [███░░░░░] 40%');
+    expect(stripAnsi(result)).toBe('🧠 80.0k/200k [███░░░░░] (40%)');
   });
 
   it('formats high token counts correctly', () => {
@@ -295,6 +296,70 @@ describe('formatContextSegment', () => {
       percentage: 75,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 1.5m/2m [██████░░] 75%');
+    expect(stripAnsi(result)).toBe('🧠 1.5m/2m [██████░░] (75%)');
+  });
+});
+
+// ============================================================================
+// RENDER OPTIONS TESTS
+// ============================================================================
+
+describe('RenderOptions - no-emojis behavior', () => {
+  describe('formatModelSegment with options', () => {
+    it('includes emoji prefix by default', () => {
+      const result = formatModelSegment('Claude Opus', DEFAULT_RENDER_OPTIONS);
+      expect(result).toBe('🤖 Opus');
+    });
+
+    it('excludes emoji prefix when showEmojis is false', () => {
+      const result = formatModelSegment('Claude Opus', { showEmojis: false, showBars: true });
+      expect(result).toBe('Opus');
+    });
+  });
+
+  describe('formatCostSegment with options', () => {
+    it('includes emoji prefix by default', () => {
+      const result = formatCostSegment({ sessionCost: 0.23 }, DEFAULT_RENDER_OPTIONS);
+      expect(result).toBe('💰 $0.23 sess');
+    });
+
+    it('excludes emoji prefix when showEmojis is false', () => {
+      const result = formatCostSegment({ sessionCost: 0.23 }, { showEmojis: false, showBars: true });
+      expect(result).toBe('$0.23 sess');
+    });
+  });
+
+  describe('formatContextSegment with options', () => {
+    const usage: TokenUsage = { current: 84000, limit: 200000, percentage: 42 };
+
+    it('includes emoji prefix by default', () => {
+      const result = formatContextSegment(usage, 50, 80, DEFAULT_RENDER_OPTIONS);
+      const stripped = stripAnsi(result);
+      expect(stripped).toBe('🧠 84.0k/200k [███░░░░░] (42%)');
+    });
+
+    it('uses ctx: label when showEmojis is false', () => {
+      const result = formatContextSegment(usage, 50, 80, { showEmojis: false, showBars: true });
+      const stripped = stripAnsi(result);
+      expect(stripped).toBe('ctx: 84.0k/200k [███░░░░░] (42%)');
+    });
+
+    it('uses ctx: label for placeholder when showEmojis is false', () => {
+      const result = formatContextSegment(undefined, 50, 80, { showEmojis: false, showBars: true });
+      const stripped = stripAnsi(result);
+      expect(stripped).toBe('ctx: [░░░░░░░░] (0%)');
+    });
+  });
+
+  describe('formatSubscriptionUsageSegment with options', () => {
+    it('includes emoji prefix by default', () => {
+      const result = formatSubscriptionUsageSegment(55, '~3:45pm', DEFAULT_RENDER_OPTIONS);
+      expect(result).toBe('📦 55% [████░░░░] (~3:45pm)');
+    });
+
+    it('uses usage: label when showEmojis is false', () => {
+      const result = formatSubscriptionUsageSegment(55, '~3:45pm', { showEmojis: false, showBars: true });
+      expect(result).toBe('usage: 55% [████░░░░] (~3:45pm)');
+    });
   });
 });
