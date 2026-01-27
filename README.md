@@ -63,6 +63,12 @@ Update the cache (out-of-band):
 ~/git/ccusage-statusline-custom/dist/index.js --update-cache
 ```
 
+Disable background cache updates:
+
+```bash
+~/git/ccusage-statusline-custom/dist/index.js --disable-bg-update
+```
+
 ### Segment Order/Visibility
 
 Control which segments are shown and their order:
@@ -122,6 +128,32 @@ Output examples:
 | `--no-emojis` | `Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | usage: 55% [████░░░░] (~3:45pm)` |
 | `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)` |
 | `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | usage: 55% (~3:45pm)` |
+
+### Background Cache Updates
+
+The statusline automatically spawns a non-blocking background process to refresh stale cache data when the `subscription_usage` segment is included. This keeps the 📦 segment up-to-date without impacting the hot path performance.
+
+**Behavior:**
+- Background updates spawn only when cache is missing or stale (beyond TTL)
+- Updates run detached and unref'd (non-blocking, never accumulate)
+- Lock file prevents spawn storms (multiple concurrent updates)
+- Background process inherits `CCSTATUSLINE_BG_UPDATE=1` to prevent recursion
+
+**Disable background updates:**
+
+```bash
+# CLI flag (overrides env)
+./dist/index.js --disable-bg-update
+
+# Environment variable
+export CCSTATUSLINE_BG_UPDATE=1
+./dist/index.js
+```
+
+Use `--disable-bg-update` when:
+- Testing with isolated cache directories
+- Running in environments where spawning is restricted
+- You prefer manual cache updates via hooks
 
 ## Claude Code Integration
 
@@ -260,7 +292,7 @@ Files:
 
 ### 📦 segment behavior
 
-The statusline reads cache synchronously (hot path) and never uses network or child processes.
+The statusline reads cache synchronously (hot path) and never uses network or child processes during execution.
 
 - If `subscription-usage.json` is present, fresh (mtime < TTL), and contains a valid payload, the segment renders:
   `📦 <pct>% [████░░░░] (~h:mmam/pm)`
@@ -270,6 +302,12 @@ The statusline reads cache synchronously (hot path) and never uses network or ch
   `📦 Loading...`
 
 TTL is mtime-based and controlled by `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` (seconds).
+
+**Background updates:**
+- When cache is missing or stale and the segment is included, a non-blocking background update spawns after output
+- Background process uses detached + unref pattern (no accumulation)
+- Lock file prevents concurrent updates (spawn storm protection)
+- Disable with `--disable-bg-update` flag or `CCSTATUSLINE_BG_UPDATE=1` env var
 
 ### --update-cache behavior
 
@@ -293,6 +331,7 @@ Environment variables (only these affect behavior):
 | `CCSTATUSLINE_SEGMENTS` | (none) | Segment order/visibility (comma-separated) |
 | `CCSTATUSLINE_NO_EMOJIS` | `false` | Disable emoji prefixes (`true` or `1` to enable) |
 | `CCSTATUSLINE_NO_BARS` | `false` | Disable progress bars (`true` or `1` to enable) |
+| `CCSTATUSLINE_BG_UPDATE` | (none) | Disable background cache updates (`1` to disable; set internally for recursion prevention) |
 
 `CCSTATUSLINE_EXTENDED_METRICS` is parsed but currently unused (no effect).
 
@@ -302,10 +341,16 @@ Hot path (statusline generation):
 1. Always outputs exactly one visible line
 2. Always exits with code 0
 3. Completes within 300ms
-4. No network or child_process usage in hot path modules
+4. No network or child_process usage in hot path modules (synchronous execution)
 5. Visible fallback on any error: `🤖 ? | ⏳ Loading...`
 
-The updater path (`--update-cache`) is intentionally excluded from the no-network/child_process guarantee.
+Background updates (when enabled):
+- Spawn after statusline output completes (non-blocking)
+- Use detached + unref pattern to prevent accumulation
+- Protected by lock file freshness check (prevents spawn storms)
+- Inherit `CCSTATUSLINE_BG_UPDATE=1` to prevent recursion
+
+The updater path (`--update-cache` and background updates) is intentionally excluded from the no-network/child_process guarantee.
 
 ## Development
 
