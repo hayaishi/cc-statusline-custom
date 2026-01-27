@@ -518,8 +518,13 @@ describe('CLI Integration Tests', () => {
         env: { ...process.env, CCSTATUSLINE_CACHE_DIR: testCacheDir, ...env },
       };
 
+      // Always disable background updates to prevent race conditions between tests
+      const flagsWithBgDisabled = segmentsFlag.includes('--disable-bg-update')
+        ? segmentsFlag
+        : `${segmentsFlag} --disable-bg-update`;
+
       try {
-        const stdout = execSync(`node ${CLI_PATH} ${segmentsFlag}`, execOptions);
+        const stdout = execSync(`node ${CLI_PATH} ${flagsWithBgDisabled}`, execOptions);
         return { stdout: String(stdout), exitCode: 0 };
       } catch (error) {
         const execError = error as { status?: number; stdout?: Buffer | string };
@@ -602,7 +607,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCliWithSegments(input, '-s model,sub');
+      const { stdout, exitCode } = runCliWithSegments(input, '-s model,sub --disable-bg-update');
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe('🤖 Opus | 📦 Loading...');
@@ -657,7 +662,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCliWithSegments(input, '-s unknown,invalid');
+      const { stdout, exitCode } = runCliWithSegments(input, '-s unknown,invalid --disable-bg-update');
       expect(exitCode).toBe(0);
       // Default order: model, cost_session, context, subscription_usage
       const cleanOutput = assertSingleLine(stdout);
@@ -750,7 +755,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCliWithSegments(input, '--segments=');
+      const { stdout, exitCode } = runCliWithSegments(input, '--segments= --disable-bg-update');
       expect(exitCode).toBe(0);
       // Default order used
       const cleanOutput = assertSingleLine(stdout);
@@ -763,7 +768,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCliWithSegments(input, '-s');
+      const { stdout, exitCode } = runCliWithSegments(input, '-s --disable-bg-update');
       expect(exitCode).toBe(0);
       // Default order used when no value provided
       const cleanOutput = assertSingleLine(stdout);
@@ -778,7 +783,7 @@ describe('CLI Integration Tests', () => {
 
       // -s followed by a flag-like arg should not use it as the value
       // Instead, -s should be ignored and default order used
-      const { stdout, exitCode } = runCliWithSegments(input, '-s --some-other-flag');
+      const { stdout, exitCode } = runCliWithSegments(input, '-s --disable-bg-update --some-other-flag');
       expect(exitCode).toBe(0);
       // Default order used since -s has no valid value (--some-other-flag starts with -)
       const cleanOutput = assertSingleLine(stdout);
@@ -798,7 +803,7 @@ describe('CLI Integration Tests', () => {
         // Expected: DEFAULT order (not env), because CLI flag is present
         const { stdout, exitCode } = runCliWithSegments(
           input,
-          '--segments=unknown',
+          '--segments=unknown --disable-bg-update',
           { CCSTATUSLINE_SEGMENTS: 'model' }
         );
         expect(exitCode).toBe(0);
@@ -818,7 +823,7 @@ describe('CLI Integration Tests', () => {
         // Expected: DEFAULT order (not env), because CLI flag is present
         const { stdout, exitCode } = runCliWithSegments(
           input,
-          '--segments',
+          '--segments --disable-bg-update',
           { CCSTATUSLINE_SEGMENTS: 'context,model' }
         );
         expect(exitCode).toBe(0);
@@ -838,7 +843,7 @@ describe('CLI Integration Tests', () => {
         // Expected: DEFAULT order (not env), because CLI flag is present
         const { stdout, exitCode } = runCliWithSegments(
           input,
-          '--segments=',
+          '--segments= --disable-bg-update',
           { CCSTATUSLINE_SEGMENTS: 'cost_session,model' }
         );
         expect(exitCode).toBe(0);
@@ -858,7 +863,7 @@ describe('CLI Integration Tests', () => {
         // Expected: DEFAULT order (not env), because CLI flag is present
         const { stdout, exitCode } = runCliWithSegments(
           input,
-          '-s',
+          '-s --disable-bg-update',
           { CCSTATUSLINE_SEGMENTS: 'cost_session' }
         );
         expect(exitCode).toBe(0);
@@ -878,7 +883,7 @@ describe('CLI Integration Tests', () => {
         // Expected: DEFAULT order (not env), because CLI flag is present
         const { stdout, exitCode } = runCliWithSegments(
           input,
-          '-s --foo',
+          '-s --disable-bg-update --foo',
           { CCSTATUSLINE_SEGMENTS: 'model' }
         );
         expect(exitCode).toBe(0);

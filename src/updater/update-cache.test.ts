@@ -284,4 +284,116 @@ describe('update-cache', () => {
     const parsed = JSON.parse(content) as { lastError?: string };
     expect(parsed.lastError).toBe('resets_at_invalid');
   });
+
+  describe('mode option', () => {
+    it('force mode always attempts network fetch', async () => {
+      // Create fresh, valid cache
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const freshEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(freshEntry));
+
+      // Force mode should still fetch
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'force' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode skips when cache is fresh and valid', async () => {
+      // Set TTL to ensure cache is considered fresh
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+
+      // Create fresh, valid cache
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const freshEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(freshEntry));
+
+      // Auto mode should skip
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('skipped');
+      expect(mockFetchOAuthUsage).not.toHaveBeenCalled();
+    });
+
+    it('auto mode fetches when cache is missing', async () => {
+      // No cache file
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode fetches when cache is expired', async () => {
+      // Create old cache file
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const oldEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(Date.now() - 120 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 120 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(oldEntry));
+
+      // Set file mtime to 120 seconds ago
+      const { utimesSync } = await import('node:fs');
+      const oldTime = Date.now() / 1000 - 120;
+      utimesSync(cacheFile, oldTime, oldTime);
+
+      // Auto mode should fetch
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode fetches when cache has error', async () => {
+      // Create cache with error
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const errorEntry = {
+        lastError: 'oauth_fetch_failed',
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(errorEntry));
+
+      // Auto mode should fetch
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('defaults to force mode when mode is not specified', async () => {
+      // Create fresh, valid cache
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const freshEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(freshEntry));
+
+      // No mode specified => should default to force
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir);
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+  });
 });

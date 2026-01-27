@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -152,5 +152,45 @@ describe('parseNoBarsArg', () => {
 
   it('handles multiple occurrences (always true if any present)', () => {
     expect(parseNoBarsArg(['--no-bars', '--no-bars'])).toBe(true);
+  });
+});
+
+describe('parseDisableBgUpdateArg', () => {
+  it('returns false when flag not present', () => {
+    expect(parseDisableBgUpdateArg([])).toBe(false);
+    expect(parseDisableBgUpdateArg(['--segments=model'])).toBe(false);
+  });
+
+  it('returns true when flag present', () => {
+    expect(parseDisableBgUpdateArg(['--disable-bg-update'])).toBe(true);
+  });
+
+  it('handles flag in various positions', () => {
+    expect(parseDisableBgUpdateArg(['--disable-bg-update', '--segments=model'])).toBe(true);
+    expect(parseDisableBgUpdateArg(['--segments=model', '--disable-bg-update'])).toBe(true);
+  });
+
+  it('handles multiple occurrences (always true if any present)', () => {
+    expect(parseDisableBgUpdateArg(['--disable-bg-update', '--disable-bg-update'])).toBe(true);
+  });
+});
+
+describe('parseAutoArg', () => {
+  it('returns false when flag not present', () => {
+    expect(parseAutoArg([])).toBe(false);
+    expect(parseAutoArg(['--update-cache'])).toBe(false);
+  });
+
+  it('returns true when flag present', () => {
+    expect(parseAutoArg(['--auto'])).toBe(true);
+  });
+
+  it('handles flag in various positions', () => {
+    expect(parseAutoArg(['--auto', '--update-cache'])).toBe(true);
+    expect(parseAutoArg(['--update-cache', '--auto'])).toBe(true);
+  });
+
+  it('handles multiple occurrences (always true if any present)', () => {
+    expect(parseAutoArg(['--auto', '--auto'])).toBe(true);
   });
 });

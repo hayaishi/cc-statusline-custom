@@ -21,7 +21,7 @@ import {
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
 } from './formatter.js';
-import { readCacheSyncWithMtime } from './cache-reader.js';
+import { readCacheSyncWithMtime, isLockFileFresh } from './cache-reader.js';
 import {
   getContextLowThreshold,
   getContextMediumThreshold,
@@ -178,6 +178,122 @@ export function resolveRenderOptions(
     showEmojis: noEmojisCli !== undefined ? !noEmojisCli : emojisFromEnv,
     showBars: noBarsCli !== undefined ? !noBarsCli : barsFromEnv,
   };
+}
+
+/**
+ * Cache target identifiers for background update scheduling.
+ */
+export type CacheTargetId = 'subscriptionUsage';
+
+/**
+ * Mapping from segment identifiers to required cache targets.
+ */
+const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
+  model: [],
+  cost_session: [],
+  context: [],
+  subscription_usage: ['subscriptionUsage'],
+};
+
+/**
+ * Gets the list of cache targets required for the given segments.
+ *
+ * @param segments - Array of segment identifiers
+ * @returns Array of cache target identifiers (deduplicated)
+ */
+export function getCacheTargetsForSegments(segments: readonly SegmentId[]): CacheTargetId[] {
+  const targets = new Set<CacheTargetId>();
+  for (const seg of segments) {
+    for (const target of SEGMENT_CACHE_TARGETS[seg]) {
+      targets.add(target);
+    }
+  }
+  return [...targets];
+}
+
+/**
+ * Gets the TTL in seconds for a given cache target.
+ *
+ * @param target - Cache target identifier
+ * @returns TTL in seconds
+ */
+export function getCacheTargetTtlSeconds(target: CacheTargetId): number {
+  switch (target) {
+    case 'subscriptionUsage':
+      return getSubscriptionCacheTtl();
+  }
+}
+
+/**
+ * Options for background update check.
+ */
+export interface BgUpdateCheckOptions {
+  nowMs?: number;
+  cooldownSeconds?: number;
+}
+
+/**
+ * Determines whether a background cache update should be requested.
+ *
+ * Returns true if:
+ * - At least one segment requires a cache target
+ * - For any required cache target:
+ *   - Cache is missing OR
+ *   - Cache is expired (beyond TTL) OR
+ *   - Cache has error/invalid payload
+ * - NOT within cooldown period (based on lastAttemptAt)
+ *
+ * @param cacheDir - Cache directory path
+ * @param segments - Array of segment identifiers
+ * @param options - Optional check options (nowMs, cooldownSeconds)
+ * @returns true if background update should be requested
+ */
+export function shouldRequestBgCacheUpdate(
+  cacheDir: string,
+  segments: readonly SegmentId[],
+  options?: BgUpdateCheckOptions
+): boolean {
+  const targets = getCacheTargetsForSegments(segments);
+  if (targets.length === 0) return false;
+
+  // Skip if another update is already in progress (lock file exists and is fresh)
+  if (isLockFileFresh(cacheDir)) return false;
+
+  const nowMs = options?.nowMs ?? Date.now();
+  const cooldownSeconds = options?.cooldownSeconds ?? 30;
+  const cooldownMs = cooldownSeconds * 1000;
+
+  let needsUpdate = false;
+
+  for (const target of targets) {
+    const ttl = getCacheTargetTtlSeconds(target);
+    const cacheResult = readCacheSyncWithMtime(target, cacheDir, ttl);
+
+    // Cooldown gate (per-target best-effort)
+    if (cacheResult.entry !== null) {
+      const lastAttempt = getLastAttemptAt(cacheResult.entry);
+      if (lastAttempt !== null && nowMs - lastAttempt < cooldownMs) {
+        // Do not request update for this target yet; keep checking others.
+        continue;
+      }
+    }
+
+    // Missing or stale cache => request update
+    if (cacheResult.entry === null || !cacheResult.isFresh) {
+      needsUpdate = true;
+      continue;
+    }
+
+    // Fresh cache but error/invalid payload => request update
+    // NOTE: validation must be target-specific when more targets are added.
+    const valid = getValidSubscriptionUsage(cacheResult.entry);
+    if (valid === null) {
+      needsUpdate = true;
+      continue;
+    }
+  }
+
+  return needsUpdate;
 }
 
 /**

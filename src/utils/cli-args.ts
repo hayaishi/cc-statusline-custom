@@ -90,3 +90,23 @@ export function parseNoEmojisArg(args: string[]): boolean | undefined {
 export function parseNoBarsArg(args: string[]): boolean | undefined {
   return args.includes('--no-bars') ? true : undefined;
 }
+
+/**
+ * Checks if --disable-bg-update flag is present.
+ *
+ * @param args - CLI arguments
+ * @returns true if flag present, false otherwise
+ */
+export function parseDisableBgUpdateArg(args: string[]): boolean {
+  return args.includes('--disable-bg-update');
+}
+
+/**
+ * Checks if --auto flag is present.
+ *
+ * @param args - CLI arguments
+ * @returns true if flag present, false otherwise
+ */
+export function parseAutoArg(args: string[]): boolean {
+  return args.includes('--auto');
+}

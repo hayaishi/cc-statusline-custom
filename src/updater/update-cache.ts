@@ -4,11 +4,12 @@
  * This module runs out-of-band from the statusline hot path.
  */
 
-import { getCacheDir } from '../config/env.js';
+import { getCacheDir, getSubscriptionCacheTtl } from '../config/env.js';
 import { writeCacheAtomic, acquireLock, releaseLock } from '../core/cache.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
 import { fetchOAuthUsage, type OAuthUsage } from './oauth.js';
 import { getOAuthToken } from './token.js';
+import { readCacheSyncWithMtime } from '../core/cache-reader.js';
 
 /**
  * Result of a cache update operation.
@@ -16,6 +17,13 @@ import { getOAuthToken } from './token.js';
 export interface UpdateCacheResult {
   success: boolean;
   message: string;
+}
+
+/**
+ * Options for cache update operation.
+ */
+export interface UpdateCacheOptions {
+  mode?: 'auto' | 'force';
 }
 
 interface UpdaterDeps {
@@ -142,13 +150,59 @@ export function normalizeUtilizationPercent(raw: number): number | null {
 }
 
 /**
+ * Validates whether a subscription usage entry has valid, usable data.
+ * This is a minimal, updater-local validation (no cross-layer coupling).
+ */
+function isValidSubscriptionUsage(entry: SubscriptionUsageEntry): boolean {
+  // Must have no error
+  if (entry.lastError !== null) {
+    return false;
+  }
+
+  // Must have utilizationPercent in valid range
+  if (typeof entry.utilizationPercent !== 'number') {
+    return false;
+  }
+  if (entry.utilizationPercent < 0 || entry.utilizationPercent > 100) {
+    return false;
+  }
+
+  // Must have parseable resetsAt
+  if (typeof entry.resetsAt !== 'string') {
+    return false;
+  }
+  if (!Number.isFinite(Date.parse(entry.resetsAt))) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Updates all cache files atomically.
  *
  * @param cacheDir - Cache directory (optional, uses env config default)
+ * @param options - Update options (mode: 'auto' or 'force')
  * @returns Result indicating success/failure and a message
  */
-export async function updateCache(cacheDir?: string): Promise<UpdateCacheResult> {
+export async function updateCache(
+  cacheDir?: string,
+  options?: UpdateCacheOptions
+): Promise<UpdateCacheResult> {
   const dir = cacheDir ?? getCacheDir();
+  const mode = options?.mode ?? 'force';
+
+  // In auto mode, check if cache is fresh and usable BEFORE acquiring lock
+  // (acquireLock creates a lock file that causes readCacheSyncWithMtime to skip)
+  if (mode === 'auto') {
+    const ttl = getSubscriptionCacheTtl();
+    const existing = readCacheSyncWithMtime('subscriptionUsage', dir, ttl);
+    if (existing.isFresh && existing.entry !== null) {
+      if (isValidSubscriptionUsage(existing.entry)) {
+        return { success: true, message: 'Cache fresh; skipped' };
+      }
+    }
+  }
 
   if (!acquireLock(dir)) {
     return {
@@ -158,6 +212,7 @@ export async function updateCache(cacheDir?: string): Promise<UpdateCacheResult>
   }
 
   try {
+    // Proceed with network fetch (force mode or auto mode with stale/invalid cache)
     const subscriptionUsage = await buildSubscriptionUsageEntry();
 
     writeCacheAtomic('subscriptionUsage', subscriptionUsage, dir);

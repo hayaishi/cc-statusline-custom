@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -11,6 +11,9 @@ import {
   resolveSegmentOrder,
   resolveRenderOptions,
   DEFAULT_SEGMENT_ORDER,
+  getCacheTargetsForSegments,
+  getCacheTargetTtlSeconds,
+  shouldRequestBgCacheUpdate,
 } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
@@ -626,6 +629,206 @@ describe('segment configuration', () => {
       const result = resolveSegmentOrder('   ');
       // CLI flag present but whitespace => DEFAULT, not env
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
+    });
+  });
+
+  describe('getCacheTargetsForSegments', () => {
+    it('returns empty array when segments do not require cache', () => {
+      const result = getCacheTargetsForSegments(['model', 'context']);
+      expect(result).toEqual([]);
+    });
+
+    it('returns subscriptionUsage when subscription_usage segment is included', () => {
+      const result = getCacheTargetsForSegments(['subscription_usage']);
+      expect(result).toEqual(['subscriptionUsage']);
+    });
+
+    it('returns subscriptionUsage when mixed with non-cache segments', () => {
+      const result = getCacheTargetsForSegments(['model', 'subscription_usage', 'context']);
+      expect(result).toEqual(['subscriptionUsage']);
+    });
+
+    it('returns empty array for cost_session segment', () => {
+      const result = getCacheTargetsForSegments(['cost_session']);
+      expect(result).toEqual([]);
+    });
+
+    it('deduplicates when same segment appears multiple times', () => {
+      const result = getCacheTargetsForSegments(['subscription_usage', 'model', 'subscription_usage']);
+      expect(result).toEqual(['subscriptionUsage']);
+    });
+
+    it('returns empty array for empty segment list', () => {
+      const result = getCacheTargetsForSegments([]);
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getCacheTargetTtlSeconds', () => {
+    it('returns configured TTL for subscriptionUsage', () => {
+      delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
+      const result = getCacheTargetTtlSeconds('subscriptionUsage');
+      expect(result).toBe(60); // Default TTL
+    });
+
+    it('respects environment variable override for subscriptionUsage', () => {
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '120';
+      const result = getCacheTargetTtlSeconds('subscriptionUsage');
+      expect(result).toBe(120);
+    });
+
+    it('returns positive integer for subscriptionUsage', () => {
+      const result = getCacheTargetTtlSeconds('subscriptionUsage');
+      expect(result).toBeGreaterThan(0);
+      expect(Number.isInteger(result)).toBe(true);
+    });
+  });
+
+  describe('shouldRequestBgCacheUpdate', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-statusline-bgupdate-test-${String(process.pid)}`);
+
+    beforeEach(() => {
+      if (!existsSync(testCacheDir)) {
+        mkdirSync(testCacheDir, { recursive: true });
+      }
+    });
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('returns false when segments do not require cache', () => {
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', 'context']);
+      expect(result).toBe(false);
+    });
+
+    it('returns true when cache is missing', () => {
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      expect(result).toBe(true);
+    });
+
+    it('returns true when cache is expired', () => {
+      // Create cache file that's older than TTL
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const oldEntry: SubscriptionUsageEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(Date.now() - 120 * 1000).toISOString(), // 120 seconds ago
+        updatedAt: new Date(Date.now() - 120 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(oldEntry));
+
+      // Set file mtime to 120 seconds ago to make it appear old
+      const oldTime = Date.now() / 1000 - 120;
+      utimesSync(cacheFile, oldTime, oldTime);
+
+      // Set TTL to 60 seconds, so cache is expired
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      expect(result).toBe(true);
+    });
+
+    it('returns true when cache has error/invalid payload', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const errorEntry: SubscriptionUsageEntry = {
+        lastError: 'oauth_fetch_failed',
+        lastAttemptAt: new Date(Date.now() - 60 * 1000).toISOString(), // 60 seconds ago (beyond cooldown)
+        updatedAt: new Date(Date.now() - 60 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(errorEntry));
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      expect(result).toBe(true);
+    });
+
+    it('returns false when within cooldown', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const nowMs = Date.now();
+      const recentEntry: SubscriptionUsageEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(nowMs - 10 * 1000).toISOString(), // 10 seconds ago
+        updatedAt: new Date(nowMs - 10 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(recentEntry));
+
+      // Cooldown is 30 seconds by default, so should not update
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
+        nowMs,
+        cooldownSeconds: 30,
+      });
+      expect(result).toBe(false);
+    });
+
+    it('returns false when cache is fresh and valid', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const freshEntry: SubscriptionUsageEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(Date.now() - 10 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(freshEntry));
+
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      expect(result).toBe(false);
+    });
+
+    it('returns true when beyond cooldown period', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const nowMs = Date.now();
+      const oldAttemptEntry: SubscriptionUsageEntry = {
+        lastError: 'oauth_fetch_failed',
+        lastAttemptAt: new Date(nowMs - 60 * 1000).toISOString(), // 60 seconds ago
+        updatedAt: new Date(nowMs - 60 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(oldAttemptEntry));
+
+      // Cooldown is 30 seconds, last attempt was 60 seconds ago => should update
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
+        nowMs,
+        cooldownSeconds: 30,
+      });
+      expect(result).toBe(true);
+    });
+
+    it('returns false for empty segment list', () => {
+      const result = shouldRequestBgCacheUpdate(testCacheDir, []);
+      expect(result).toBe(false);
+    });
+
+    it('handles missing lastAttemptAt gracefully', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const entryWithoutAttempt: SubscriptionUsageEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(entryWithoutAttempt));
+
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      // Fresh and valid => should not update
+      expect(result).toBe(false);
+    });
+
+    it('returns false when lock file is fresh (update in progress)', () => {
+      const lockFile = join(testCacheDir, 'cache.lock');
+      writeFileSync(lockFile, String(process.pid));
+
+      // Ensure lock freshness is deterministic
+      const now = new Date();
+      utimesSync(lockFile, now, now);
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
+      expect(result).toBe(false);
     });
   });
 });

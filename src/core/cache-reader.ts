@@ -22,10 +22,12 @@ import type { CacheKey, CacheEntry } from '../types/cache.js';
 /**
  * Checks if the lock file is fresh (< threshold seconds old).
  *
+ * Used to detect when another update is already in progress.
+ *
  * @param cacheDir - Cache directory path
  * @returns true if lock file exists and is fresh
  */
-function isLockFileFresh(cacheDir: string): boolean {
+export function isLockFileFresh(cacheDir: string): boolean {
   try {
     const lockPath = join(cacheDir, CACHE_FILE_NAMES.lock);
     if (!existsSync(lockPath)) {
