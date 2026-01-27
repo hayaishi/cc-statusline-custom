@@ -443,23 +443,25 @@ function composeSegments(
   renderOptions: RenderOptions
 ): string[] {
   const builders = createSegmentBuilders();
-  const segments: string[] = [];
 
-  for (const segmentId of segmentOrder) {
+  return segmentOrder.reduce<string[]>((segments, segmentId) => {
     const builder = builders[segmentId];
 
-    // Special case: subscription_usage only renders if we have other segments
-    if (segmentId === 'subscription_usage' && segments.length === 0) {
-      continue;
+    // Subscription usage only shows when other context exists (never standalone)
+    const isSubscriptionSegment = segmentId === 'subscription_usage';
+    const hasNoOtherSegments = segments.length === 0;
+    if (isSubscriptionSegment && hasNoOtherSegments) {
+      return segments;
     }
 
-    const segment = builder(input, cacheDir, renderOptions);
-    if (segment !== '') {
-      segments.push(segment);
+    const renderedSegment = builder(input, cacheDir, renderOptions);
+    const hasContent = renderedSegment !== '';
+    if (hasContent) {
+      segments.push(renderedSegment);
     }
-  }
 
-  return segments;
+    return segments;
+  }, []);
 }
 
 /**
