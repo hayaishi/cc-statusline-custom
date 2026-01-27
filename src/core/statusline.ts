@@ -78,8 +78,10 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 /**
  * Normalizes a segment identifier to its canonical form.
  *
+ * Example: "ctx" → "context", "sub" → "subscription_usage"
+ *
  * @param id - User-provided segment identifier
- * @returns Canonical SegmentId or null if unknown
+ * @returns Canonical SegmentId or null if unknown/empty
  */
 export function normalizeSegmentId(id: string): SegmentId | null {
   const normalized = id.trim().toLowerCase();
@@ -92,12 +94,15 @@ export function normalizeSegmentId(id: string): SegmentId | null {
 /**
  * Parses a comma-separated segment list string.
  *
- * - Normalizes aliases to canonical identifiers
+ * Example: "model,ctx,sub" → ["model", "context", "subscription_usage"]
+ *
+ * Behavior:
+ * - Normalizes aliases to canonical identifiers (ctx → context)
  * - Ignores unknown identifiers (no error)
  * - Removes duplicates (keeps first occurrence)
  *
  * @param csv - Comma-separated segment identifiers
- * @returns Array of canonical SegmentIds (may be empty)
+ * @returns Array of canonical SegmentIds (may be empty if all unknown)
  */
 export function parseSegmentList(csv: string): SegmentId[] {
   const seen = new Set<SegmentId>();
@@ -118,13 +123,11 @@ export function parseSegmentList(csv: string): SegmentId[] {
 /**
  * Resolves the final segment order based on CLI args and environment.
  *
- * Resolution order:
- * 1. If CLI flag is present (cliValue !== undefined):
- *    - Parse it; if valid segments found, use them
- *    - If empty/invalid, use DEFAULT (do NOT fall back to env)
- * 2. If CLI flag is NOT present (cliValue === undefined):
- *    - Check environment variable CCSTATUSLINE_SEGMENTS
- *    - If set and valid, use it; otherwise use DEFAULT
+ * Precedence (highest to lowest):
+ * 1. CLI flag (--segments or -s): if present, ONLY use CLI value or DEFAULT
+ *    - Does NOT fall back to env when CLI flag is present (even if invalid)
+ * 2. Environment variable (CCSTATUSLINE_SEGMENTS): if CLI not present
+ * 3. DEFAULT_SEGMENT_ORDER: if both CLI and env absent/invalid
  *
  * @param cliValue - Value from CLI --segments or -s flag (undefined if flag not present, '' if present but no value)
  * @param envValue - Optional explicit env value (used for testing). If undefined, reads from process.env.
@@ -134,8 +137,8 @@ export function resolveSegmentOrder(
   cliValue: string | undefined,
   envValue?: string
 ): readonly SegmentId[] {
-  // 1. If CLI flag is present (even if empty/invalid), use CLI result or DEFAULT
-  //    Do NOT fall back to env when CLI flag is present
+  // CLI flag present (even if empty/invalid) => use CLI result or DEFAULT
+  // IMPORTANT: Do NOT fall back to env when CLI flag is present
   if (cliValue !== undefined) {
     if (cliValue.trim() !== '') {
       const parsed = parseSegmentList(cliValue);
@@ -147,7 +150,7 @@ export function resolveSegmentOrder(
     return DEFAULT_SEGMENT_ORDER;
   }
 
-  // 2. CLI flag not present => consult environment variable
+  // CLI flag not present => check environment variable
   const envSegments = envValue ?? getSegmentsConfig();
   if (envSegments !== undefined && envSegments.trim() !== '') {
     const parsed = parseSegmentList(envSegments);
@@ -156,7 +159,7 @@ export function resolveSegmentOrder(
     }
   }
 
-  // 3. Default
+  // Both CLI and env absent/invalid => use default
   return DEFAULT_SEGMENT_ORDER;
 }
 
@@ -198,17 +201,14 @@ const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
 /**
  * Gets the list of cache targets required for the given segments.
  *
+ * Example: ["model", "subscription_usage"] → ["subscriptionUsage"]
+ *
  * @param segments - Array of segment identifiers
  * @returns Array of cache target identifiers (deduplicated)
  */
 export function getCacheTargetsForSegments(segments: readonly SegmentId[]): CacheTargetId[] {
-  const targets = new Set<CacheTargetId>();
-  for (const seg of segments) {
-    for (const target of SEGMENT_CACHE_TARGETS[seg]) {
-      targets.add(target);
-    }
-  }
-  return [...targets];
+  const allTargets = segments.flatMap(seg => SEGMENT_CACHE_TARGETS[seg]);
+  return [...new Set(allTargets)];
 }
 
 /**
@@ -233,19 +233,52 @@ export interface BgUpdateCheckOptions {
 }
 
 /**
+ * Checks if a cache entry is within the cooldown period since last attempt.
+ *
+ * @param entry - Cache entry (may be null)
+ * @param nowMs - Current time in milliseconds
+ * @param cooldownMs - Cooldown period in milliseconds
+ * @returns true if within cooldown (too soon to retry)
+ */
+function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
+  if (entry === null) return false;
+
+  const lastAttemptMs = getLastAttemptAt(entry);
+  if (lastAttemptMs === null) return false;
+
+  return nowMs - lastAttemptMs < cooldownMs;
+}
+
+/**
+ * Checks if a cache entry has valid data.
+ *
+ * @param entry - Cache entry (may be null)
+ * @param isFresh - Whether the cache is within TTL
+ * @returns true if cache exists, is fresh, and has valid payload
+ */
+function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
+  if (entry === null || !isFresh) return false;
+
+  // NOTE: validation must be target-specific when more targets are added.
+  const valid = getValidSubscriptionUsage(entry);
+  return valid !== null;
+}
+
+/**
  * Determines whether a background cache update should be requested.
  *
- * Returns true if:
+ * Returns true when ALL conditions are met:
  * - At least one segment requires a cache target
- * - For any required cache target:
- *   - Cache is missing OR
- *   - Cache is expired (beyond TTL) OR
- *   - Cache has error/invalid payload
- * - NOT within cooldown period (based on lastAttemptAt)
+ * - Update lock is NOT held (no concurrent update in progress)
+ * - At least one cache target needs refresh due to:
+ *   - Missing cache file
+ *   - Expired cache (beyond TTL)
+ *   - Invalid/corrupt cache payload
+ * - NOT within cooldown period since last attempt (prevents spawn storms)
  *
  * @param cacheDir - Cache directory path
  * @param segments - Array of segment identifiers
- * @param options - Optional check options (nowMs, cooldownSeconds)
+ * @param options - Optional check options (nowMs, cooldownSeconds default: 30)
  * @returns true if background update should be requested
  */
 export function shouldRequestBgCacheUpdate(
@@ -256,44 +289,24 @@ export function shouldRequestBgCacheUpdate(
   const targets = getCacheTargetsForSegments(segments);
   if (targets.length === 0) return false;
 
-  // Skip if another update is already in progress (lock file exists and is fresh)
   if (isLockFileFresh(cacheDir)) return false;
 
   const nowMs = options?.nowMs ?? Date.now();
-  const cooldownSeconds = options?.cooldownSeconds ?? 30;
-  const cooldownMs = cooldownSeconds * 1000;
+  const cooldownMs = (options?.cooldownSeconds ?? 30) * 1000;
 
-  let needsUpdate = false;
-
-  for (const target of targets) {
+  // Return true if ANY target needs update
+  return targets.some(target => {
     const ttl = getCacheTargetTtlSeconds(target);
-    const cacheResult = readCacheSyncWithMtime(target, cacheDir, ttl);
+    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttl);
 
-    // Cooldown gate (per-target best-effort)
-    if (cacheResult.entry !== null) {
-      const lastAttempt = getLastAttemptAt(cacheResult.entry);
-      if (lastAttempt !== null && nowMs - lastAttempt < cooldownMs) {
-        // Do not request update for this target yet; keep checking others.
-        continue;
-      }
+    // Skip this target if within cooldown (prevents spawn storms)
+    if (isWithinCooldown(entry, nowMs, cooldownMs)) {
+      return false; // Not ready for update; try other targets
     }
 
-    // Missing or stale cache => request update
-    if (cacheResult.entry === null || !cacheResult.isFresh) {
-      needsUpdate = true;
-      continue;
-    }
-
-    // Fresh cache but error/invalid payload => request update
-    // NOTE: validation must be target-specific when more targets are added.
-    const valid = getValidSubscriptionUsage(cacheResult.entry);
-    if (valid === null) {
-      needsUpdate = true;
-      continue;
-    }
-  }
-
-  return needsUpdate;
+    // Needs update if cache is invalid (missing, stale, or corrupt)
+    return !isCacheValid(entry, isFresh);
+  });
 }
 
 /**
@@ -303,7 +316,13 @@ export function shouldRequestBgCacheUpdate(
 export const FALLBACK_OUTPUT = '🤖 ? | ⏳ Loading...';
 
 /**
- * Extracts a valid subscription usage payload from cache entry.
+ * Validates and extracts subscription usage payload from cache entry.
+ *
+ * Returns null if any validation fails:
+ * - utilizationPercent must be integer 0-100
+ * - resetsAt must be valid ISO date string
+ *
+ * @returns Validated payload or null if invalid
  */
 function getValidSubscriptionUsage(
   entry: CacheEntry
@@ -313,19 +332,19 @@ function getValidSubscriptionUsage(
     resetsAt?: unknown;
   };
 
+  // Validate utilizationPercent: must be integer 0-100
   const percentValue = record.utilizationPercent;
   if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) {
     return null;
   }
-
   if (percentValue < 0 || percentValue > 100) {
     return null;
   }
 
+  // Validate resetsAt: must be parseable ISO date string
   if (typeof record.resetsAt !== 'string') {
     return null;
   }
-
   if (!Number.isFinite(Date.parse(record.resetsAt))) {
     return null;
   }
@@ -334,7 +353,11 @@ function getValidSubscriptionUsage(
 }
 
 /**
- * Reads the last attempt timestamp from cache entry (if valid).
+ * Extracts the last attempt timestamp from cache entry.
+ *
+ * Used for cooldown gating to prevent spawn storms.
+ *
+ * @returns Milliseconds since epoch, or null if missing/invalid
  */
 function getLastAttemptAt(entry: CacheEntry): number | null {
   const record = entry as { lastAttemptAt?: unknown };
@@ -342,21 +365,22 @@ function getLastAttemptAt(entry: CacheEntry): number | null {
     return null;
   }
 
-  const parsed = Date.parse(record.lastAttemptAt);
-  if (!Number.isFinite(parsed)) {
+  const parsedMs = Date.parse(record.lastAttemptAt);
+  if (!Number.isFinite(parsedMs)) {
     return null;
   }
 
-  return parsed;
+  return parsedMs;
 }
 
 /**
- * Builds cost segment data from input.
+ * Extracts cost data from input for cost segment rendering.
+ *
+ * Currently only extracts session cost; extensible for future cost types.
  */
 function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
   const data: CostSegmentData = {};
 
-  // Session cost from input
   const sessionCost = extractSessionCost(input);
   if (sessionCost !== undefined) {
     (data as { sessionCost?: number }).sessionCost = sessionCost;
@@ -401,12 +425,16 @@ function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
 }
 
 /**
- * Composes segments in the specified order.
+ * Composes segments in the specified order, filtering empty results.
+ *
+ * Special rule: subscription_usage only renders if at least one other segment exists
+ * (prevents showing only subscription usage with no context).
  *
  * @param input - Parsed input
  * @param cacheDir - Cache directory
  * @param segmentOrder - Order of segments to render
  * @param renderOptions - Render options for emojis and bars
+ * @returns Array of non-empty segment strings
  */
 function composeSegments(
   input: ClaudeCodeInput,
@@ -435,18 +463,47 @@ function composeSegments(
 }
 
 /**
+ * Checks if a failed cache fetch is recent (within TTL).
+ *
+ * Used to distinguish "Fetch Error" from "Loading" states.
+ *
+ * @param entry - Cache entry (may be null)
+ * @param ttlSeconds - Cache TTL in seconds
+ * @returns true if entry exists, has lastAttemptAt, and is within TTL
+ */
+function isRecentFetchError(entry: CacheEntry | null, ttlSeconds: number): boolean {
+  if (entry === null) return false;
+
+  const lastAttemptMs = getLastAttemptAt(entry);
+  if (lastAttemptMs === null) return false;
+
+  const ageSeconds = (Date.now() - lastAttemptMs) / 1000;
+  return ageSeconds < ttlSeconds;
+}
+
+/**
  * Builds the subscription usage segment from cache.
+ *
+ * Returns one of:
+ * - Formatted usage segment (if cache valid and fresh)
+ * - "Fetch Error..." (if recent attempt failed within TTL)
+ * - "Loading..." (if no cache or stale)
+ *
+ * @param cacheDir - Cache directory path
+ * @param ttlSeconds - Cache time-to-live in seconds
+ * @param options - Render options for emojis
  */
 function buildSubscriptionUsageSegment(
   cacheDir: string,
   ttlSeconds: number,
   options: RenderOptions
 ): string {
-  const cache = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
+  const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
   const prefix = options.showEmojis ? '📦 ' : 'usage: ';
 
-  if (cache.entry !== null && cache.isFresh) {
-    const valid = getValidSubscriptionUsage(cache.entry);
+  // Happy path: fresh valid cache
+  if (entry !== null && isFresh) {
+    const valid = getValidSubscriptionUsage(entry);
     if (valid !== null) {
       const reset = formatResetTime(valid.resetsAt);
       if (reset !== '') {
@@ -455,22 +512,22 @@ function buildSubscriptionUsageSegment(
     }
   }
 
-  if (cache.entry !== null) {
-    const lastAttemptAt = getLastAttemptAt(cache.entry);
-    if (lastAttemptAt !== null) {
-      const ageSeconds = (Date.now() - lastAttemptAt) / 1000;
-      if (ageSeconds < ttlSeconds) {
-        return `${prefix}Fetch Error...`;
-      }
-    }
+  // Error state: recent fetch failed (within TTL)
+  if (isRecentFetchError(entry, ttlSeconds)) {
+    return `${prefix}Fetch Error...`;
   }
 
+  // Loading state: no cache or stale
   return `${prefix}Loading...`;
 }
 
 /**
- * Ensures the output is a single visible line.
- * Takes only the first line and falls back if result is empty/whitespace.
+ * Ensures the output is a single visible line (never empty/whitespace).
+ *
+ * - Extracts first line only (discards any newlines)
+ * - Returns FALLBACK_OUTPUT if result is empty/whitespace
+ *
+ * Guarantees: returned string is never empty and never whitespace-only.
  */
 function ensureVisibleOutput(text: string): string {
   const firstLine = text.split('\n')[0] ?? '';
@@ -487,17 +544,23 @@ function ensureVisibleOutput(text: string): string {
 /**
  * Generates a statusline string from Claude Code input.
  *
- * Always reads subscription usage from cache when available.
+ * This is the main entry point for statusline generation.
  *
- * Guarantees:
+ * Guarantees (NEVER-SILENT):
  * - NEVER throws (catches all errors internally)
  * - ALWAYS returns a non-empty, visible single line
  * - Returns FALLBACK_OUTPUT on any error or missing input
  *
+ * Behavior:
+ * - Composes segments in specified order
+ * - Reads subscription usage from cache (when segment enabled)
+ * - Joins segments with " | " separator
+ * - Ensures output is exactly one visible line
+ *
  * @param input - Parsed input from Claude Code, or null if parsing failed
- * @param cacheDir - Cache directory (optional, defaults to ~/.cache/ccusage-statusline)
- * @param segments - Segment order (optional, defaults to DEFAULT_SEGMENT_ORDER)
- * @param renderOptions - Render options for emojis and bars (optional)
+ * @param cacheDir - Cache directory (defaults to ~/.cache/ccusage-statusline)
+ * @param segments - Segment order (defaults to DEFAULT_SEGMENT_ORDER)
+ * @param renderOptions - Render options for emojis and bars (defaults to DEFAULT_RENDER_OPTIONS)
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
@@ -507,29 +570,21 @@ export function generateStatusline(
   renderOptions?: RenderOptions
 ): string {
   try {
-    // Handle null/missing input
     if (input === null) {
       return FALLBACK_OUTPUT;
     }
 
-    // Use provided segment order or default
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
-
-    // Use provided render options or default
     const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
 
-    // Compose all segments
     const composedSegments = composeSegments(input, cacheDir, segmentOrder, options);
 
-    // If no segments, return fallback
     if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;
     }
 
-    // Join segments with " | " separator
     const output = composedSegments.join(' | ');
 
-    // Ensure single line and non-empty output
     return ensureVisibleOutput(output);
   } catch {
     // Ultimate safety net: never throw, always return visible fallback
