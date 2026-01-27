@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { execSync, execFileSync, type ExecSyncOptions } from 'node:child_process';
-import { readFileSync, accessSync, constants, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, accessSync, constants, mkdirSync, writeFileSync, rmSync, existsSync, utimesSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -1242,6 +1242,226 @@ describe('CLI Integration Tests', () => {
         const cleanOutput = assertSingleLine(stdout);
         expect(cleanOutput).toMatch(/\(\d+%\)/);
       });
+    });
+  });
+
+  describe('subscription_usage_all segment integration', () => {
+    const testCacheDir = join(tmpdir(), `ccusage-int-sub-all-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('renders both windows with correct formatting', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          utilizationPercent: 55,
+          resetsAt: '2026-01-27T15:45:00Z',
+          window: 'five_hour',
+          fiveHour: {
+            utilizationPercent: 55,
+            resetsAt: '2026-01-27T15:45:00Z',
+          },
+          sevenDay: {
+            utilizationPercent: 75,
+            resetsAt: '2026-02-01T22:45:00Z',
+          },
+          lastError: null,
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      // five_hour: time only, seven_day: time + date
+      // bar width is 4 (half of 8)
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, 1 Feb)');
+    });
+
+    it('renders only five_hour when seven_day is missing', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          utilizationPercent: 55,
+          resetsAt: '2026-01-27T15:45:00Z',
+          window: 'five_hour',
+          fiveHour: {
+            utilizationPercent: 55,
+            resetsAt: '2026-01-27T15:45:00Z',
+          },
+          // sevenDay is missing
+          lastError: null,
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      // No trailing separators, only fiveHour shown
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm)');
+      expect(cleanOutput).not.toContain('🌙');
+    });
+
+    it('shows fallback on fetch error', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          utilizationPercent: null,
+          resetsAt: null,
+          lastError: 'Network error',
+          lastAttemptAt: new Date().toISOString(),  // Recent attempt
+          updatedAt: new Date(Date.now() - 30000).toISOString(),  // Stale data
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toContain('Fetch Error...');
+    });
+
+    it('shows loading state when cache is stale', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      // Write stale cache (old updatedAt)
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      writeFileSync(
+        cacheFile,
+        JSON.stringify({
+          utilizationPercent: 55,
+          resetsAt: '2026-01-27T15:45:00Z',
+          window: 'five_hour',
+          fiveHour: {
+            utilizationPercent: 55,
+            resetsAt: '2026-01-27T15:45:00Z',
+          },
+          lastError: null,
+          lastAttemptAt: new Date(Date.now() - 120000).toISOString(),
+          updatedAt: new Date(Date.now() - 120000).toISOString(),
+        })
+      );
+
+      // Set mtime to old time (beyond TTL of 60 seconds)
+      const oldTime = new Date(Date.now() - 120000);
+      utimesSync(cacheFile, oldTime, oldTime);
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toContain('Loading...');
+    });
+
+    it('respects --no-emojis flag', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          utilizationPercent: 55,
+          resetsAt: '2026-01-27T15:45:00Z',
+          window: 'five_hour',
+          fiveHour: {
+            utilizationPercent: 55,
+            resetsAt: '2026-01-27T15:45:00Z',
+          },
+          sevenDay: {
+            utilizationPercent: 75,
+            resetsAt: '2026-02-01T22:45:00Z',
+          },
+          lastError: null,
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('Opus | 5h: 55% [██░░] (~3:45pm) 7d: 75% [███░] (~10:45pm, 1 Feb)');
+    });
+
+    it('respects --no-bars flag', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          utilizationPercent: 55,
+          resetsAt: '2026-01-27T15:45:00Z',
+          window: 'five_hour',
+          fiveHour: {
+            utilizationPercent: 55,
+            resetsAt: '2026-01-27T15:45:00Z',
+          },
+          sevenDay: {
+            utilizationPercent: 75,
+            resetsAt: '2026-02-01T22:45:00Z',
+          },
+          lastError: null,
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars'], {
+        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% (~3:45pm) 🌙 75% (~10:45pm, 1 Feb)');
     });
   });
 });

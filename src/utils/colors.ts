@@ -25,8 +25,8 @@ type ColorFn = (text: string) => string;
  */
 export function getThresholdColor(
   pct: number,
-  lowThreshold: number = 50,
-  mediumThreshold: number = 80
+  lowThreshold = 50,
+  mediumThreshold = 80
 ): ColorFn {
   if (pct < lowThreshold) {
     return pc.green;
@@ -49,8 +49,8 @@ export function getThresholdColor(
 export function colorByThreshold(
   text: string,
   pct: number,
-  lowThreshold: number = 50,
-  mediumThreshold: number = 80
+  lowThreshold = 50,
+  mediumThreshold = 80
 ): string {
   const colorFn = getThresholdColor(pct, lowThreshold, mediumThreshold);
   return colorFn(text);

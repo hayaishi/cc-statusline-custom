@@ -38,6 +38,8 @@ const EMOJI_MODEL = '🤖';
 const EMOJI_COST = '💰';
 const EMOJI_CONTEXT = '🧠';
 const EMOJI_SUBSCRIPTION = '📦';
+const EMOJI_SUB_5HR = '⌛️';
+const EMOJI_SUB_7DAY = '🌙';
 
 /**
  * Model family patterns for extraction from display names or IDs.
@@ -216,8 +218,8 @@ export function formatCostSegment(
  */
 export function formatContextSegment(
   usage: TokenUsage | undefined,
-  lowThreshold: number = 50,
-  mediumThreshold: number = 80,
+  lowThreshold = 50,
+  mediumThreshold = 80,
   options: RenderOptions = DEFAULT_RENDER_OPTIONS
 ): string {
   // Prefix: emoji or text label
@@ -311,4 +313,66 @@ export function formatSubscriptionUsageSegment(
   } else {
     return `${prefix}${String(percent)}% (${reset})`;
   }
+}
+
+/**
+ * Window data for subscription_usage_all segment.
+ */
+export interface WindowData {
+  readonly percent: number;
+  readonly reset: string;
+}
+
+/**
+ * Bar width constants for subscription_usage_all segment.
+ * Half of the normal subscription_usage bar width.
+ */
+const NORMAL_SUB_BAR_WIDTH = 8; // Same as formatProgressBar default
+const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));  
+
+/**
+ * Formats the subscription_usage_all segment showing both five_hour and seven_day windows.
+ * Output: "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)"
+ *
+ * @param fiveHour - Five-hour window data (required)
+ * @param sevenDay - Seven-day window data (optional)
+ * @param options - Render options for emojis and bars
+ * @returns Formatted subscription usage all segment or empty string
+ */
+export function formatSubscriptionUsageAllSegment(
+  fiveHour: WindowData | null,
+  sevenDay: WindowData | null,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+): string {
+  // Helper to format a single window
+  const formatWindow = (
+    data: WindowData,
+    emoji: string,
+    noEmojiLabel: string
+  ): string => {
+    const prefix = options.showEmojis ? `${emoji} ` : `${noEmojiLabel} `;
+    if (options.showBars) {
+      const bar = formatProgressBar(data.percent, SUB_ALL_BAR_WIDTH);
+      return `${prefix}${String(data.percent)}% ${bar} (${data.reset})`;
+    } else {
+      return `${prefix}${String(data.percent)}% (${data.reset})`;
+    }
+  };
+
+  // Validate fiveHour (required)
+  if (fiveHour === null || !Number.isFinite(fiveHour.percent) || fiveHour.reset.trim() === '') {
+    return '';
+  }
+
+  const fiveHourStr = formatWindow(fiveHour, EMOJI_SUB_5HR, '5h:');
+
+  // If sevenDay is missing or invalid, return only fiveHour
+  if (sevenDay === null || !Number.isFinite(sevenDay.percent) || sevenDay.reset.trim() === '') {
+    return fiveHourStr;
+  }
+
+  const sevenDayStr = formatWindow(sevenDay, EMOJI_SUB_7DAY, '7d:');
+
+  // Join with single space for compact display
+  return `${fiveHourStr} ${sevenDayStr}`;
 }

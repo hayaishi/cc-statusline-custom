@@ -92,6 +92,7 @@ Available segment identifiers:
 | `cost_session` | `cost`, `cost_usd`, `cost_sess`, `sess` |
 | `context` | `ctx` |
 | `subscription_usage` | `usage`, `subscription`, `sub_usage`, `sub` |
+| `subscription_usage_all` | `sub_all`, `usage_all` |
 
 Resolution order: **CLI > ENV > DEFAULT**
 
@@ -129,9 +130,44 @@ Output examples:
 | `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)` |
 | `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | usage: 55% (~3:45pm)` |
 
+### Subscription Usage Segments
+
+The CLI provides two subscription usage segments:
+
+#### `subscription_usage` (default)
+Shows a single usage window (five-hour or seven-day) selected by the cache updater based on utilization threshold.
+
+- **five_hour window**: Time only - `📦 55% [████░░░░] (~3:45pm)`
+- **seven_day window**: Time + date - `📦 55% [████░░░░] (~10:45pm, 1 Feb)`
+
+The seven-day window is selected when utilization reaches 100% or more.
+
+#### `subscription_usage_all`
+Shows both five-hour and seven-day windows in a single segment (opt-in).
+
+Output examples:
+
+| Options | Output |
+|---------|--------|
+| (default) | `⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)` |
+| `--no-emojis` | `5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, 1 Feb)` |
+| `--no-bars` | `⌛️ 55% (~3:45pm)  🌙 55% (~10:45pm, 1 Feb)` |
+| `--no-emojis --no-bars` | `5h: 55% (~3:45pm)  7d: 55% (~10:45pm, 1 Feb)` |
+
+**Usage:**
+```bash
+# Replace default subscription_usage with subscription_usage_all
+./dist/index.js --segments=model,ctx,sub_all
+
+# Or use the short alias
+./dist/index.js -s model,ctx,usage_all
+```
+
+**Note:** Progress bars in `subscription_usage_all` are half the width of standard bars (4 characters vs. 8).
+
 ### Background Cache Updates
 
-The statusline automatically spawns a non-blocking background process to refresh stale cache data when the `subscription_usage` segment is included. This keeps the 📦 segment up-to-date without impacting the hot path performance.
+The statusline automatically spawns a non-blocking background process to refresh stale cache data when the `subscription_usage` or `subscription_usage_all` segment is included. This keeps the 📦/⌛️/🌙 segments up-to-date without impacting the hot path performance.
 
 **Behavior:**
 - Background updates spawn only when cache is missing or stale (beyond TTL)

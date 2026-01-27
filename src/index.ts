@@ -73,7 +73,7 @@ function trySpawnBackgroundUpdate(
 ): void {
   try {
     // Skip if disabled by flag
-    if (disabled === true) return;
+    if (disabled) return;
 
     // Skip if already in background update context (recursion guard)
     if (process.env.CCSTATUSLINE_BG_UPDATE === '1') return;

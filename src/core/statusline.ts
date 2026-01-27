@@ -18,8 +18,10 @@ import {
   formatCostSegment,
   formatContextSegment,
   formatSubscriptionUsageSegment,
+  formatSubscriptionUsageAllSegment,
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
+  type WindowData,
 } from './formatter.js';
 import { readCacheSyncWithMtime, isLockFileFresh } from './cache-reader.js';
 import {
@@ -36,7 +38,7 @@ import type { RenderOptions } from './formatter.js';
 /**
  * Canonical segment identifiers.
  */
-export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage';
+export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -73,6 +75,11 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
   subscription: 'subscription_usage',
   sub_usage: 'subscription_usage',
   sub: 'subscription_usage',
+
+  // Subscription all aliases
+  subscription_usage_all: 'subscription_usage_all',
+  sub_all: 'subscription_usage_all',
+  usage_all: 'subscription_usage_all',
 };
 
 /**
@@ -196,6 +203,7 @@ const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
   cost_session: [],
   context: [],
   subscription_usage: ['subscriptionUsage'],
+  subscription_usage_all: ['subscriptionUsage'],
 };
 
 /**
@@ -421,6 +429,9 @@ function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
     subscription_usage: (_input, cacheDir, options) => {
       return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options);
     },
+    subscription_usage_all: (_input, cacheDir, options) => {
+      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options);
+    },
   };
 }
 
@@ -447,8 +458,9 @@ function composeSegments(
   return segmentOrder.reduce<string[]>((segments, segmentId) => {
     const builder = builders[segmentId];
 
-    // Subscription usage only shows when other context exists (never standalone)
-    const isSubscriptionSegment = segmentId === 'subscription_usage';
+    // Subscription usage segments only show when other context exists (never standalone)
+    const isSubscriptionSegment =
+      segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
     const hasNoOtherSegments = segments.length === 0;
     if (isSubscriptionSegment && hasNoOtherSegments) {
       return segments;
@@ -507,9 +519,89 @@ function buildSubscriptionUsageSegment(
   if (entry !== null && isFresh) {
     const valid = getValidSubscriptionUsage(entry);
     if (valid !== null) {
-      const reset = formatResetTime(valid.resetsAt);
+      const windowType = (entry as { window?: 'five_hour' | 'seven_day' }).window;
+      const reset = formatResetTime(valid.resetsAt, windowType);
       if (reset !== '') {
         return formatSubscriptionUsageSegment(valid.utilizationPercent, reset, options);
+      }
+    }
+  }
+
+  // Error state: recent fetch failed (within TTL)
+  if (isRecentFetchError(entry, ttlSeconds)) {
+    return `${prefix}Fetch Error...`;
+  }
+
+  // Loading state: no cache or stale
+  return `${prefix}Loading...`;
+}
+
+/**
+ * Extracts and validates window data from cache entry.
+ * Returns WindowData if valid (has integer percent and formatted reset time), null otherwise.
+ */
+function extractWindowData(
+  window: { utilizationPercent?: unknown; resetsAt?: unknown } | undefined,
+  windowType: 'five_hour' | 'seven_day'
+): WindowData | null {
+  if (!window) return null;
+
+  const { utilizationPercent, resetsAt } = window;
+
+  // Validate percent is an integer
+  if (typeof utilizationPercent !== 'number' || !Number.isInteger(utilizationPercent)) {
+    return null;
+  }
+
+  // Validate percent is in range 0-100 (align with getValidSubscriptionUsage)
+  if (utilizationPercent < 0 || utilizationPercent > 100) {
+    return null;
+  }
+
+  // Validate and format reset timestamp
+  if (typeof resetsAt !== 'string') return null;
+  const reset = formatResetTime(resetsAt, windowType);
+  if (reset === '') return null;
+
+  return { percent: utilizationPercent, reset };
+}
+
+/**
+ * Builds the subscription_usage_all segment showing both five_hour and seven_day windows.
+ *
+ * Returns formatted segment with both windows, or fallback messages:
+ * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)" (happy path)
+ * - "⌛️ Fetch Error..." (recent fetch failed)
+ * - "⌛️ Loading..." (no cache or stale)
+ *
+ * @param cacheDir - Cache directory path
+ * @param ttlSeconds - Cache TTL in seconds
+ * @param options - Render options for emojis and bars
+ * @returns Formatted segment string or fallback message
+ */
+function buildSubscriptionUsageAllSegment(
+  cacheDir: string,
+  ttlSeconds: number,
+  options: RenderOptions
+): string {
+  const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
+  const prefix = options.showEmojis ? '⌛️ ' : '5h: ';
+
+  // Happy path: fresh valid cache with both windows
+  if (entry !== null && isFresh) {
+    const record = entry as {
+      fiveHour?: { utilizationPercent?: unknown; resetsAt?: unknown };
+      sevenDay?: { utilizationPercent?: unknown; resetsAt?: unknown };
+    };
+
+    const fiveHourData = extractWindowData(record.fiveHour, 'five_hour');
+    const sevenDayData = extractWindowData(record.sevenDay, 'seven_day');
+
+    // Format segment if we have at least fiveHour data
+    if (fiveHourData !== null) {
+      const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, options);
+      if (result !== '') {
+        return result;
       }
     }
   }

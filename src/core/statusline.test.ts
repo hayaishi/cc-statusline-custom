@@ -999,3 +999,207 @@ describe('resolveRenderOptions', () => {
     });
   });
 });
+
+describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', () => {
+  const testCacheDir = join(tmpdir(), `ccusage-validation-test-${String(process.pid)}`);
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+    process.env.TZ = 'UTC';
+  });
+
+  afterEach(() => {
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it('rejects negative utilizationPercent in fiveHour', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: -1,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      fiveHour: {
+        utilizationPercent: -1,  // Invalid: negative
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+      sevenDay: {
+        utilizationPercent: 75,
+        resetsAt: '2026-02-01T22:45:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    // Should show loading/error since fiveHour is invalid
+    expect(result).toMatch(/Loading\.\.\.|Fetch Error\.\.\./);
+  });
+
+  it('rejects utilizationPercent > 100 in sevenDay', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 101,
+      resetsAt: '2026-02-01T22:45:00Z',
+      window: 'seven_day',
+      fiveHour: {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+      sevenDay: {
+        utilizationPercent: 101,  // Invalid: > 100
+        resetsAt: '2026-02-01T22:45:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    // Should show only fiveHour since sevenDay is invalid (but fiveHour is valid)
+    expect(result).toContain('55%');
+    expect(result).toContain('(~3:45pm)');
+    expect(result).not.toContain('101%');
+  });
+
+  it('accepts utilizationPercent = 0 (boundary)', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 0,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      fiveHour: {
+        utilizationPercent: 0,  // Valid: boundary
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+      sevenDay: {
+        utilizationPercent: 100,  // Valid: boundary
+        resetsAt: '2026-02-01T22:45:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    // Should accept both 0 and 100
+    expect(result).toContain('0%');
+    expect(result).toContain('100%');
+    expect(result).toContain('(~3:45pm)');
+    expect(result).toContain('(~10:45pm, 1 Feb)');
+  });
+});
+
+describe('subscription segments never standalone rule', () => {
+  const testCacheDir = join(tmpdir(), `ccusage-standalone-test-${String(process.pid)}`);
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+    process.env.TZ = 'UTC';
+  });
+
+  afterEach(() => {
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it('suppresses subscription_usage when it would be the only segment', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = {};  // No model or other segments
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['subscription_usage']);
+
+    // Should return fallback, not the subscription segment alone
+    expect(result).toBe(FALLBACK_OUTPUT);
+  });
+
+  it('suppresses subscription_usage_all when it would be the only segment', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      fiveHour: {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+      sevenDay: {
+        utilizationPercent: 75,
+        resetsAt: '2026-02-01T22:45:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = {};  // No model or other segments
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['subscription_usage_all']);
+
+    // Should return fallback, not the subscription segment alone
+    expect(result).toBe(FALLBACK_OUTPUT);
+  });
+
+  it('allows subscription_usage when other segments are present', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage']);
+
+    // Should show both model and subscription
+    expect(result).toContain('Opus');
+    expect(result).toContain('55%');
+  });
+});
