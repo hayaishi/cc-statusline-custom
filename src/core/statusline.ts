@@ -32,7 +32,7 @@ import {
   getEmojisEnabled,
   getBarsEnabled,
 } from '../config/env.js';
-import { formatResetTime } from '../utils/time.js';
+import { formatResetTime, normalizeSubscriptionResetTime } from '../utils/time.js';
 import type { RenderOptions } from './formatter.js';
 
 /**
@@ -520,7 +520,7 @@ function buildSubscriptionUsageSegment(
     const valid = getValidSubscriptionUsage(entry);
     if (valid !== null) {
       const windowType = (entry as { window?: 'five_hour' | 'seven_day' }).window;
-      const reset = formatResetTime(valid.resetsAt, windowType);
+      const reset = formatResetTime(normalizeSubscriptionResetTime(valid.resetsAt), windowType);
       if (reset !== '') {
         return formatSubscriptionUsageSegment(valid.utilizationPercent, reset, options);
       }
@@ -560,7 +560,7 @@ function extractWindowData(
 
   // Validate and format reset timestamp
   if (typeof resetsAt !== 'string') return null;
-  const reset = formatResetTime(resetsAt, windowType);
+  const reset = formatResetTime(normalizeSubscriptionResetTime(resetsAt), windowType);
   if (reset === '') return null;
 
   return { percent: utilizationPercent, reset };

@@ -45,3 +45,21 @@ export function formatResetTime(
 
   return timeStr;
 }
+
+/**
+ * Normalizes subscription reset timestamps.
+ * If minutes are 59, rounds up by one minute to avoid 59-minute offsets.
+ */
+export function normalizeSubscriptionResetTime(iso: string): string {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) {
+    return iso;
+  }
+
+  if (date.getMinutes() !== 59) {
+    return iso;
+  }
+
+  const normalized = new Date(date.getTime() + 60_000);
+  return normalized.toISOString();
+}

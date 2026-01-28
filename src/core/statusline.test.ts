@@ -340,6 +340,43 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     }
   });
 
+  it('rounds subscription reset times when minutes are 59', () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'UTC';
+
+    try {
+      const input: ClaudeCodeInput = {
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      };
+
+      const subscriptionUsage: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T02:59:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
+      };
+      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+      const result = generateStatuslineWithExtended(input, testCacheDir);
+      expect(stripAnsi(result)).toBe(
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3am)'
+      );
+    } finally {
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    }
+  });
+
   it('shows fetch error when cache is invalid and lastAttemptAt is recent', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
@@ -1109,6 +1146,36 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(result).toContain('100%');
     expect(result).toContain('(~3:45pm)');
     expect(result).toContain('(~10:45pm, 1 Feb)');
+  });
+
+  it('rounds minute 59 in fiveHour and sevenDay windows', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: '2026-01-27T02:59:00Z',
+      window: 'five_hour',
+      fiveHour: {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-27T02:59:00Z',
+      },
+      sevenDay: {
+        utilizationPercent: 75,
+        resetsAt: '2026-02-01T22:59:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    expect(result).toContain('55%');
+    expect(result).toContain('75%');
+    expect(result).toContain('(~3am)');
+    expect(result).toContain('(~11pm, 1 Feb)');
   });
 });
 

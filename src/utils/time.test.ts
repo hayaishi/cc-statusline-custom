@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatResetTime } from './time.js';
+import { formatResetTime, normalizeSubscriptionResetTime } from './time.js';
 
 describe('formatResetTime', () => {
   const originalTz = process.env.TZ;
@@ -64,5 +64,43 @@ describe('formatResetTime', () => {
     it('returns empty string for invalid input with seven_day', () => {
       expect(formatResetTime('not-a-date', 'seven_day')).toBe('');
     });
+  });
+});
+
+describe('normalizeSubscriptionResetTime', () => {
+  const originalTz = process.env.TZ;
+
+  beforeAll(() => {
+    process.env.TZ = 'UTC';
+  });
+
+  afterAll(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  it('rounds up when minutes are 59', () => {
+    expect(normalizeSubscriptionResetTime('2026-01-20T02:59:00Z')).toBe(
+      '2026-01-20T03:00:00.000Z'
+    );
+  });
+
+  it('increments date when rounding over midnight', () => {
+    expect(normalizeSubscriptionResetTime('2026-01-20T23:59:00Z')).toBe(
+      '2026-01-21T00:00:00.000Z'
+    );
+  });
+
+  it('does not change times that are not minute 59', () => {
+    expect(normalizeSubscriptionResetTime('2026-01-20T23:58:00Z')).toBe(
+      '2026-01-20T23:58:00Z'
+    );
+  });
+
+  it('returns input for invalid timestamps', () => {
+    expect(normalizeSubscriptionResetTime('not-a-date')).toBe('not-a-date');
   });
 });
