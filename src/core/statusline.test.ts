@@ -1145,7 +1145,7 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(result).toContain('0%');
     expect(result).toContain('100%');
     expect(result).toContain('(~3:45pm)');
-    expect(result).toContain('(~10:45pm, 1 Feb)');
+    expect(result).toContain('(~10:45pm, Feb 1)');
   });
 
   it('rounds minute 59 in fiveHour and sevenDay windows', () => {
@@ -1175,7 +1175,7 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(result).toContain('55%');
     expect(result).toContain('75%');
     expect(result).toContain('(~3am)');
-    expect(result).toContain('(~11pm, 1 Feb)');
+    expect(result).toContain('(~11pm, Feb 1)');
   });
 });
 

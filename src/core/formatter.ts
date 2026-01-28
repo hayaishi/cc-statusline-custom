@@ -332,7 +332,7 @@ const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));
 
 /**
  * Formats the subscription_usage_all segment showing both five_hour and seven_day windows.
- * Output: "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)"
+ * Output: "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)"
  *
  * @param fiveHour - Five-hour window data (required)
  * @param sevenDay - Seven-day window data (optional)

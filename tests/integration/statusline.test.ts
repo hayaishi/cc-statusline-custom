@@ -1289,7 +1289,7 @@ describe('CLI Integration Tests', () => {
       const cleanOutput = assertSingleLine(stdout);
       // five_hour: time only, seven_day: time + date
       // bar width is 4 (half of 8)
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, 1 Feb)');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, Feb 1)');
     });
 
     it('renders only five_hour when seven_day is missing', () => {
@@ -1425,7 +1425,7 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('Opus | 5h: 55% [██░░] (~3:45pm) 7d: 75% [███░] (~10:45pm, 1 Feb)');
+      expect(cleanOutput).toBe('Opus | 5h: 55% [██░░] (~3:45pm) 7d: 75% [███░] (~10:45pm, Feb 1)');
     });
 
     it('respects --no-bars flag', () => {
@@ -1461,7 +1461,7 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% (~3:45pm) 🌙 75% (~10:45pm, 1 Feb)');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% (~3:45pm) 🌙 75% (~10:45pm, Feb 1)');
     });
   });
 });

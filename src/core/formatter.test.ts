@@ -368,36 +368,36 @@ describe('RenderOptions - no-emojis behavior', () => {
 
 describe('formatSubscriptionUsageAllSegment', () => {
   const fiveHourData: WindowData = { percent: 55, reset: '~3:45pm' };
-  const sevenDayData: WindowData = { percent: 55, reset: '~10:45pm, 1 Feb' };
+  const sevenDayData: WindowData = { percent: 55, reset: '~10:45pm, Feb 1' };
 
   it('formats both windows with emojis and bars (default)', () => {
     const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, DEFAULT_RENDER_OPTIONS);
-    expect(result).toBe('⌛️ 55% [██░░] (~3:45pm) 🌙 55% [██░░] (~10:45pm, 1 Feb)');
+    expect(result).toBe('⌛️ 55% [██░░] (~3:45pm) 🌙 55% [██░░] (~10:45pm, Feb 1)');
   });
 
   it('formats with no-emojis', () => {
     const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, { showEmojis: false, showBars: true });
-    expect(result).toBe('5h: 55% [██░░] (~3:45pm) 7d: 55% [██░░] (~10:45pm, 1 Feb)');
+    expect(result).toBe('5h: 55% [██░░] (~3:45pm) 7d: 55% [██░░] (~10:45pm, Feb 1)');
   });
 
   it('formats with no-bars', () => {
     const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, { showEmojis: true, showBars: false });
-    expect(result).toBe('⌛️ 55% (~3:45pm) 🌙 55% (~10:45pm, 1 Feb)');
+    expect(result).toBe('⌛️ 55% (~3:45pm) 🌙 55% (~10:45pm, Feb 1)');
   });
 
   it('formats with both flags disabled', () => {
     const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, { showEmojis: false, showBars: false });
-    expect(result).toBe('5h: 55% (~3:45pm) 7d: 55% (~10:45pm, 1 Feb)');
+    expect(result).toBe('5h: 55% (~3:45pm) 7d: 55% (~10:45pm, Feb 1)');
   });
 
   it('uses half-width bars (4 chars instead of 8)', () => {
     const result = formatSubscriptionUsageAllSegment(
       { percent: 0, reset: '~12:00am' },
-      { percent: 100, reset: '~11:59pm, 31 Dec' },
+      { percent: 100, reset: '~11:59pm, Dec 31' },
       DEFAULT_RENDER_OPTIONS
     );
     // 0% should be [░░░░] (4 empty), 100% should be [████] (4 filled)
-    expect(result).toBe('⌛️ 0% [░░░░] (~12:00am) 🌙 100% [████] (~11:59pm, 31 Dec)');
+    expect(result).toBe('⌛️ 0% [░░░░] (~12:00am) 🌙 100% [████] (~11:59pm, Dec 31)');
   });
 
   it('returns empty string when fiveHour is null', () => {
@@ -421,7 +421,7 @@ describe('formatSubscriptionUsageAllSegment', () => {
   });
 
   it('formats only fiveHour when sevenDay percent is not finite', () => {
-    const result = formatSubscriptionUsageAllSegment(fiveHourData, { percent: Infinity, reset: '~10:45pm, 1 Feb' }, DEFAULT_RENDER_OPTIONS);
+    const result = formatSubscriptionUsageAllSegment(fiveHourData, { percent: Infinity, reset: '~10:45pm, Feb 1' }, DEFAULT_RENDER_OPTIONS);
     expect(result).toBe('⌛️ 55% [██░░] (~3:45pm)');
   });
 
@@ -433,9 +433,9 @@ describe('formatSubscriptionUsageAllSegment', () => {
   it('handles different percentages for each window', () => {
     const result = formatSubscriptionUsageAllSegment(
       { percent: 25, reset: '~3:45pm' },
-      { percent: 75, reset: '~10:45pm, 1 Feb' },
+      { percent: 75, reset: '~10:45pm, Feb 1' },
       DEFAULT_RENDER_OPTIONS
     );
-    expect(result).toBe('⌛️ 25% [█░░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, 1 Feb)');
+    expect(result).toBe('⌛️ 25% [█░░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, Feb 1)');
   });
 });

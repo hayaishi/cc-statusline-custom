@@ -13,11 +13,11 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 /**
  * Formats an ISO8601 timestamp into a local "~h:mmam/pm" string.
  * When minutes are 00, outputs "~hpm/am" (minutes omitted).
- * For seven_day window, also includes date in format "~h:mmam/pm, D Mon".
+ * For seven_day window, also includes date in format "~h:mmam/pm, Mon D".
  *
  * @param iso - ISO8601 timestamp
  * @param windowType - Optional window type ('five_hour' or 'seven_day')
- * @returns Formatted time string like "~3:45pm" or "~10:45pm, 1 Feb", or empty string if invalid
+ * @returns Formatted time string like "~3:45pm" or "~10:45pm, Feb 1", or empty string if invalid
  */
 export function formatResetTime(
   iso: string,
@@ -40,7 +40,7 @@ export function formatResetTime(
   if (windowType === 'seven_day') {
     const day = date.getDate();
     const month = SHORT_MONTHS[date.getMonth()] ?? 'Jan'; // getMonth() returns 0-11, guaranteed for valid Date
-    return `${timeStr}, ${String(day)} ${month}`;
+    return `${timeStr}, ${month} ${String(day)}`;
   }
 
   return timeStr;

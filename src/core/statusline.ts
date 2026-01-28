@@ -570,7 +570,7 @@ function extractWindowData(
  * Builds the subscription_usage_all segment showing both five_hour and seven_day windows.
  *
  * Returns formatted segment with both windows, or fallback messages:
- * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)" (happy path)
+ * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)" (happy path)
  * - "⌛️ Fetch Error..." (recent fetch failed)
  * - "⌛️ Loading..." (no cache or stale)
  *

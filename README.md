@@ -138,7 +138,7 @@ The CLI provides two subscription usage segments:
 Shows a single usage window (five-hour or seven-day) selected by the cache updater based on utilization threshold.
 
 - **five_hour window**: Time only - `📦 55% [████░░░░] (~3:45pm)`
-- **seven_day window**: Time + date - `📦 55% [████░░░░] (~10:45pm, 1 Feb)`
+- **seven_day window**: Time + date - `📦 55% [████░░░░] (~10:45pm, Feb 1)`
 
 The seven-day window is selected when utilization reaches 100% or more.
 
@@ -149,10 +149,10 @@ Output examples:
 
 | Options | Output |
 |---------|--------|
-| (default) | `⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, 1 Feb)` |
-| `--no-emojis` | `5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, 1 Feb)` |
-| `--no-bars` | `⌛️ 55% (~3:45pm)  🌙 55% (~10:45pm, 1 Feb)` |
-| `--no-emojis --no-bars` | `5h: 55% (~3:45pm)  7d: 55% (~10:45pm, 1 Feb)` |
+| (default) | `⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)` |
+| `--no-emojis` | `5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, Feb 1)` |
+| `--no-bars` | `⌛️ 55% (~3:45pm)  🌙 55% (~10:45pm, Feb 1)` |
+| `--no-emojis --no-bars` | `5h: 55% (~3:45pm)  7d: 55% (~10:45pm, Feb 1)` |
 
 **Usage:**
 ```bash
