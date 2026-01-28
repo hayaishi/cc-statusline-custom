@@ -12,6 +12,7 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 
 /**
  * Formats an ISO8601 timestamp into a local "~h:mmam/pm" string.
+ * When minutes are 00, outputs "~hpm/am" (minutes omitted).
  * For seven_day window, also includes date in format "~h:mmam/pm, D Mon".
  *
  * @param iso - ISO8601 timestamp
@@ -32,9 +33,9 @@ export function formatResetTime(
 
   const ampm = hours24 < 12 ? 'am' : 'pm';
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  const minutesText = String(minutes).padStart(2, '0');
+  const minutesText = minutes === 0 ? '' : `:${String(minutes).padStart(2, '0')}`;
 
-  const timeStr = `~${String(hours12)}:${minutesText}${ampm}`;
+  const timeStr = `~${String(hours12)}${minutesText}${ampm}`;
 
   if (windowType === 'seven_day') {
     const day = date.getDate();

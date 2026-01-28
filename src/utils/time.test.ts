@@ -25,7 +25,11 @@ describe('formatResetTime', () => {
   });
 
   it('formats noon as 12pm', () => {
-    expect(formatResetTime('2026-01-20T12:00:00Z')).toBe('~12:00pm');
+    expect(formatResetTime('2026-01-20T12:00:00Z')).toBe('~12pm');
+  });
+
+  it('omits minutes when they are zero', () => {
+    expect(formatResetTime('2026-01-20T15:00:00Z')).toBe('~3pm');
   });
 
   it('returns empty string for invalid input', () => {
@@ -39,6 +43,10 @@ describe('formatResetTime', () => {
 
     it('formats seven_day with time and date', () => {
       expect(formatResetTime('2026-02-01T22:45:00Z', 'seven_day')).toBe('~10:45pm, 1 Feb');
+    });
+
+    it('omits minutes when they are zero for seven_day', () => {
+      expect(formatResetTime('2026-03-05T15:00:00Z', 'seven_day')).toBe('~3pm, 5 Mar');
     });
 
     it('formats seven_day with different date', () => {
