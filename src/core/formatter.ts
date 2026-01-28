@@ -37,7 +37,6 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
 const EMOJI_MODEL = '🤖';
 const EMOJI_COST = '💰';
 const EMOJI_CONTEXT = '🧠';
-const EMOJI_SUBSCRIPTION = '📦';
 const EMOJI_SUB_5HR = '⌛️';
 const EMOJI_SUB_7DAY = '🌙';
 
@@ -285,7 +284,7 @@ export function formatContextSegment(
 
 /**
  * Formats the subscription usage segment with emoji, percent, bar, and reset time.
- * Output: "📦 55% [████░░░░] (~3:45pm)"
+ * Output: "⌛️ 55% [████░░░░] (~3:45pm)"
  *
  * @param percent - Utilization percentage (integer 0-100)
  * @param reset - Reset time string like "~3:45pm"
@@ -302,7 +301,7 @@ export function formatSubscriptionUsageSegment(
   }
 
   // Prefix: emoji or text label
-  const prefix = options.showEmojis ? `${EMOJI_SUBSCRIPTION} ` : 'usage: ';
+  const prefix = options.showEmojis ? `${EMOJI_SUB_5HR} ` : '5h: ';
 
   if (options.showBars) {
     const bar = formatProgressBar(percent);

@@ -347,7 +347,7 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
           );
           const cleanOutput = assertSingleLine(result);
           expect(cleanOutput).toBe(
-            '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...'
+            '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...'
           );
         }
       });

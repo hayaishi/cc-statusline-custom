@@ -7,10 +7,10 @@ Custom statusline integration for Claude Code that renders model, session cost, 
 The statusline output is a single line with ` | ` separators and emoji-prefixed segments:
 
 ```
-🤖 <Model> | 💰 $<session> sess | 🧠 <used>/<limit> [████░░░░] (<pct>%) | 📦 <pct>% [████░░░░] (~h:mmam/pm)
+🤖 <Model> | 💰 $<session> sess | 🧠 <used>/<limit> [████░░░░] (<pct>%) | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
 ```
 
-Segments are omitted when their input data is missing or invalid. The 📦 segment is appended only if at least one other segment is present. When nothing can be rendered, the fallback is:
+Segments are omitted when their input data is missing or invalid. The ⌛️ segment is appended only if at least one other segment is present. When nothing can be rendered, the fallback is:
 
 ```
 🤖 ? | ⏳ Loading...
@@ -19,15 +19,15 @@ Segments are omitted when their input data is missing or invalid. The 📦 segme
 ## Output Examples
 
 ```
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3:45pm)
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Loading...
-🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 Fetch Error...
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...
+🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...
 
 # --no-emojis
-Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | usage: 55% [████░░░░] (~3:45pm)
+Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)
 
 # --no-bars
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)
+🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)
 ```
 
 ## Installation
@@ -105,7 +105,7 @@ Resolution order: **CLI > ENV > DEFAULT**
 Control emoji and progress bar rendering.
 
 ```bash
-# Disable emojis (adds text labels: ctx:, usage:)
+# Disable emojis (adds text labels: ctx:, 5h:)
 ./dist/index.js --no-emojis
 
 # Disable progress bars
@@ -125,10 +125,10 @@ Output examples:
 
 | Options | Output |
 |---------|--------|
-| (default) | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 📦 55% [████░░░░] (~3:45pm)` |
-| `--no-emojis` | `Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | usage: 55% [████░░░░] (~3:45pm)` |
-| `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | 📦 55% (~3:45pm)` |
-| `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | usage: 55% (~3:45pm)` |
+| (default) | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)` |
+| `--no-emojis` | `Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)` |
+| `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)` |
+| `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | 5h: 55% (~3:45pm)` |
 
 ### Subscription Usage Segments
 
@@ -137,8 +137,8 @@ The CLI provides two subscription usage segments:
 #### `subscription_usage` (default)
 Shows a single usage window (five-hour or seven-day) selected by the cache updater based on utilization threshold.
 
-- **five_hour window**: Time only - `📦 55% [████░░░░] (~3:45pm)`
-- **seven_day window**: Time + date - `📦 55% [████░░░░] (~10:45pm, Feb 1)`
+- **five_hour window**: Time only - `⌛️ 55% [████░░░░] (~3:45pm)`
+- **seven_day window**: Time + date - `⌛️ 55% [████░░░░] (~10:45pm, Feb 1)`
 
 The seven-day window is selected when utilization reaches 100% or more.
 
@@ -167,7 +167,7 @@ Output examples:
 
 ### Background Cache Updates
 
-The statusline automatically spawns a non-blocking background process to refresh stale cache data when the `subscription_usage` or `subscription_usage_all` segment is included. This keeps the 📦/⌛️/🌙 segments up-to-date without impacting the hot path performance.
+The statusline automatically spawns a non-blocking background process to refresh stale cache data when the `subscription_usage` or `subscription_usage_all` segment is included. This keeps the ⌛️/🌙 segments up-to-date without impacting the hot path performance.
 
 **Behavior:**
 - Background updates spawn only when cache is missing or stale (beyond TTL)
@@ -207,7 +207,7 @@ Direct execution is supported; no `node` prefix is required.
 
 ### Optional: refresh cache via hooks (--update-cache)
 
-The statusline hot path is offline/no-network and reads the local cache for 📦. Keep the cache fresh by running `dist/index.js --update-cache` in hooks; this keeps 📦 up to date without impacting the hot path. The hook command redirects stdout/stderr and uses `|| true` so it never breaks sessions. `--update-cache` may use network/child_process and is intentionally separated from the hot path.
+The statusline hot path is offline/no-network and reads the local cache for ⌛️. Keep the cache fresh by running `dist/index.js --update-cache` in hooks; this keeps ⌛️ up to date without impacting the hot path. The hook command redirects stdout/stderr and uses `|| true` so it never breaks sessions. `--update-cache` may use network/child_process and is intentionally separated from the hot path.
 
 Combined statusLine + hooks example (copy/paste):
 
@@ -326,16 +326,16 @@ Files:
 - `subscription-usage.json` (written by `--update-cache`)
 - `cache.lock` (writer lock file; short-lived)
 
-### 📦 segment behavior
+### ⌛️ segment behavior
 
 The statusline reads cache synchronously (hot path) and never uses network or child processes during execution.
 
 - If `subscription-usage.json` is present, fresh (mtime < TTL), and contains a valid payload, the segment renders:
-  `📦 <pct>% [████░░░░] (~h:mmam/pm)`
+  `⌛️ <pct>% [████░░░░] (~h:mmam/pm)`
 - If a cache entry exists, the last update attempt was recent (within TTL), and the payload is not usable, it renders:
-  `📦 Fetch Error...`
+  `⌛️ Fetch Error...`
 - Otherwise it renders:
-  `📦 Loading...`
+  `⌛️ Loading...`
 
 TTL is mtime-based and controlled by `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` (seconds).
 

@@ -2,7 +2,7 @@
  * Statusline generation with legacy format parity.
  *
  * Output format:
- * 🤖 <Model> | 💰 $<session> sess | 🧠 <used>k/<limit>k [████░░░░] <pct>% | 📦 <pct>% [████░░░░] (~h:mmam/pm)
+ * 🤖 <Model> | 💰 $<session> sess | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
  */
 
 import type { ClaudeCodeInput } from '../types/claude-code.js';
@@ -513,7 +513,7 @@ function buildSubscriptionUsageSegment(
   options: RenderOptions
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const prefix = options.showEmojis ? '📦 ' : 'usage: ';
+  const prefix = options.showEmojis ? '⌛️ ' : '5h: ';
 
   // Happy path: fresh valid cache
   if (entry !== null && isFresh) {

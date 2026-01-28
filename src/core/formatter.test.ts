@@ -178,7 +178,7 @@ describe('formatSubscriptionUsageSegment', () => {
   });
 
   it('formats subscription usage with emoji', () => {
-    expect(formatSubscriptionUsageSegment(55, '~3:45pm')).toBe('📦 55% [████░░░░] (~3:45pm)');
+    expect(formatSubscriptionUsageSegment(55, '~3:45pm')).toBe('⌛️ 55% [████░░░░] (~3:45pm)');
   });
 });
 
@@ -356,12 +356,12 @@ describe('RenderOptions - no-emojis behavior', () => {
   describe('formatSubscriptionUsageSegment with options', () => {
     it('includes emoji prefix by default', () => {
       const result = formatSubscriptionUsageSegment(55, '~3:45pm', DEFAULT_RENDER_OPTIONS);
-      expect(result).toBe('📦 55% [████░░░░] (~3:45pm)');
+      expect(result).toBe('⌛️ 55% [████░░░░] (~3:45pm)');
     });
 
-    it('uses usage: label when showEmojis is false', () => {
+    it('uses 5h: label when showEmojis is false', () => {
       const result = formatSubscriptionUsageSegment(55, '~3:45pm', { showEmojis: false, showBars: true });
-      expect(result).toBe('usage: 55% [████░░░░] (~3:45pm)');
+      expect(result).toBe('5h: 55% [████░░░░] (~3:45pm)');
     });
   });
 });
