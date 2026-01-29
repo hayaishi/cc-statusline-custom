@@ -180,7 +180,7 @@ export interface CostSegmentData {
 /**
  * Formats the unified cost segment with optional emoji prefix.
  * Output examples:
- * - "💰 $0.23 sess" or "$0.23 sess" (when emojis disabled)
+ * - "💰 $0.23" or "$0.23" (when emojis disabled)
  *
  * @param data - Cost segment data
  * @param options - Render options
@@ -200,7 +200,7 @@ export function formatCostSegment(
   }
 
   const prefix = options.showEmojis ? `${EMOJI_COST} ` : '';
-  return `${prefix}${formatted} sess`;
+  return `${prefix}${formatted}`;
 }
 
 /**
@@ -352,31 +352,30 @@ export function formatSubscriptionUsageAllSegment(
     return `${prefix}${String(data.percent)}% (${data.reset})`;
   };
 
-  const hasFiveHour = fiveHour !== null
-    && Number.isFinite(fiveHour.percent)
-    && fiveHour.reset.trim() !== '';
-  const hasSevenDay = sevenDay !== null
-    && Number.isFinite(sevenDay.percent)
-    && sevenDay.reset.trim() !== '';
+  const isValidWindow = (data: WindowData | null): data is WindowData =>
+    data !== null && Number.isFinite(data.percent) && data.reset.trim() !== '';
 
-  if (!hasFiveHour && !hasSevenDay) {
+  const fiveHourValid = isValidWindow(fiveHour) ? fiveHour : null;
+  const sevenDayValid = isValidWindow(sevenDay) ? sevenDay : null;
+
+  if (fiveHourValid === null && sevenDayValid === null) {
     return '';
   }
 
-  if (hasFiveHour && !hasSevenDay && fiveHour) {
-    return formatWindow(fiveHour, primaryWindowType);
+  if (fiveHourValid !== null && sevenDayValid === null) {
+    return formatWindow(fiveHourValid, primaryWindowType);
   }
 
-  if (!hasFiveHour && hasSevenDay && sevenDay) {
-    return formatWindow(sevenDay, 'seven_day');
+  if (fiveHourValid === null && sevenDayValid !== null) {
+    return formatWindow(sevenDayValid, 'seven_day');
   }
 
-  if (!fiveHour || !sevenDay) {
+  if (fiveHourValid === null || sevenDayValid === null) {
     return '';
   }
 
-  const fiveHourStr = formatWindow(fiveHour, 'five_hour');
-  const sevenDayStr = formatWindow(sevenDay, 'seven_day');
+  const fiveHourStr = formatWindow(fiveHourValid, 'five_hour');
+  const sevenDayStr = formatWindow(sevenDayValid, 'seven_day');
 
   // Join with single space for compact display
   return `${fiveHourStr} ${sevenDayStr}`;

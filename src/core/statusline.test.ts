@@ -20,7 +20,7 @@ import type { SubscriptionUsageEntry } from '../types/cache.js';
 import { stripAnsi } from '../utils/colors.js';
 
 const CANONICAL_FULL_LINE =
-  '🤖 Opus | 💰 $0.23 sess | 🧠 25.0k/200k [█░░░░░░░] (12%) | ⌛️ 55% [████░░░░] (~3:45pm)';
+  '🤖 Opus | 💰 $0.23 | 🧠 25.0k/200k [█░░░░░░░] (12%) | ⌛️ 55% [████░░░░] (~3:45pm)';
 
 describe('canonical full example line', () => {
   it('is a single line with intact context segment', () => {
@@ -129,7 +129,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       // Strip ANSI for assertion
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...');
       expect(stripAnsi(result)).not.toContain('🔥');
       expect(stripAnsi(result)).not.toContain('left)');
     });
@@ -145,7 +145,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 sess | 🧠 150.0k/200k [██████░░] (75%) | ⌛️ Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 | 🧠 150.0k/200k [██████░░] (75%) | ⌛️ Loading...');
     });
 
     it('formats flat schema (backward compat)', () => {
@@ -159,7 +159,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 sess | 🧠 20.0k/200k [█░░░░░░░] (10%) | ⌛️ Loading...');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 | 🧠 20.0k/200k [█░░░░░░░] (10%) | ⌛️ Loading...');
     });
 
     it('omits missing metrics gracefully', () => {
@@ -174,7 +174,7 @@ describe('generateStatusline', () => {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
-      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 sess | 🧠 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 | 🧠 [░░░░░░░░] (0%) | ⌛️ Loading...');
 
       // Model + context
       const modelAndContext: ClaudeCodeInput = {
@@ -298,7 +298,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...');
     expect(stripAnsi(result)).not.toContain('🔥');
     expect(stripAnsi(result)).not.toContain('left)');
   });
@@ -329,7 +329,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)'
+        '🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)'
       );
     } finally {
       if (originalTz === undefined) {
@@ -367,7 +367,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 🌙 55% [████░░░░] (~10:45pm, Feb 1)'
+        '🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | 🌙 55% [████░░░░] (~10:45pm, Feb 1)'
       );
     } finally {
       if (originalTz === undefined) {
@@ -404,7 +404,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
-        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3am)'
+        '🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3am)'
       );
     } finally {
       if (originalTz === undefined) {
@@ -1078,7 +1078,7 @@ describe('generateStatusline with custom segment order', () => {
 
     // Reverse order: context, cost, model (no subscription)
     const result = generateStatusline(input, testCacheDir, ['context', 'cost_session', 'model']);
-    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] (42%) | 💰 $0.23 sess | 🤖 Opus');
+    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] (42%) | 💰 $0.23 | 🤖 Opus');
   });
 
   it('renders only requested segments', () => {
@@ -1115,7 +1115,7 @@ describe('generateStatusline with custom segment order', () => {
     };
 
     const result = generateStatusline(input, testCacheDir, undefined);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 sess | 🧠 [░░░░░░░░] (0%) | ⌛️ Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 [░░░░░░░░] (0%) | ⌛️ Loading...');
   });
 
   it('returns fallback when no requested segments have data', () => {

@@ -7,7 +7,7 @@ Custom statusline integration for Claude Code that renders model, session cost, 
 The statusline output is a single line with ` | ` separators and emoji-prefixed segments:
 
 ```
-🤖 <Model> | 💰 $<session> sess | 🧠 <used>/<limit> [████░░░░] (<pct>%) | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
+🤖 <Model> | 💰 $<session> | 🧠 <used>/<limit> [████░░░░] (<pct>%) | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
 ```
 
 Segments are omitted when their input data is missing or invalid. The ⌛️ segment is appended only if at least one other segment is present. When nothing can be rendered, the fallback is:
@@ -19,15 +19,15 @@ Segments are omitted when their input data is missing or invalid. The ⌛️ seg
 ## Output Examples
 
 ```
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...
+🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)
+🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Loading...
 🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...
 
 # --no-emojis
-Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)
+Opus | $0.23 | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)
 
 # --no-bars
-🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)
+🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)
 ```
 
 ## Installation
@@ -132,10 +132,10 @@ Output examples:
 
 | Options | Output |
 |---------|--------|
-| (default) | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)` |
-| `--no-emojis` | `Opus | $0.23 sess | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)` |
-| `--no-bars` | `🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)` |
-| `--no-emojis --no-bars` | `Opus | $0.23 sess | ctx: 84.0k/200k (42%) | 5h: 55% (~3:45pm)` |
+| (default) | `🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [████░░░░] (~3:45pm)` |
+| `--no-emojis` | `Opus | $0.23 | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [████░░░░] (~3:45pm)` |
+| `--no-bars` | `🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)` |
+| `--no-emojis --no-bars` | `Opus | $0.23 | ctx: 84.0k/200k (42%) | 5h: 55% (~3:45pm)` |
 
 ### Subscription Usage Segments
 
@@ -307,7 +307,7 @@ Relevant fields used by the statusline:
 
 Notes:
 - `model.display_name` is preferred, falling back to `model.id` or the string value. If the name contains "Opus", "Sonnet", or "Haiku", that family name is shown.
-- `cost.total_cost_usd` (or `cost_usd`) renders as `💰 $X.XX sess`.
+- `cost.total_cost_usd` (or `cost_usd`) renders as `💰 $X.XX`.
 - `context_window.used_percentage` drives the percentage and progress bar. It is rounded with `Math.round` and clamped to 0–100 (e.g., 42.5 → 43).
 - `context_window.current_usage` may be `null` or omitted; tokens show as `0` in that case. The current token count is the sum of input/output/cache token fields.
 - Output is always a single visible line; invalid input never throws.

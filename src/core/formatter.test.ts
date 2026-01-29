@@ -170,7 +170,7 @@ describe('formatCostSegment', () => {
   });
 
   it('formats session cost only', () => {
-    expect(formatCostSegment({ sessionCost: 0.23 })).toBe('💰 $0.23 sess');
+    expect(formatCostSegment({ sessionCost: 0.23 })).toBe('💰 $0.23');
   });
 
   it('ignores invalid session cost', () => {
@@ -338,12 +338,12 @@ describe('RenderOptions - no-emojis behavior', () => {
   describe('formatCostSegment with options', () => {
     it('includes emoji prefix by default', () => {
       const result = formatCostSegment({ sessionCost: 0.23 }, DEFAULT_RENDER_OPTIONS);
-      expect(result).toBe('💰 $0.23 sess');
+      expect(result).toBe('💰 $0.23');
     });
 
     it('excludes emoji prefix when showEmojis is false', () => {
       const result = formatCostSegment({ sessionCost: 0.23 }, { showEmojis: false, showBars: true });
-      expect(result).toBe('$0.23 sess');
+      expect(result).toBe('$0.23');
     });
   });
 

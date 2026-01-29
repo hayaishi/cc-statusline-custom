@@ -7,7 +7,7 @@
  * Reads JSON from stdin, generates statusline, outputs to stdout.
  *
  * Output format:
- * 🤖 <Model> | 💰 $<session> sess | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
+ * 🤖 <Model> | 💰 $<session> | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
  *
  * Guarantees:
  * - NEVER silent: always outputs exactly one VISIBLE line

@@ -2,8 +2,8 @@
  * Statusline generation with legacy format parity.
  *
  * Output format:
- * 🤖 <Model> | 💰 $<session> sess | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
- */
+ * 🤖 <Model> | 💰 $<session> | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
+*/
 
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { CacheEntry } from '../types/cache.js';
@@ -704,7 +704,7 @@ export function generateStatusline(
   cacheDir: string = DEFAULT_CACHE_DIR,
   segments?: readonly SegmentId[],
   renderOptions?: RenderOptions,
-  debug: boolean = false
+  debug = false
 ): string {
   try {
     if (input === null) {
