@@ -43,7 +43,9 @@ describe('cache error handling', () => {
       throw new Error('rename-failed');
     });
 
-    expect(() => writeCacheAtomic('subscriptionUsage', entry, '/cache')).toThrow('rename-failed');
+    expect(() => {
+      writeCacheAtomic('subscriptionUsage', entry, '/cache');
+    }).toThrow('rename-failed');
     expect(fsMocks.unlinkSync).toHaveBeenCalledTimes(1);
   });
 
@@ -93,6 +95,8 @@ describe('cache error handling', () => {
       throw new Error('unlink-failed');
     });
 
-    expect(() => releaseLock('/cache')).not.toThrow();
+    expect(() => {
+      releaseLock('/cache');
+    }).not.toThrow();
   });
 });

@@ -17,23 +17,24 @@ vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os');
   return {
     ...actual,
-    homedir: () => osState.testHome,
+    homedir: (): string => osState.testHome,
   };
 });
 
 const originalPlatform = process.platform;
 
-const setPlatform = (platform: NodeJS.Platform) => {
+const setPlatform = (platform: NodeJS.Platform): void => {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
 };
 
-const writeTokenFile = (filePath: string, contents: string) => {
+const writeTokenFile = (filePath: string, contents: string): void => {
   mkdirSync(dirname(filePath), { recursive: true });
   writeFileSync(filePath, contents);
 };
 
-const getClaudePath = () => join(osState.testHome, '.claude.json');
-const getConfigPath = () => join(osState.testHome, '.config', 'claude', 'credentials.json');
+const getClaudePath = (): string => join(osState.testHome, '.claude.json');
+const getConfigPath = (): string =>
+  join(osState.testHome, '.config', 'claude', 'credentials.json');
 
 beforeEach(() => {
   mockExecFileSync.mockReset();

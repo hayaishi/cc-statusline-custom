@@ -134,11 +134,17 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
     usage = await fetchUsage(token);
   } catch (error) {
     const detail = debug ? extractOAuthErrorDetail(error) : null;
-    return {
-      ...base,
-      lastError: normalizeOAuthFetchError(error),
-      ...(detail ? { lastErrorDetail: detail } : {}),
-    };
+    const normalizedError = normalizeOAuthFetchError(error);
+    return detail !== null
+      ? {
+          ...base,
+          lastError: normalizedError,
+          lastErrorDetail: detail,
+        }
+      : {
+          ...base,
+          lastError: normalizedError,
+        };
   }
 
   // Determine which window to use.
@@ -166,10 +172,6 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
       selectedWindow = sevenDayData;
       windowType = 'seven_day';
     }
-  }
-
-  if (!selectedWindow) {
-    return { ...base, lastError: 'oauth_response_invalid' };
   }
 
   const normalized = normalizeUtilizationPercent(selectedWindow.utilization);

@@ -22,7 +22,7 @@ type MockRequest = EventEmitter & {
 let lastResponse: MockResponse | null = null;
 let lastRequest: MockRequest | null = null;
 
-const setupRequest = (statusCode: number) => {
+const setupRequest = (statusCode: number): void => {
   mockRequest.mockImplementation(
     (
       _url: string,
