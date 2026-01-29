@@ -10,6 +10,7 @@ import {
   formatPercentage,
   formatTokens,
   formatTokensCompact,
+  formatTokensExact,
   formatProgressBar,
 } from '../utils/format.js';
 import { colorByThreshold, dim } from '../utils/colors.js';
@@ -118,7 +119,7 @@ export function formatContextUsage(pct: number | undefined): string {
 /**
  * Formats token count with lowercase 'k' suffix, always showing 1 decimal.
  * Output: "25.0k" or "1.5m"
- * Used for current token count (numerator).
+ * Used for compact token display.
  *
  * @param count - Token count
  * @returns Formatted string with lowercase suffix, or empty string
@@ -134,7 +135,7 @@ export function formatTokensLowercase(count: number | null): string {
 /**
  * Formats token count with lowercase 'k' suffix, stripping .0 for round numbers.
  * Output: "200k" or "2m"
- * Used for context limit (denominator).
+ * Used for compact token display.
  *
  * @param count - Token count
  * @returns Formatted string with lowercase suffix, or empty string
@@ -205,9 +206,10 @@ export function formatCostSegment(
 
 /**
  * Formats the context segment with emoji, tokens, bar, and percentage.
- * Output: "🧠 25.0k/200k [████░░░░] (12%)"
+ * Output: "🧠 25,000 [████░░░░] (12%)"
+ * (Context window limit is intentionally hidden.)
  *
- * If current tokens are null (current_usage was null), shows "0.0k" for tokens.
+ * If current tokens are null (current_usage was null), shows "0" for tokens.
  *
  * @param usage - Token usage data
  * @param lowThreshold - Green zone upper bound (exclusive)
@@ -226,12 +228,13 @@ export function formatContextSegment(
 
   // Generate placeholder for missing/invalid data
   const makePlaceholder = (): string => {
+    const tokenText = dim(formatTokensExact(0));
     if (options.showBars) {
       const bar = formatProgressBar(0);
       // Use neutral/dim styling for placeholder cases
-      return `${prefix}${dim(bar)} ${dim('(0%)')}`;
+      return `${prefix}${tokenText} ${dim(bar)} ${dim('(0%)')}`;
     } else {
-      return `${prefix}${dim('(0%)')}`;
+      return `${prefix}${tokenText} ${dim('(0%)')}`;
     }
   };
 
@@ -239,7 +242,7 @@ export function formatContextSegment(
     return makePlaceholder();
   }
 
-  const { current, limit, percentage } = usage;
+  const { current, percentage } = usage;
 
   // If no percentage or invalid, show placeholder
   if (percentage === null || !Number.isFinite(percentage)) {
@@ -247,9 +250,8 @@ export function formatContextSegment(
   }
 
   // Format tokens (use 0 if current is null)
-  // Current uses always-decimal format, limit uses compact format
-  const currentFormatted = formatTokensLowercase(current ?? 0);
-  const limitFormatted = limit !== null ? formatTokensCompactLowercase(limit) : '';
+  // Current uses exact integer display with thousands separators.
+  const currentFormatted = formatTokensExact(current ?? 0);
 
   // Progress bar (conditional)
   const bar = options.showBars ? formatProgressBar(percentage) : '';
@@ -262,9 +264,7 @@ export function formatContextSegment(
   const coloredPct = colorByThreshold(pctText, percentage, lowThreshold, mediumThreshold);
 
   // Build token string
-  const tokens = limitFormatted !== '' && currentFormatted !== ''
-    ? `${currentFormatted}/${limitFormatted}`
-    : currentFormatted;
+  const tokens = currentFormatted;
 
   // Build the context segment with conditional spacing
   if (tokens !== '') {

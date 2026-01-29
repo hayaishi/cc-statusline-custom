@@ -79,7 +79,7 @@ export function formatTokens(count: number): string {
 
 /**
  * Formats a token count with k/m suffixes, stripping .0 for round numbers.
- * Used for context limit (denominator).
+ * Used for compact token display.
  *
  * @param count - Token count
  * @returns Formatted string like "200k", or empty string for invalid input
@@ -114,6 +114,23 @@ export function formatTokensCompact(count: number): string {
   // Strip .0 for round numbers
   const formatted = rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1);
   return `${formatted}m`;
+}
+
+/**
+ * Formats a token count as an exact integer with thousands separators.
+ * Floors fractional values before formatting.
+ *
+ * @param count - Token count
+ * @returns Formatted string like "84,000", or empty string for invalid input
+ */
+export function formatTokensExact(count: number): string {
+  if (!isValidNumber(count) || count < 0) {
+    return '';
+  }
+
+  const value = Math.floor(count);
+  const raw = String(value);
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   formatPercentage,
   formatTokens,
   formatTokensCompact,
+  formatTokensExact,
   formatDuration,
   formatProgressBar,
 } from './format.js';
@@ -169,6 +170,39 @@ describe('formatTokensCompact', () => {
 
   it('handles negative values (edge case)', () => {
     expect(formatTokensCompact(-100)).toBe('');
+  });
+});
+
+describe('formatTokensExact', () => {
+  it('formats zero', () => {
+    expect(formatTokensExact(0)).toBe('0');
+  });
+
+  it('formats small numbers without separators', () => {
+    expect(formatTokensExact(100)).toBe('100');
+    expect(formatTokensExact(999)).toBe('999');
+  });
+
+  it('formats thousands with separators', () => {
+    expect(formatTokensExact(1000)).toBe('1,000');
+    expect(formatTokensExact(84000)).toBe('84,000');
+    expect(formatTokensExact(1500000)).toBe('1,500,000');
+  });
+
+  it('drops fractional values', () => {
+    expect(formatTokensExact(1234.56)).toBe('1,234');
+  });
+
+  it('returns empty string for NaN', () => {
+    expect(formatTokensExact(NaN)).toBe('');
+  });
+
+  it('returns empty string for Infinity', () => {
+    expect(formatTokensExact(Infinity)).toBe('');
+  });
+
+  it('handles negative values (edge case)', () => {
+    expect(formatTokensExact(-100)).toBe('');
   });
 });
 

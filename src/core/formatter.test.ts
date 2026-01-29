@@ -181,7 +181,7 @@ describe('formatCostSegment', () => {
 describe('formatContextSegment', () => {
   it('returns placeholder with bar for undefined', () => {
     const result = formatContextSegment(undefined);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is null', () => {
@@ -191,7 +191,7 @@ describe('formatContextSegment', () => {
       percentage: null,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is undefined', () => {
@@ -201,7 +201,7 @@ describe('formatContextSegment', () => {
       percentage: undefined as unknown as number,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is NaN', () => {
@@ -211,7 +211,7 @@ describe('formatContextSegment', () => {
       percentage: Number.NaN,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is Infinity', () => {
@@ -221,7 +221,7 @@ describe('formatContextSegment', () => {
       percentage: Number.POSITIVE_INFINITY,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns placeholder with bar when percentage is -Infinity', () => {
@@ -231,7 +231,7 @@ describe('formatContextSegment', () => {
       percentage: Number.NEGATIVE_INFINITY,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('formats full context segment with parentheses around percent', () => {
@@ -241,7 +241,7 @@ describe('formatContextSegment', () => {
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84.0k/200k [███░░░░░] (42%)');
+    expect(stripAnsi(result)).toBe('🧠 84,000 [███░░░░░] (42%)');
   });
 
   it('uses 0 when current is null', () => {
@@ -251,7 +251,7 @@ describe('formatContextSegment', () => {
       percentage: 0,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 0/200k [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('handles missing limit', () => {
@@ -261,7 +261,7 @@ describe('formatContextSegment', () => {
       percentage: 42,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 84.0k [███░░░░░] (42%)');
+    expect(stripAnsi(result)).toBe('🧠 84,000 [███░░░░░] (42%)');
   });
 
   it('omits tokens when current is invalid but keeps bar', () => {
@@ -295,16 +295,16 @@ describe('formatContextSegment', () => {
     const highResult = formatContextSegment(highUsage);
 
     // Strip ANSI to verify content
-    expect(stripAnsi(lowResult)).toBe('🧠 50.0k/200k [██░░░░░░] (25%)');
-    expect(stripAnsi(medResult)).toBe('🧠 140.0k/200k [██████░░] (70%)');
-    expect(stripAnsi(highResult)).toBe('🧠 180.0k/200k [███████░] (90%)');
+    expect(stripAnsi(lowResult)).toBe('🧠 50,000 [██░░░░░░] (25%)');
+    expect(stripAnsi(medResult)).toBe('🧠 140,000 [██████░░] (70%)');
+    expect(stripAnsi(highResult)).toBe('🧠 180,000 [███████░] (90%)');
   });
 
   it('respects custom thresholds', () => {
     const usage: TokenUsage = { current: 80000, limit: 200000, percentage: 40 };
     // With custom thresholds (30, 60), 40% should be in yellow zone
     const result = formatContextSegment(usage, 30, 60);
-    expect(stripAnsi(result)).toBe('🧠 80.0k/200k [███░░░░░] (40%)');
+    expect(stripAnsi(result)).toBe('🧠 80,000 [███░░░░░] (40%)');
   });
 
   it('formats high token counts correctly', () => {
@@ -314,7 +314,7 @@ describe('formatContextSegment', () => {
       percentage: 75,
     };
     const result = formatContextSegment(usage);
-    expect(stripAnsi(result)).toBe('🧠 1.5m/2m [██████░░] (75%)');
+    expect(stripAnsi(result)).toBe('🧠 1,500,000 [██████░░] (75%)');
   });
 });
 
@@ -353,31 +353,31 @@ describe('RenderOptions - no-emojis behavior', () => {
     it('includes emoji prefix by default', () => {
       const result = formatContextSegment(usage, 50, 80, DEFAULT_RENDER_OPTIONS);
       const stripped = stripAnsi(result);
-      expect(stripped).toBe('🧠 84.0k/200k [███░░░░░] (42%)');
+      expect(stripped).toBe('🧠 84,000 [███░░░░░] (42%)');
     });
 
     it('uses ctx: label when showEmojis is false', () => {
       const result = formatContextSegment(usage, 50, 80, { showEmojis: false, showBars: true });
       const stripped = stripAnsi(result);
-      expect(stripped).toBe('ctx: 84.0k/200k [███░░░░░] (42%)');
+      expect(stripped).toBe('ctx: 84,000 [███░░░░░] (42%)');
     });
 
     it('omits bar when showBars is false', () => {
       const result = formatContextSegment(usage, 50, 80, { showEmojis: false, showBars: false });
       const stripped = stripAnsi(result);
-      expect(stripped).toBe('ctx: 84.0k/200k (42%)');
+      expect(stripped).toBe('ctx: 84,000 (42%)');
     });
 
     it('uses ctx: label for placeholder when showEmojis is false', () => {
       const result = formatContextSegment(undefined, 50, 80, { showEmojis: false, showBars: true });
       const stripped = stripAnsi(result);
-      expect(stripped).toBe('ctx: [░░░░░░░░] (0%)');
+      expect(stripped).toBe('ctx: 0 [░░░░░░░░] (0%)');
     });
 
     it('omits bar in placeholder when showBars is false', () => {
       const result = formatContextSegment(undefined, 50, 80, { showEmojis: false, showBars: false });
       const stripped = stripAnsi(result);
-      expect(stripped).toBe('ctx: (0%)');
+      expect(stripped).toBe('ctx: 0 (0%)');
     });
   });
 
