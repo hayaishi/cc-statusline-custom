@@ -110,3 +110,13 @@ export function parseDisableBgUpdateArg(args: string[]): boolean {
 export function parseAutoArg(args: string[]): boolean {
   return args.includes('--auto');
 }
+
+/**
+ * Checks if --debug flag is present.
+ *
+ * @param args - CLI arguments
+ * @returns true if flag present, false otherwise
+ */
+export function parseDebugArg(args: string[]): boolean {
+  return args.includes('--debug');
+}

@@ -24,12 +24,15 @@ export interface UpdateCacheResult {
  */
 export interface UpdateCacheOptions {
   mode?: 'auto' | 'force';
+  debug?: boolean;
 }
 
 interface UpdaterDeps {
   getOAuthToken: () => string | null;
   fetchOAuthUsage: (token: string) => Promise<OAuthUsage>;
 }
+
+const MAX_OAUTH_ERROR_DETAIL_LENGTH = 2000;
 
 function getUpdaterOverrides(): Partial<UpdaterDeps> {
   const isTest = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
@@ -64,7 +67,54 @@ function resolveUpdaterDeps(): UpdaterDeps {
   };
 }
 
-async function buildSubscriptionUsageEntry(): Promise<SubscriptionUsageEntry> {
+function normalizeOAuthErrorDetail(detail: string): string {
+  const trimmed = detail.trim();
+  if (trimmed.length <= MAX_OAUTH_ERROR_DETAIL_LENGTH) {
+    return trimmed;
+  }
+  return trimmed.slice(0, MAX_OAUTH_ERROR_DETAIL_LENGTH);
+}
+
+function extractOAuthErrorDetail(error: unknown): string | null {
+  const record = error as { responseBody?: unknown; body?: unknown };
+  const detail = typeof record.responseBody === 'string'
+    ? record.responseBody
+    : typeof record.body === 'string'
+      ? record.body
+      : null;
+
+  if (detail === null) {
+    return null;
+  }
+
+  const trimmed = detail.trim();
+  if (trimmed === '') {
+    return null;
+  }
+
+  return normalizeOAuthErrorDetail(trimmed);
+}
+
+function normalizeOAuthFetchError(error: unknown): string {
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (message.startsWith('oauth_status_')) {
+      return message;
+    }
+    if (message === 'oauth_response_invalid') {
+      return message;
+    }
+  }
+
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === 'string' && code.trim() !== '') {
+    return `oauth_network_${code.trim()}`;
+  }
+
+  return 'oauth_fetch_failed';
+}
+
+async function buildSubscriptionUsageEntry(debug: boolean): Promise<SubscriptionUsageEntry> {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
   const base: SubscriptionUsageEntry = {
@@ -82,22 +132,44 @@ async function buildSubscriptionUsageEntry(): Promise<SubscriptionUsageEntry> {
   let usage: OAuthUsage;
   try {
     usage = await fetchUsage(token);
-  } catch {
-    return { ...base, lastError: 'oauth_fetch_failed' };
+  } catch (error) {
+    const detail = debug ? extractOAuthErrorDetail(error) : null;
+    return {
+      ...base,
+      lastError: normalizeOAuthFetchError(error),
+      ...(detail ? { lastErrorDetail: detail } : {}),
+    };
   }
 
-  // Determine which window to use
-  // Priority: 7-day window if utilization is 100% or more
-  // Otherwise: 5-hour window (default)
-  let selectedWindow = usage.fiveHour;
-  let windowType: 'five_hour' | 'seven_day' = 'five_hour';
+  // Determine which window to use.
+  // Note: When seven_day utilization hits 100%, the API can omit five_hour entirely.
+  // In that case we accept seven_day-only responses and skip five_hour rendering.
+  // Priority: 7-day window if utilization is 100% or more (when both exist)
+  // Otherwise: 5-hour window (default), or 7-day when 5-hour is missing
+  const fiveHour = usage.fiveHour;
+  const sevenDay = usage.sevenDay;
+  const hasFiveHour = fiveHour !== undefined;
+  const hasSevenDay = sevenDay !== undefined;
+  const fiveHourData = fiveHour ?? { utilization: Number.NaN, resetsAt: '' };
+  const sevenDayData = sevenDay ?? { utilization: Number.NaN, resetsAt: '' };
 
-  const sevenDayPercent = usage.sevenDay
-    ? normalizeUtilizationPercent(usage.sevenDay.utilization)
-    : null;
-  if (usage.sevenDay && sevenDayPercent !== null && sevenDayPercent >= 100) {
-    selectedWindow = usage.sevenDay;
-    windowType = 'seven_day';
+  if (!hasFiveHour && !hasSevenDay) {
+    return { ...base, lastError: 'oauth_response_invalid' };
+  }
+
+  let selectedWindow = hasFiveHour ? fiveHourData : sevenDayData;
+  let windowType: 'five_hour' | 'seven_day' = hasFiveHour ? 'five_hour' : 'seven_day';
+
+  if (hasFiveHour && hasSevenDay) {
+    const sevenDayPercent = normalizeUtilizationPercent(sevenDayData.utilization);
+    if (sevenDayPercent !== null && sevenDayPercent >= 100) {
+      selectedWindow = sevenDayData;
+      windowType = 'seven_day';
+    }
+  }
+
+  if (!selectedWindow) {
+    return { ...base, lastError: 'oauth_response_invalid' };
   }
 
   const normalized = normalizeUtilizationPercent(selectedWindow.utilization);
@@ -110,22 +182,22 @@ async function buildSubscriptionUsageEntry(): Promise<SubscriptionUsageEntry> {
   }
 
   // Populate detailed window data
-  const fiveHourPercent = normalizeUtilizationPercent(usage.fiveHour.utilization);
+  const fiveHourPercent = normalizeUtilizationPercent(fiveHourData.utilization);
   const fiveHourEntry =
-    fiveHourPercent !== null
+    hasFiveHour && fiveHourPercent !== null
       ? {
           utilizationPercent: fiveHourPercent,
-          resetsAt: usage.fiveHour.resetsAt,
+          resetsAt: fiveHourData.resetsAt,
         }
       : undefined;
 
   let sevenDayEntry: { utilizationPercent: number; resetsAt: string } | undefined;
-  if (usage.sevenDay) {
-    const sevenDayPercent = normalizeUtilizationPercent(usage.sevenDay.utilization);
+  if (hasSevenDay) {
+    const sevenDayPercent = normalizeUtilizationPercent(sevenDayData.utilization);
     if (sevenDayPercent !== null) {
       sevenDayEntry = {
         utilizationPercent: sevenDayPercent,
-        resetsAt: usage.sevenDay.resetsAt,
+        resetsAt: sevenDayData.resetsAt,
       };
     }
   }
@@ -191,6 +263,7 @@ export async function updateCache(
 ): Promise<UpdateCacheResult> {
   const dir = cacheDir ?? getCacheDir();
   const mode = options?.mode ?? 'force';
+  const debug = options?.debug ?? false;
 
   // In auto mode, check if cache is fresh and usable BEFORE acquiring lock
   // (acquireLock creates a lock file that causes readCacheSyncWithMtime to skip)
@@ -213,7 +286,7 @@ export async function updateCache(
 
   try {
     // Proceed with network fetch (force mode or auto mode with stale/invalid cache)
-    const subscriptionUsage = await buildSubscriptionUsageEntry();
+    const subscriptionUsage = await buildSubscriptionUsageEntry(debug);
 
     writeCacheAtomic('subscriptionUsage', subscriptionUsage, dir);
 

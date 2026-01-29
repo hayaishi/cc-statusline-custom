@@ -437,6 +437,28 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
   });
 
+  it('shows fetch error detail when debug is enabled', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir, undefined, undefined, true);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error (oauth_fetch_failed)');
+  });
+
   it('shows fetch error when resetsAt is invalid', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
@@ -1241,8 +1263,9 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
     const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
 
-    // Should show loading/error since fiveHour is invalid
-    expect(result).toMatch(/Loading\.\.\.|Fetch Error\.\.\./);
+    // Should show sevenDay only since fiveHour is invalid
+    expect(result).toContain('75%');
+    expect(result).toContain('(~10:45pm, Feb 1)');
   });
 
   it('shows fetch error when subscription_usage_all cache attempt is recent', () => {
@@ -1262,6 +1285,32 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
 
     expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error...');
+  });
+
+  it('shows only seven_day when fiveHour window is missing', () => {
+    const nowIso = new Date().toISOString();
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-01T14:00:00.287052+00:00',
+      window: 'seven_day',
+      sevenDay: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-01T14:00:00.287052+00:00',
+      },
+      lastError: null,
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🌙 100% [████] (~2pm, Feb 1)');
   });
 
   it('rejects non-integer utilizationPercent in fiveHour', () => {

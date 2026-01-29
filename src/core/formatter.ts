@@ -352,14 +352,27 @@ export function formatSubscriptionUsageAllSegment(
     return `${prefix}${String(data.percent)}% (${data.reset})`;
   };
 
-  // Validate fiveHour (required)
-  if (fiveHour === null || !Number.isFinite(fiveHour.percent) || fiveHour.reset.trim() === '') {
+  const hasFiveHour = fiveHour !== null
+    && Number.isFinite(fiveHour.percent)
+    && fiveHour.reset.trim() !== '';
+  const hasSevenDay = sevenDay !== null
+    && Number.isFinite(sevenDay.percent)
+    && sevenDay.reset.trim() !== '';
+
+  if (!hasFiveHour && !hasSevenDay) {
     return '';
   }
 
-  // If sevenDay is missing or invalid, return only primary window
-  if (sevenDay === null || !Number.isFinite(sevenDay.percent) || sevenDay.reset.trim() === '') {
+  if (hasFiveHour && !hasSevenDay && fiveHour) {
     return formatWindow(fiveHour, primaryWindowType);
+  }
+
+  if (!hasFiveHour && hasSevenDay && sevenDay) {
+    return formatWindow(sevenDay, 'seven_day');
+  }
+
+  if (!fiveHour || !sevenDay) {
+    return '';
   }
 
   const fiveHourStr = formatWindow(fiveHour, 'five_hour');

@@ -91,6 +91,59 @@ describe('parseOAuthUsage', () => {
     });
   });
 
+  it('should parse camelCase response when fiveHour is present', () => {
+    const json = JSON.stringify({
+      fiveHour: {
+        utilization: 0.5,
+        resetsAt: '2025-01-25T12:00:00Z',
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHour).toEqual({
+      utilization: 0.5,
+      resetsAt: '2025-01-25T12:00:00Z',
+    });
+  });
+
+  it('should parse nested response when usage is wrapped', () => {
+    const json = JSON.stringify({
+      data: {
+        five_hour: {
+          utilization: 0.5,
+          resets_at: '2025-01-25T12:00:00Z',
+        },
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHour).toEqual({
+      utilization: 0.5,
+      resetsAt: '2025-01-25T12:00:00Z',
+    });
+  });
+
+  it('should parse nested response when only seven_day is present', () => {
+    const json = JSON.stringify({
+      data: {
+        seven_day: {
+          utilization: 100.0,
+          resets_at: '2026-02-01T14:00:00.287052+00:00',
+        },
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHour).toBeUndefined();
+    expect(result.sevenDay).toEqual({
+      utilization: 100.0,
+      resetsAt: '2026-02-01T14:00:00.287052+00:00',
+    });
+  });
+
   it('should ignore seven_day when it is incomplete', () => {
     const json = JSON.stringify({
       five_hour: {
@@ -109,7 +162,7 @@ describe('parseOAuthUsage', () => {
     expect(result.sevenDay).toBeUndefined();
   });
 
-  it('should throw error when five_hour is missing', () => {
+  it('should parse response when only seven_day is present', () => {
     const json = JSON.stringify({
       seven_day: {
         utilization: 0.8,
@@ -117,7 +170,40 @@ describe('parseOAuthUsage', () => {
       },
     });
 
+    const result = parseOAuthUsage(json);
+    expect(result.fiveHour).toBeUndefined();
+    expect(result.sevenDay).toEqual({
+      utilization: 0.8,
+      resetsAt: '2025-02-01T12:00:00Z',
+    });
+  });
+
+  it('should throw error when both windows are missing', () => {
+    const json = JSON.stringify({
+      other_window: {},
+    });
+
     expect(() => parseOAuthUsage(json)).toThrow('oauth_response_invalid');
+  });
+
+  it('should ignore invalid five_hour when seven_day is valid', () => {
+    const json = JSON.stringify({
+      five_hour: {
+        utilization: 0.0,
+        resets_at: null,
+      },
+      seven_day: {
+        utilization: 100.0,
+        resets_at: '2026-02-01T14:00:00.287052+00:00',
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+    expect(result.fiveHour).toBeUndefined();
+    expect(result.sevenDay).toEqual({
+      utilization: 100.0,
+      resetsAt: '2026-02-01T14:00:00.287052+00:00',
+    });
   });
 
   it('should throw error when five_hour has invalid types', () => {
@@ -146,7 +232,10 @@ describe('parseOAuthUsage', () => {
     });
 
     const result = parseOAuthUsage(json);
-    expect(result.fiveHour.utilization).toBe(0.5);
+    expect(result.fiveHour).toBeDefined();
+    if (result.fiveHour) {
+      expect(result.fiveHour.utilization).toBe(0.5);
+    }
   });
 });
 
@@ -189,9 +278,20 @@ describe('fetchOAuthUsage', () => {
     setupRequest(401);
 
     const promise = fetchOAuthUsage('token-123');
+    lastResponse?.emit('data', '{"error":"unauthorized"}');
     lastResponse?.emit('end');
 
-    await expect(promise).rejects.toThrow('oauth_status_401');
+    let error: unknown;
+    try {
+      await promise;
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    const record = error as { message?: string; responseBody?: string };
+    expect(record.message).toBe('oauth_status_401');
+    expect(record.responseBody).toBe('{"error":"unauthorized"}');
   });
 
   it('should reject when response body is invalid', async () => {
@@ -201,7 +301,16 @@ describe('fetchOAuthUsage', () => {
     lastResponse?.emit('data', '{invalid-json');
     lastResponse?.emit('end');
 
-    await expect(promise).rejects.toThrow();
+    let error: unknown;
+    try {
+      await promise;
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    const record = error as { responseBody?: string };
+    expect(record.responseBody).toBe('{invalid-json');
   });
 
   it('should reject when request errors', async () => {

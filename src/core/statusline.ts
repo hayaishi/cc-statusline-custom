@@ -405,7 +405,7 @@ type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: Render
  * Creates the segment builder registry.
  * Each builder returns an empty string if the segment should be omitted.
  */
-function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
+function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder> {
   return {
     model: (input, _cacheDir, options): string => {
       const modelName = extractModelDisplayName(input);
@@ -425,10 +425,10 @@ function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
       );
     },
     subscription_usage: (_input, cacheDir, options): string => {
-      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options);
+      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options, debug);
     },
     subscription_usage_all: (_input, cacheDir, options): string => {
-      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options);
+      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options, debug);
     },
   };
 }
@@ -449,9 +449,10 @@ function composeSegments(
   input: ClaudeCodeInput,
   cacheDir: string,
   segmentOrder: readonly SegmentId[],
-  renderOptions: RenderOptions
+  renderOptions: RenderOptions,
+  debug: boolean
 ): string[] {
-  const builders = createSegmentBuilders();
+  const builders = createSegmentBuilders(debug);
 
   return segmentOrder.reduce<string[]>((segments, segmentId) => {
     const builder = builders[segmentId];
@@ -493,12 +494,46 @@ function isRecentFetchError(entry: CacheEntry | null, ttlSeconds: number): boole
   return ageSeconds < ttlSeconds;
 }
 
+const MAX_FETCH_ERROR_DETAIL_LENGTH = 32;
+
+function normalizeFetchErrorDetail(value: string): string {
+  const singleLine = value.replace(/\s+/g, ' ').trim();
+  if (singleLine.length <= MAX_FETCH_ERROR_DETAIL_LENGTH) {
+    return singleLine;
+  }
+  const truncated = singleLine.slice(0, MAX_FETCH_ERROR_DETAIL_LENGTH - 3).trimEnd();
+  return `${truncated}...`;
+}
+
+function formatFetchErrorMessage(entry: CacheEntry | null, debug: boolean): string {
+  if (!debug) {
+    return 'Fetch Error...';
+  }
+
+  if (entry === null) {
+    return 'Fetch Error...';
+  }
+
+  const record = entry as { lastError?: unknown };
+  if (typeof record.lastError !== 'string') {
+    return 'Fetch Error...';
+  }
+
+  const trimmed = record.lastError.trim();
+  if (trimmed === '') {
+    return 'Fetch Error...';
+  }
+
+  const detail = normalizeFetchErrorDetail(trimmed);
+  return `Fetch Error (${detail})`;
+}
+
 /**
  * Builds the subscription usage segment from cache.
  *
  * Returns one of:
  * - Formatted usage segment (if cache valid and fresh)
- * - "Fetch Error..." (if recent attempt failed within TTL)
+ * - "Fetch Error..." (or "Fetch Error (<detail>)" when debug is enabled)
  * - "Loading..." (if no cache or stale)
  *
  * @param cacheDir - Cache directory path
@@ -508,7 +543,8 @@ function isRecentFetchError(entry: CacheEntry | null, ttlSeconds: number): boole
 function buildSubscriptionUsageSegment(
   cacheDir: string,
   ttlSeconds: number,
-  options: RenderOptions
+  options: RenderOptions,
+  debug: boolean
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
   const entryWindow = entry !== null
@@ -537,7 +573,7 @@ function buildSubscriptionUsageSegment(
 
   // Error state: recent fetch failed (within TTL)
   if (isRecentFetchError(entry, ttlSeconds)) {
-    return `${prefix}Fetch Error...`;
+    return `${prefix}${formatFetchErrorMessage(entry, debug)}`;
   }
 
   // Loading state: no cache or stale
@@ -579,7 +615,7 @@ function extractWindowData(
  *
  * Returns formatted segment with both windows, or fallback messages:
  * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)" (happy path)
- * - "⌛️ Fetch Error..." (recent fetch failed)
+ * - "⌛️ Fetch Error..." (or "⌛️ Fetch Error (<detail>)" when debug is enabled)
  * - "⌛️ Loading..." (no cache or stale)
  *
  * @param cacheDir - Cache directory path
@@ -590,7 +626,8 @@ function extractWindowData(
 function buildSubscriptionUsageAllSegment(
   cacheDir: string,
   ttlSeconds: number,
-  options: RenderOptions
+  options: RenderOptions,
+  debug: boolean
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
   const prefix = formatSubscriptionUsagePrefix('five_hour', options);
@@ -605,18 +642,15 @@ function buildSubscriptionUsageAllSegment(
     const fiveHourData = extractWindowData(record.fiveHour, 'five_hour');
     const sevenDayData = extractWindowData(record.sevenDay, 'seven_day');
 
-    // Format segment if we have at least fiveHour data
-    if (fiveHourData !== null) {
-      const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, options);
-      if (result !== '') {
-        return result;
-      }
+    const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, options);
+    if (result !== '') {
+      return result;
     }
   }
 
   // Error state: recent fetch failed (within TTL)
   if (isRecentFetchError(entry, ttlSeconds)) {
-    return `${prefix}Fetch Error...`;
+    return `${prefix}${formatFetchErrorMessage(entry, debug)}`;
   }
 
   // Loading state: no cache or stale
@@ -669,7 +703,8 @@ export function generateStatusline(
   input: ClaudeCodeInput | null,
   cacheDir: string = DEFAULT_CACHE_DIR,
   segments?: readonly SegmentId[],
-  renderOptions?: RenderOptions
+  renderOptions?: RenderOptions,
+  debug: boolean = false
 ): string {
   try {
     if (input === null) {
@@ -679,7 +714,7 @@ export function generateStatusline(
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
     const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
 
-    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug);
 
     if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;

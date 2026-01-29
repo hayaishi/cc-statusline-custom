@@ -9,46 +9,111 @@ export interface UsageWindow {
 }
 
 export interface OAuthUsage {
-  fiveHour: UsageWindow;
+  fiveHour?: UsageWindow;
   sevenDay?: UsageWindow;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function getNumberField(record: Record<string, unknown>, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getStringField(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function parseUsageWindow(data: unknown): UsageWindow | undefined {
-  if (typeof data !== 'object' || data === null) {
+  const record = asRecord(data);
+  if (record === null) {
     return undefined;
   }
 
-  const utilization = (data as { utilization?: unknown }).utilization;
-  const resetsAt = (data as { resets_at?: unknown }).resets_at;
+  const utilization = getNumberField(record, [
+    'utilization',
+    'utilization_percent',
+    'utilizationPercent',
+  ]);
+  const resetsAt = getStringField(record, [
+    'resets_at',
+    'resetsAt',
+    'reset_at',
+    'resetAt',
+  ]);
 
-  if (typeof utilization !== 'number' || !Number.isFinite(utilization)) {
+  if (utilization === undefined) {
     return undefined;
   }
 
-  if (typeof resetsAt !== 'string') {
+  if (resetsAt === undefined) {
     return undefined;
   }
 
   return { utilization, resetsAt };
 }
 
+function resolveUsageContainer(root: Record<string, unknown>): Record<string, unknown> {
+  const candidates = [
+    root,
+    asRecord(root.data),
+    asRecord(root.usage),
+    asRecord(root.subscription_usage),
+    asRecord(root.subscriptionUsage),
+  ].filter((candidate): candidate is Record<string, unknown> => candidate !== null);
+
+  for (const candidate of candidates) {
+    if (
+      'five_hour' in candidate
+      || 'fiveHour' in candidate
+      || 'seven_day' in candidate
+      || 'sevenDay' in candidate
+    ) {
+      return candidate;
+    }
+  }
+
+  return root;
+}
+
 export function parseOAuthUsage(body: string): OAuthUsage {
   const parsed: unknown = JSON.parse(body);
-  if (typeof parsed !== 'object' || parsed === null) {
+  const root = asRecord(parsed);
+  if (root === null) {
     throw new Error('oauth_response_invalid');
   }
 
-  const fiveHourRaw = (parsed as { five_hour?: unknown }).five_hour;
+  const container = resolveUsageContainer(root);
+  const fiveHourRaw = container.five_hour ?? container.fiveHour;
   const fiveHour = parseUsageWindow(fiveHourRaw);
 
-  if (!fiveHour) {
+  const sevenDayRaw = container.seven_day ?? container.sevenDay;
+  const sevenDay = parseUsageWindow(sevenDayRaw);
+
+  if (!fiveHour && !sevenDay) {
     throw new Error('oauth_response_invalid');
   }
 
-  const sevenDayRaw = (parsed as { seven_day?: unknown }).seven_day;
-  const sevenDay = parseUsageWindow(sevenDayRaw);
-
-  const result: OAuthUsage = { fiveHour };
+  const result: OAuthUsage = {};
+  if (fiveHour) {
+    result.fiveHour = fiveHour;
+  }
   if (sevenDay) {
     result.sevenDay = sevenDay;
   }
@@ -77,14 +142,18 @@ export function fetchOAuthUsage(token: string): Promise<OAuthUsage> {
         res.on('end', () => {
           const statusCode = res.statusCode ?? 0;
           if (statusCode < 200 || statusCode >= 300) {
-            reject(new Error(`oauth_status_${String(statusCode)}`));
+            const error = new Error(`oauth_status_${String(statusCode)}`);
+            (error as { responseBody?: string }).responseBody = data;
+            reject(error);
             return;
           }
 
           try {
             resolve(parseOAuthUsage(data));
           } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
+            const normalizedError = error instanceof Error ? error : new Error(String(error));
+            (normalizedError as { responseBody?: string }).responseBody = data;
+            reject(normalizedError);
           }
         });
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -192,5 +192,25 @@ describe('parseAutoArg', () => {
 
   it('handles multiple occurrences (always true if any present)', () => {
     expect(parseAutoArg(['--auto', '--auto'])).toBe(true);
+  });
+});
+
+describe('parseDebugArg', () => {
+  it('returns false when flag not present', () => {
+    expect(parseDebugArg([])).toBe(false);
+    expect(parseDebugArg(['--segments=model'])).toBe(false);
+  });
+
+  it('returns true when flag present', () => {
+    expect(parseDebugArg(['--debug'])).toBe(true);
+  });
+
+  it('handles flag in various positions', () => {
+    expect(parseDebugArg(['--debug', '--segments=model'])).toBe(true);
+    expect(parseDebugArg(['--segments=model', '--debug'])).toBe(true);
+  });
+
+  it('handles multiple occurrences (always true if any present)', () => {
+    expect(parseDebugArg(['--debug', '--debug'])).toBe(true);
   });
 });

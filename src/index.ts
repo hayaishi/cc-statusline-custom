@@ -20,7 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { readStdinSync } from './utils/stdin.js';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg } from './utils/cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
 import { generateStatusline, FALLBACK_OUTPUT, resolveSegmentOrder, resolveRenderOptions, shouldRequestBgCacheUpdate, type SegmentId } from './core/statusline.js';
 import { getCacheDir } from './config/env.js';
@@ -50,8 +50,9 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
 async function handleUpdateCache(args: string[]): Promise<void> {
   try {
     const isAuto = parseAutoArg(args);
+    const isDebug = parseDebugArg(args);
     const { updateCache } = await import('./updater/update-cache.js');
-    const result = await updateCache(undefined, { mode: isAuto ? 'auto' : 'force' });
+    const result = await updateCache(undefined, { mode: isAuto ? 'auto' : 'force', debug: isDebug });
     // Always output a visible single line
     const output = result.success ? result.message : `Error: ${result.message}`;
     console.log(ensureVisibleFirstLine(output, CACHE_FALLBACK_OUTPUT));
@@ -69,7 +70,8 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  */
 function trySpawnBackgroundUpdate(
   segments: readonly SegmentId[],
-  disabled: boolean
+  disabled: boolean,
+  debug: boolean
 ): void {
   try {
     // Skip if disabled by flag
@@ -86,10 +88,15 @@ function trySpawnBackgroundUpdate(
     const scriptPath = process.argv[1];
     if (scriptPath === undefined || scriptPath === '') return;
 
+    const args = [scriptPath, '--update-cache', '--auto'];
+    if (debug) {
+      args.push('--debug');
+    }
+
     // Spawn detached background process
     const child = spawn(
       process.execPath,
-      [scriptPath, '--update-cache', '--auto'],
+      args,
       {
         detached: true,
         stdio: 'ignore' as const,
@@ -120,20 +127,21 @@ function handleStatusline(args: string[]): void {
     const noEmojisCli = parseNoEmojisArg(args);
     const noBarsCli = parseNoBarsArg(args);
     const disableBgUpdate = parseDisableBgUpdateArg(args);
+    const debug = parseDebugArg(args);
 
     // Resolve configuration
     const segmentOrder = resolveSegmentOrder(segmentsArg);
     const renderOptions = resolveRenderOptions(noEmojisCli, noBarsCli);
 
     // Generate statusline (reads cache for subscription usage)
-    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions);
+    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug);
 
     // Print ONLY the first visible line (defense in depth)
     console.log(ensureVisibleFirstLine(line));
 
     // Attempt background update if needed (never throws, never blocks)
     // Spawn after printing to keep the statusline output path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, disableBgUpdate);
+    trySpawnBackgroundUpdate(segmentOrder, disableBgUpdate, debug);
   } catch {
     // Ultimate fallback: print visible fallback on any unexpected error
     console.log(FALLBACK_OUTPUT);

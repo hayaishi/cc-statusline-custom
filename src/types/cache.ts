@@ -55,6 +55,7 @@ export interface SubscriptionUsageEntry {
   readonly utilizationPercent?: number;
   readonly resetsAt?: string;
   readonly lastError: string | null;
+  readonly lastErrorDetail?: string | null;
   readonly lastAttemptAt?: string;
   readonly updatedAt?: string;
   readonly window?: 'five_hour' | 'seven_day';

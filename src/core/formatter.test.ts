@@ -450,19 +450,19 @@ describe('formatSubscriptionUsageAllSegment', () => {
     expect(result).toBe('⌛️ 0% [░░░░] (~12:00am) 🌙 100% [████] (~11:59pm, Dec 31)');
   });
 
-  it('returns empty string when fiveHour is null', () => {
+  it('formats only sevenDay when fiveHour is null', () => {
     const result = formatSubscriptionUsageAllSegment(null, sevenDayData, DEFAULT_RENDER_OPTIONS);
-    expect(result).toBe('');
+    expect(result).toBe('🌙 55% [██░░] (~10:45pm, Feb 1)');
   });
 
-  it('returns empty string when fiveHour percent is not finite', () => {
+  it('formats only sevenDay when fiveHour percent is not finite', () => {
     const result = formatSubscriptionUsageAllSegment({ percent: NaN, reset: '~3:45pm' }, sevenDayData, DEFAULT_RENDER_OPTIONS);
-    expect(result).toBe('');
+    expect(result).toBe('🌙 55% [██░░] (~10:45pm, Feb 1)');
   });
 
-  it('returns empty string when fiveHour reset is empty', () => {
+  it('formats only sevenDay when fiveHour reset is empty', () => {
     const result = formatSubscriptionUsageAllSegment({ percent: 55, reset: '' }, sevenDayData, DEFAULT_RENDER_OPTIONS);
-    expect(result).toBe('');
+    expect(result).toBe('🌙 55% [██░░] (~10:45pm, Feb 1)');
   });
 
   it('formats only fiveHour when sevenDay is null', () => {

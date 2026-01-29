@@ -190,6 +190,27 @@ describe('update-cache', () => {
     expect(parsed.resetsAt).toBe('2026-01-20T15:45:00Z');
   });
 
+  it('should use 7d window when 5h is missing', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      sevenDay: {
+        utilization: 80,
+        resetsAt: '2026-02-01T14:00:00.287052+00:00',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as {
+      utilizationPercent?: number;
+      resetsAt?: string;
+      window?: string;
+    };
+    expect(parsed.utilizationPercent).toBe(80);
+    expect(parsed.resetsAt).toBe('2026-02-01T14:00:00.287052+00:00');
+    expect(parsed.window).toBe('seven_day');
+  });
+
   it('should write only subscription-usage.json when updating cache', async () => {
     await updateCache(testDir);
 
@@ -221,6 +242,58 @@ describe('update-cache', () => {
     expect(parsed.lastError).toBe('token_missing');
     expect(typeof parsed.lastAttemptAt).toBe('string');
     expect(mockFetchOAuthUsage).not.toHaveBeenCalled();
+  });
+
+  it('should record oauth status error when fetch fails in debug mode', async () => {
+    const error = new Error('oauth_status_401');
+    (error as { responseBody?: string }).responseBody = '{"error":"unauthorized"}';
+    mockFetchOAuthUsage.mockRejectedValueOnce(error);
+
+    await updateCache(testDir, { debug: true });
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string; lastErrorDetail?: string | null };
+    expect(parsed.lastError).toBe('oauth_status_401');
+    expect(parsed.lastErrorDetail).toBe('{"error":"unauthorized"}');
+  });
+
+  it('should record oauth response detail when parsing fails in debug mode', async () => {
+    const error = new Error('oauth_response_invalid');
+    (error as { responseBody?: string }).responseBody = '{"unexpected":true}';
+    mockFetchOAuthUsage.mockRejectedValueOnce(error);
+
+    await updateCache(testDir, { debug: true });
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string; lastErrorDetail?: string | null };
+    expect(parsed.lastError).toBe('oauth_response_invalid');
+    expect(parsed.lastErrorDetail).toBe('{"unexpected":true}');
+  });
+
+  it('should record oauth network error when fetch throws with code (no detail)', async () => {
+    const error = new Error('socket hang up');
+    (error as { code?: string }).code = 'ECONNRESET';
+    mockFetchOAuthUsage.mockRejectedValueOnce(error);
+
+    await updateCache(testDir, { debug: true });
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string; lastErrorDetail?: string | null };
+    expect(parsed.lastError).toBe('oauth_network_ECONNRESET');
+    expect(parsed.lastErrorDetail).toBeUndefined();
+  });
+
+  it('does not record oauth error detail without debug', async () => {
+    const error = new Error('oauth_status_401');
+    (error as { responseBody?: string }).responseBody = '{"error":"unauthorized"}';
+    mockFetchOAuthUsage.mockRejectedValueOnce(error);
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string; lastErrorDetail?: string | null };
+    expect(parsed.lastError).toBe('oauth_status_401');
+    expect(parsed.lastErrorDetail).toBeUndefined();
   });
 
   it('should release lock after successful update', async () => {

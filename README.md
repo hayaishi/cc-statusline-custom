@@ -63,6 +63,13 @@ Update the cache (out-of-band):
 ~/git/ccusage-statusline-custom/dist/index.js --update-cache
 ```
 
+Enable debug output (shows error codes and stores raw response body in cache on failure):
+
+```bash
+~/git/ccusage-statusline-custom/dist/index.js --debug
+~/git/ccusage-statusline-custom/dist/index.js --update-cache --debug
+```
+
 Disable background cache updates:
 
 ```bash
@@ -326,6 +333,8 @@ Files:
 - `subscription-usage.json` (written by `--update-cache`)
 - `cache.lock` (writer lock file; short-lived)
 
+When a fetch fails, the updater stores `lastError`. With `--debug`, it also stores `lastErrorDetail` with the raw response body.
+
 ### ⌛️ segment behavior
 
 The statusline reads cache synchronously (hot path) and never uses network or child processes during execution.
@@ -334,6 +343,7 @@ The statusline reads cache synchronously (hot path) and never uses network or ch
   `⌛️ <pct>% [████░░░░] (~h:mmam/pm)`
 - If a cache entry exists, the last update attempt was recent (within TTL), and the payload is not usable, it renders:
   `⌛️ Fetch Error...`
+- With `--debug`, the error line includes the error code (e.g., `Fetch Error (oauth_status_401)`).
 - Otherwise it renders:
   `⌛️ Loading...`
 
