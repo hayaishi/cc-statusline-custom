@@ -437,6 +437,81 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
   });
 
+  it('shows fetch error when resetsAt is invalid', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: 'invalid-date',
+      updatedAt: nowIso,
+      lastAttemptAt: nowIso,
+      lastError: 'oauth_fetch_failed',
+      window: 'five_hour',
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
+  });
+
+  it('shows fetch error when resetsAt is not a string', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage = {
+      utilizationPercent: 55,
+      resetsAt: 12345,
+      updatedAt: nowIso,
+      lastAttemptAt: nowIso,
+      lastError: 'oauth_fetch_failed',
+      window: 'five_hour',
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
+  });
+
+  it('shows fetch error when utilizationPercent is out of range', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      utilizationPercent: 101,
+      resetsAt: '2026-01-20T15:45:00Z',
+      updatedAt: nowIso,
+      lastAttemptAt: nowIso,
+      lastError: 'oauth_fetch_failed',
+      window: 'five_hour',
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
+  });
+
   it('uses seven_day label for fetch error when window is seven_day', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
@@ -1168,6 +1243,69 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
 
     // Should show loading/error since fiveHour is invalid
     expect(result).toMatch(/Loading\.\.\.|Fetch Error\.\.\./);
+  });
+
+  it('shows fetch error when subscription_usage_all cache attempt is recent', () => {
+    const nowIso = new Date().toISOString();
+    const cacheData: SubscriptionUsageEntry = {
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error...');
+  });
+
+  it('rejects non-integer utilizationPercent in fiveHour', () => {
+    const nowIso = new Date().toISOString();
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 55,
+      resetsAt: '2026-01-27T15:45:00Z',
+      window: 'five_hour',
+      fiveHour: {
+        utilizationPercent: 55.5,
+        resetsAt: '2026-01-27T15:45:00Z',
+      },
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error...');
+  });
+
+  it('shows loading when lastAttemptAt is invalid', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: 'invalid-date',
+      updatedAt: new Date().toISOString(),
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
+
+    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Loading...');
   });
 
   it('rejects utilizationPercent > 100 in sevenDay', () => {

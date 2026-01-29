@@ -202,6 +202,68 @@ describe('cache-reader', () => {
   });
 
   describe('readCacheSyncWithMtime', () => {
+    it('returns null when lock file is fresh', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const entry: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-01-20T15:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
+      };
+      writeFileSync(cacheFile, JSON.stringify(entry));
+
+      const lockFile = join(testDir, 'cache.lock');
+      writeFileSync(lockFile, 'locked');
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(false);
+    });
+
+    it('returns null when file is missing', () => {
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(false);
+    });
+
+    it('returns null when file exceeds max size', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const largeContent = JSON.stringify({ data: 'x'.repeat(2000) });
+      writeFileSync(cacheFile, largeContent);
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(false);
+    });
+
+    it('returns null when file is empty', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      writeFileSync(cacheFile, '');
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(true);
+    });
+
+    it('returns null when JSON is invalid', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      writeFileSync(cacheFile, 'not json');
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(false);
+    });
+
+    it('returns null when JSON is not an object', () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      writeFileSync(cacheFile, '[]');
+
+      const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);
+      expect(result.entry).toBeNull();
+      expect(result.isFresh).toBe(true);
+    });
+
     it('returns entry with isFresh=false when mtime exceeds TTL', () => {
       const cacheFile = join(testDir, 'subscription-usage.json');
       const entry: SubscriptionUsageEntry = {

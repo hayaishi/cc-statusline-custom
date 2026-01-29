@@ -4,6 +4,7 @@ import {
   formatSessionCost,
   formatContextUsage,
   formatTokensLowercase,
+  formatTokensCompactLowercase,
   formatModelSegment,
   formatCostSegment,
   formatContextSegment,
@@ -127,6 +128,12 @@ describe('formatTokensLowercase', () => {
   it('formats millions with lowercase m suffix and 1 decimal', () => {
     expect(formatTokensLowercase(1000000)).toBe('1.0m');
     expect(formatTokensLowercase(1500000)).toBe('1.5m');
+  });
+});
+
+describe('formatTokensCompactLowercase', () => {
+  it('returns empty string for null', () => {
+    expect(formatTokensCompactLowercase(null)).toBe('');
   });
 });
 
@@ -257,6 +264,26 @@ describe('formatContextSegment', () => {
     expect(stripAnsi(result)).toBe('🧠 84.0k [███░░░░░] (42%)');
   });
 
+  it('omits tokens when current is invalid but keeps bar', () => {
+    const usage: TokenUsage = {
+      current: -5,
+      limit: 200000,
+      percentage: 42,
+    };
+    const result = formatContextSegment(usage);
+    expect(stripAnsi(result)).toBe('🧠 [███░░░░░] (42%)');
+  });
+
+  it('omits tokens and bar when current is invalid and bars disabled', () => {
+    const usage: TokenUsage = {
+      current: -5,
+      limit: 200000,
+      percentage: 42,
+    };
+    const result = formatContextSegment(usage, 50, 80, { showEmojis: true, showBars: false });
+    expect(stripAnsi(result)).toBe('🧠 (42%)');
+  });
+
   it('applies correct colors based on thresholds', () => {
     const lowUsage: TokenUsage = { current: 50000, limit: 200000, percentage: 25 };
     const medUsage: TokenUsage = { current: 140000, limit: 200000, percentage: 70 };
@@ -335,10 +362,22 @@ describe('RenderOptions - no-emojis behavior', () => {
       expect(stripped).toBe('ctx: 84.0k/200k [███░░░░░] (42%)');
     });
 
+    it('omits bar when showBars is false', () => {
+      const result = formatContextSegment(usage, 50, 80, { showEmojis: false, showBars: false });
+      const stripped = stripAnsi(result);
+      expect(stripped).toBe('ctx: 84.0k/200k (42%)');
+    });
+
     it('uses ctx: label for placeholder when showEmojis is false', () => {
       const result = formatContextSegment(undefined, 50, 80, { showEmojis: false, showBars: true });
       const stripped = stripAnsi(result);
       expect(stripped).toBe('ctx: [░░░░░░░░] (0%)');
+    });
+
+    it('omits bar in placeholder when showBars is false', () => {
+      const result = formatContextSegment(undefined, 50, 80, { showEmojis: false, showBars: false });
+      const stripped = stripAnsi(result);
+      expect(stripped).toBe('ctx: (0%)');
     });
   });
 

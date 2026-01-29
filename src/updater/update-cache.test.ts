@@ -51,6 +51,8 @@ describe('update-cache', () => {
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true });
     }
+    const globalState = globalThis as { __ccusageUpdaterDeps?: unknown };
+    delete globalState.__ccusageUpdaterDeps;
   });
 
   it('should return success result when update completes', async () => {
@@ -285,6 +287,46 @@ describe('update-cache', () => {
     expect(parsed.lastError).toBe('resets_at_invalid');
   });
 
+  it('should return error when utilization is invalid', async () => {
+    mockFetchOAuthUsage.mockResolvedValue({
+      fiveHour: {
+        utilization: Number.NaN,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+    });
+
+    await updateCache(testDir);
+
+    const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+    const parsed = JSON.parse(content) as { lastError?: string };
+    expect(parsed.lastError).toBe('utilization_invalid');
+  });
+
+  it('uses test overrides when provided', async () => {
+    const overrideGetOAuthToken = vi.fn((): string | null => 'override-token');
+    const overrideFetchOAuthUsage = vi.fn((): Promise<OAuthUsage> => Promise.resolve({
+      fiveHour: {
+        utilization: 25,
+        resetsAt: '2026-01-20T15:45:00Z',
+      },
+    }));
+    const globalState = globalThis as { __ccusageUpdaterDeps?: unknown };
+    globalState.__ccusageUpdaterDeps = {
+      getOAuthToken: overrideGetOAuthToken,
+      fetchOAuthUsage: overrideFetchOAuthUsage,
+    };
+    mockGetOAuthToken.mockClear();
+    mockFetchOAuthUsage.mockClear();
+
+    const result = await updateCache(testDir);
+
+    expect(result.success).toBe(true);
+    expect(overrideGetOAuthToken).toHaveBeenCalledTimes(1);
+    expect(overrideFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    expect(mockGetOAuthToken).not.toHaveBeenCalled();
+    expect(mockFetchOAuthUsage).not.toHaveBeenCalled();
+  });
+
   describe('mode option', () => {
     it('force mode always attempts network fetch', async () => {
       // Create fresh, valid cache
@@ -371,6 +413,56 @@ describe('update-cache', () => {
       writeFileSync(cacheFile, JSON.stringify(errorEntry));
 
       // Auto mode should fetch
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode fetches when utilizationPercent is out of range', async () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const invalidEntry = {
+        utilizationPercent: 200,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(invalidEntry));
+
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode fetches when utilizationPercent is missing', async () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const invalidEntry = {
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(invalidEntry));
+
+      mockFetchOAuthUsage.mockClear();
+      const result = await updateCache(testDir, { mode: 'auto' });
+      expect(result.success).toBe(true);
+      expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
+    });
+
+    it('auto mode fetches when resetsAt is invalid', async () => {
+      const cacheFile = join(testDir, 'subscription-usage.json');
+      const invalidEntry = {
+        utilizationPercent: 55,
+        resetsAt: 'invalid-date',
+        lastError: null,
+        lastAttemptAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(invalidEntry));
+
       mockFetchOAuthUsage.mockClear();
       const result = await updateCache(testDir, { mode: 'auto' });
       expect(result.success).toBe(true);
