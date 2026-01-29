@@ -17,8 +17,8 @@ import {
   formatModelSegment,
   formatCostSegment,
   formatContextSegment,
-  formatSubscriptionUsageSegment,
   formatSubscriptionUsageAllSegment,
+  NORMAL_SUB_BAR_WIDTH,
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
   type WindowData,
@@ -225,11 +225,8 @@ export function getCacheTargetsForSegments(segments: readonly SegmentId[]): Cach
  * @param target - Cache target identifier
  * @returns TTL in seconds
  */
-export function getCacheTargetTtlSeconds(target: CacheTargetId): number {
-  switch (target) {
-    case 'subscriptionUsage':
-      return getSubscriptionCacheTtl();
-  }
+export function getCacheTargetTtlSeconds(_target: CacheTargetId): number {
+  return getSubscriptionCacheTtl();
 }
 
 /**
@@ -409,15 +406,15 @@ type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: Render
  */
 function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
   return {
-    model: (input, _cacheDir, options) => {
+    model: (input, _cacheDir, options): string => {
       const modelName = extractModelDisplayName(input);
       return formatModelSegment(modelName, options);
     },
-    cost_session: (input, _cacheDir, options) => {
+    cost_session: (input, _cacheDir, options): string => {
       const costData = buildCostSegmentData(input);
       return formatCostSegment(costData, options);
     },
-    context: (input, _cacheDir, options) => {
+    context: (input, _cacheDir, options): string => {
       const tokenUsage = extractTokenUsage(input);
       return formatContextSegment(
         tokenUsage,
@@ -426,10 +423,10 @@ function createSegmentBuilders(): Record<SegmentId, SegmentBuilder> {
         options
       );
     },
-    subscription_usage: (_input, cacheDir, options) => {
+    subscription_usage: (_input, cacheDir, options): string => {
       return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options);
     },
-    subscription_usage_all: (_input, cacheDir, options) => {
+    subscription_usage_all: (_input, cacheDir, options): string => {
       return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options);
     },
   };
@@ -513,16 +510,32 @@ function buildSubscriptionUsageSegment(
   options: RenderOptions
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const prefix = options.showEmojis ? '⌛️ ' : '5h: ';
+  const entryWindow = entry !== null
+    ? (entry as { window?: 'five_hour' | 'seven_day' }).window
+    : undefined;
+  const fallbackWindowType = entryWindow === 'seven_day' ? 'seven_day' : 'five_hour';
+  const prefix = options.showEmojis
+    ? fallbackWindowType === 'seven_day'
+      ? '🌙 '
+      : '⌛️ '
+    : fallbackWindowType === 'seven_day'
+      ? '7d: '
+      : '5h: ';
 
   // Happy path: fresh valid cache
   if (entry !== null && isFresh) {
     const valid = getValidSubscriptionUsage(entry);
     if (valid !== null) {
-      const windowType = (entry as { window?: 'five_hour' | 'seven_day' }).window;
+      const windowType = entryWindow;
       const reset = formatResetTime(normalizeSubscriptionResetTime(valid.resetsAt), windowType);
       if (reset !== '') {
-        return formatSubscriptionUsageSegment(valid.utilizationPercent, reset, options);
+        const primaryWindowType = fallbackWindowType;
+        return formatSubscriptionUsageAllSegment(
+          { percent: valid.utilizationPercent, reset },
+          null,
+          options,
+          { primaryWindowType, barWidth: NORMAL_SUB_BAR_WIDTH }
+        );
       }
     }
   }

@@ -222,8 +222,8 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
           // If the violation is about child_process, only ignore it when we find the exact allowed pattern.
           if (v.includes('child_process')) {
             // Allowed pattern: detached spawn with unref (non-blocking background update)
-            const hasDetachedSpawn = /spawn\([\s\S]*\{[\s\S]*detached:\s*true[\s\S]*stdio:\s*['\"]ignore['\"][\s\S]*\}[\s\S]*\)/.test(content);
-            const hasUnref = /\.unref\(\)/.test(content);
+            const hasDetachedSpawn = /spawn\([\s\S]*\{[\s\S]*detached:\s*true[\s\S]*stdio:\s*["']ignore["'][\s\S]*\}[\s\S]*\)/.test(content);
+            const hasUnref = content.includes('.unref()');
             const isAllowedPattern = hasDetachedSpawn && hasUnref;
             return !isAllowedPattern;
           }
@@ -259,8 +259,8 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
           }
           // If the violation is about child_process, only ignore the allowed pattern
           if (v.includes('child_process')) {
-            const hasDetachedSpawn = /spawn\([\s\S]*\{[\s\S]*detached:\s*true[\s\S]*stdio:\s*['\"]ignore['\"][\s\S]*\}[\s\S]*\)/.test(content);
-            const hasUnref = /\.unref\(\)/.test(content);
+            const hasDetachedSpawn = /spawn\([\s\S]*\{[\s\S]*detached:\s*true[\s\S]*stdio:\s*["']ignore["'][\s\S]*\}[\s\S]*\)/.test(content);
+            const hasUnref = content.includes('.unref()');
             const isAllowedPattern = hasDetachedSpawn && hasUnref;
             return !isAllowedPattern;
           }

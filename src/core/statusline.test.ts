@@ -340,6 +340,44 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     }
   });
 
+  it('uses seven_day emoji when subscription usage window is seven_day', () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'UTC';
+
+    try {
+      const input: ClaudeCodeInput = {
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+        context_window: {
+          used_percentage: 42,
+          context_window_size: 200000,
+          current_usage: { input_tokens: 84000 },
+        },
+      };
+
+      const subscriptionUsage: SubscriptionUsageEntry = {
+        utilizationPercent: 55,
+        resetsAt: '2026-02-01T22:45:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+        lastError: null,
+        lastAttemptAt: '2026-01-20T10:00:00Z',
+        window: 'seven_day',
+      };
+      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+      const result = generateStatuslineWithExtended(input, testCacheDir);
+      expect(stripAnsi(result)).toBe(
+        '🤖 Opus | 💰 $0.23 sess | 🧠 84.0k/200k [███░░░░░] (42%) | 🌙 55% [████░░░░] (~10:45pm, Feb 1)'
+      );
+    } finally {
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    }
+  });
+
   it('rounds subscription reset times when minutes are 59', () => {
     const originalTz = process.env.TZ;
     process.env.TZ = 'UTC';
@@ -397,6 +435,51 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ Fetch Error...');
+  });
+
+  it('uses seven_day label for fetch error when window is seven_day', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      lastError: 'oauth_fetch_failed',
+      lastAttemptAt: nowIso,
+      updatedAt: nowIso,
+      window: 'seven_day',
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | 🌙 Fetch Error...');
+  });
+
+  it('uses seven_day label for loading when window is seven_day', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      context_window: {
+        used_percentage: 42,
+        context_window_size: 200000,
+        current_usage: { input_tokens: 84000 },
+      },
+    };
+
+    const nowIso = new Date().toISOString();
+    const subscriptionUsage: SubscriptionUsageEntry = {
+      lastError: null,
+      updatedAt: nowIso,
+      window: 'seven_day',
+    };
+    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
+
+    const result = generateStatuslineWithExtended(input, testCacheDir);
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84.0k/200k [███░░░░░] (42%) | 🌙 Loading...');
   });
 
   it('formats full output with subscription usage cache', () => {

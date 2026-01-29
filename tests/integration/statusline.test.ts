@@ -45,26 +45,6 @@ function runCli(
 }
 
 /**
- * Helper to count lines in output.
- * Note: console.log adds a trailing newline, so "x\n" is 1 line with content.
- */
-function countOutputLines(output: string): number {
-  // Remove trailing newline added by console.log, then count
-  const trimmed = output.replace(/\n$/, '');
-  if (trimmed === '') {
-    return 0; // Empty output is ZERO lines - violates NEVER silent
-  }
-  return trimmed.split('\n').length;
-}
-
-/**
- * Helper to check if output is visible (non-empty after trim).
- */
-function isVisibleOutput(output: string): boolean {
-  return output.replace(/\n$/, '').trim().length > 0;
-}
-
-/**
  * Helper to run the CLI via direct execution (not via node).
  * Tests shebang and execute permissions.
  */

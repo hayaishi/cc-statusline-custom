@@ -84,7 +84,7 @@ function trySpawnBackgroundUpdate(
 
     // Get the script path (process.argv[1] is always defined for Node.js scripts)
     const scriptPath = process.argv[1];
-    if (!scriptPath) return;
+    if (scriptPath === undefined || scriptPath === '') return;
 
     // Spawn detached background process
     const child = spawn(

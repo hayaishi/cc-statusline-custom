@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    // Avoid background update side effects during integration tests.
+    env: { CCSTATUSLINE_BG_UPDATE: '1' },
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

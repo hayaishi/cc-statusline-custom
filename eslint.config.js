@@ -39,6 +39,12 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', '*.config.js'],
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      '*.config.js',
+      'tests/helpers/updater-mocks.mjs',
+    ],
   }
 );

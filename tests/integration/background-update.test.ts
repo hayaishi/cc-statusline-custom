@@ -8,7 +8,7 @@
  * - --auto mode behavior in updateCache
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -61,8 +61,7 @@ describe('Background Cache Update Integration Tests', () => {
 
         // Cache file should not be created (no background update spawned)
         const cacheFile = join(cacheDir, 'subscription-usage.json');
-        // Note: This test doesn't definitively prove no spawn, but the cache shouldn't appear
-        // within this synchronous execution window
+        expect(existsSync(cacheFile)).toBe(false);
       });
     });
 
@@ -206,7 +205,7 @@ describe('Background Cache Update Integration Tests', () => {
               CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL: '60',
             },
           });
-        } catch (error) {
+        } catch {
           // May fail due to missing token, but that's expected in test env
         }
 

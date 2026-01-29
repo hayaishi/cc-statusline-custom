@@ -242,7 +242,7 @@ export function formatContextSegment(
   const { current, limit, percentage } = usage;
 
   // If no percentage or invalid, show placeholder
-  if (percentage === null || percentage === undefined || !Number.isFinite(percentage)) {
+  if (percentage === null || !Number.isFinite(percentage)) {
     return makePlaceholder();
   }
 
@@ -255,7 +255,7 @@ export function formatContextSegment(
   const bar = options.showBars ? formatProgressBar(percentage) : '';
 
   // Percentage text (wrapped in parentheses)
-  const pctText = `(${percentage}%)`;
+  const pctText = `(${String(percentage)}%)`;
 
   // Apply threshold-based coloring to bar and percentage
   const coloredBar = bar !== '' ? colorByThreshold(bar, percentage, lowThreshold, mediumThreshold) : '';
@@ -283,79 +283,70 @@ export function formatContextSegment(
 }
 
 /**
- * Formats the subscription usage segment with emoji, percent, bar, and reset time.
- * Output: "⌛️ 55% [████░░░░] (~3:45pm)"
- *
- * @param percent - Utilization percentage (integer 0-100)
- * @param reset - Reset time string like "~3:45pm"
- * @param options - Render options for emojis and bars
- * @returns Formatted subscription usage segment or empty string
- */
-export function formatSubscriptionUsageSegment(
-  percent: number,
-  reset: string,
-  options: RenderOptions = DEFAULT_RENDER_OPTIONS
-): string {
-  if (!Number.isFinite(percent) || reset.trim() === '') {
-    return '';
-  }
-
-  // Prefix: emoji or text label
-  const prefix = options.showEmojis ? `${EMOJI_SUB_5HR} ` : '5h: ';
-
-  if (options.showBars) {
-    const bar = formatProgressBar(percent);
-    if (bar === '') {
-      return '';
-    }
-    return `${prefix}${String(percent)}% ${bar} (${reset})`;
-  } else {
-    return `${prefix}${String(percent)}% (${reset})`;
-  }
-}
-
-/**
- * Window data for subscription_usage_all segment.
+ * Window data for subscription usage segments.
  */
 export interface WindowData {
   readonly percent: number;
   readonly reset: string;
 }
 
-/**
- * Bar width constants for subscription_usage_all segment.
- * Half of the normal subscription_usage bar width.
- */
-const NORMAL_SUB_BAR_WIDTH = 8; // Same as formatProgressBar default
-const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));  
+type SubscriptionWindowType = 'five_hour' | 'seven_day';
 
 /**
- * Formats the subscription_usage_all segment showing both five_hour and seven_day windows.
+ * Bar width constants for subscription usage segments.
+ * SUB_ALL_BAR_WIDTH is half of the normal subscription_usage bar width.
+ */
+export const NORMAL_SUB_BAR_WIDTH = 8; // Same as formatProgressBar default
+const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));
+
+/**
+ * Formats the subscription usage segment showing both five_hour and seven_day windows.
  * Output: "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)"
+ *
+ * When sevenDay is missing or invalid, formats a single window using primaryWindowType.
  *
  * @param fiveHour - Five-hour window data (required)
  * @param sevenDay - Seven-day window data (optional)
  * @param options - Render options for emojis and bars
- * @returns Formatted subscription usage all segment or empty string
+ * @param formatOptions - Window label/bar options for single-window formatting
+ * @returns Formatted subscription usage segment or empty string
  */
 export function formatSubscriptionUsageAllSegment(
   fiveHour: WindowData | null,
   sevenDay: WindowData | null,
-  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS,
+  formatOptions: {
+    readonly primaryWindowType?: SubscriptionWindowType;
+    readonly barWidth?: number;
+  } = {}
 ): string {
+  const primaryWindowType = formatOptions.primaryWindowType ?? 'five_hour';
+  const requestedBarWidth = formatOptions.barWidth;
+  const barWidth =
+    typeof requestedBarWidth === 'number' &&
+    Number.isFinite(requestedBarWidth) &&
+    requestedBarWidth > 0
+      ? requestedBarWidth
+      : SUB_ALL_BAR_WIDTH;
+
   // Helper to format a single window
   const formatWindow = (
     data: WindowData,
-    emoji: string,
-    noEmojiLabel: string
+    windowType: SubscriptionWindowType
   ): string => {
-    const prefix = options.showEmojis ? `${emoji} ` : `${noEmojiLabel} `;
+    const prefix =
+      windowType === 'seven_day'
+        ? options.showEmojis
+          ? `${EMOJI_SUB_7DAY} `
+          : '7d: '
+        : options.showEmojis
+          ? `${EMOJI_SUB_5HR} `
+          : '5h: ';
     if (options.showBars) {
-      const bar = formatProgressBar(data.percent, SUB_ALL_BAR_WIDTH);
+      const bar = formatProgressBar(data.percent, barWidth);
       return `${prefix}${String(data.percent)}% ${bar} (${data.reset})`;
-    } else {
-      return `${prefix}${String(data.percent)}% (${data.reset})`;
     }
+    return `${prefix}${String(data.percent)}% (${data.reset})`;
   };
 
   // Validate fiveHour (required)
@@ -363,14 +354,13 @@ export function formatSubscriptionUsageAllSegment(
     return '';
   }
 
-  const fiveHourStr = formatWindow(fiveHour, EMOJI_SUB_5HR, '5h:');
-
-  // If sevenDay is missing or invalid, return only fiveHour
+  // If sevenDay is missing or invalid, return only primary window
   if (sevenDay === null || !Number.isFinite(sevenDay.percent) || sevenDay.reset.trim() === '') {
-    return fiveHourStr;
+    return formatWindow(fiveHour, primaryWindowType);
   }
 
-  const sevenDayStr = formatWindow(sevenDay, EMOJI_SUB_7DAY, '7d:');
+  const fiveHourStr = formatWindow(fiveHour, 'five_hour');
+  const sevenDayStr = formatWindow(sevenDay, 'seven_day');
 
   // Join with single space for compact display
   return `${fiveHourStr} ${sevenDayStr}`;
