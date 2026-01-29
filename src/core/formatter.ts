@@ -292,6 +292,16 @@ export interface WindowData {
 
 type SubscriptionWindowType = 'five_hour' | 'seven_day';
 
+export function formatSubscriptionUsagePrefix(
+  windowType: SubscriptionWindowType,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS
+): string {
+  if (windowType === 'seven_day') {
+    return options.showEmojis ? `${EMOJI_SUB_7DAY} ` : '7d: ';
+  }
+  return options.showEmojis ? `${EMOJI_SUB_5HR} ` : '5h: ';
+}
+
 /**
  * Bar width constants for subscription usage segments.
  * SUB_ALL_BAR_WIDTH is half of the normal subscription_usage bar width.
@@ -334,14 +344,7 @@ export function formatSubscriptionUsageAllSegment(
     data: WindowData,
     windowType: SubscriptionWindowType
   ): string => {
-    const prefix =
-      windowType === 'seven_day'
-        ? options.showEmojis
-          ? `${EMOJI_SUB_7DAY} `
-          : '7d: '
-        : options.showEmojis
-          ? `${EMOJI_SUB_5HR} `
-          : '5h: ';
+    const prefix = formatSubscriptionUsagePrefix(windowType, options);
     if (options.showBars) {
       const bar = formatProgressBar(data.percent, barWidth);
       return `${prefix}${String(data.percent)}% ${bar} (${data.reset})`;

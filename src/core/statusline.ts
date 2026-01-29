@@ -18,6 +18,7 @@ import {
   formatCostSegment,
   formatContextSegment,
   formatSubscriptionUsageAllSegment,
+  formatSubscriptionUsagePrefix,
   NORMAL_SUB_BAR_WIDTH,
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
@@ -514,13 +515,7 @@ function buildSubscriptionUsageSegment(
     ? (entry as { window?: 'five_hour' | 'seven_day' }).window
     : undefined;
   const fallbackWindowType = entryWindow === 'seven_day' ? 'seven_day' : 'five_hour';
-  const prefix = options.showEmojis
-    ? fallbackWindowType === 'seven_day'
-      ? '🌙 '
-      : '⌛️ '
-    : fallbackWindowType === 'seven_day'
-      ? '7d: '
-      : '5h: ';
+  const prefix = formatSubscriptionUsagePrefix(fallbackWindowType, options);
 
   // Happy path: fresh valid cache
   if (entry !== null && isFresh) {
@@ -598,7 +593,7 @@ function buildSubscriptionUsageAllSegment(
   options: RenderOptions
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const prefix = options.showEmojis ? '⌛️ ' : '5h: ';
+  const prefix = formatSubscriptionUsagePrefix('five_hour', options);
 
   // Happy path: fresh valid cache with both windows
   if (entry !== null && isFresh) {

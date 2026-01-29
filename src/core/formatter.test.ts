@@ -8,6 +8,7 @@ import {
   formatCostSegment,
   formatContextSegment,
   formatSubscriptionUsageAllSegment,
+  formatSubscriptionUsagePrefix,
   DEFAULT_RENDER_OPTIONS,
   type WindowData,
 } from './formatter.js';
@@ -363,6 +364,16 @@ describe('RenderOptions - no-emojis behavior', () => {
       );
       expect(result).toBe('5h: 55% [████░░░░] (~3:45pm)');
     });
+  });
+});
+
+describe('formatSubscriptionUsagePrefix', () => {
+  it('returns emoji prefix for five_hour', () => {
+    expect(formatSubscriptionUsagePrefix('five_hour', DEFAULT_RENDER_OPTIONS)).toBe('⌛️ ');
+  });
+
+  it('returns label prefix for seven_day when emojis are disabled', () => {
+    expect(formatSubscriptionUsagePrefix('seven_day', { showEmojis: false, showBars: true })).toBe('7d: ');
   });
 });
 
