@@ -36,8 +36,16 @@
     "statusline",
     "cli"
   ],
-  "author": "",
+  "author": "hayaishi",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hayaishi/cc-statusline-custom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hayaishi/cc-statusline-custom/issues"
+  },
+  "homepage": "https://github.com/hayaishi/cc-statusline-custom#readme",
   "engines": {
     "node": ">=20.0.0"
   },
