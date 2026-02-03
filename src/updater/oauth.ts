@@ -9,8 +9,8 @@ export interface UsageWindow {
 }
 
 export interface OAuthUsage {
-  fiveHour?: UsageWindow;
-  sevenDay?: UsageWindow;
+  fiveHours?: UsageWindow;
+  sevenDays?: UsageWindow;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -100,22 +100,22 @@ export function parseOAuthUsage(body: string): OAuthUsage {
   }
 
   const container = resolveUsageContainer(root);
-  const fiveHourRaw = container.five_hour ?? container.fiveHour;
-  const fiveHour = parseUsageWindow(fiveHourRaw);
+  const fiveHoursRaw = container.five_hour ?? container.fiveHour;
+  const fiveHours = parseUsageWindow(fiveHoursRaw);
 
-  const sevenDayRaw = container.seven_day ?? container.sevenDay;
-  const sevenDay = parseUsageWindow(sevenDayRaw);
+  const sevenDaysRaw = container.seven_day ?? container.sevenDay;
+  const sevenDays = parseUsageWindow(sevenDaysRaw);
 
-  if (!fiveHour && !sevenDay) {
+  if (!fiveHours && !sevenDays) {
     throw new Error('oauth_response_invalid');
   }
 
   const result: OAuthUsage = {};
-  if (fiveHour) {
-    result.fiveHour = fiveHour;
+  if (fiveHours) {
+    result.fiveHours = fiveHours;
   }
-  if (sevenDay) {
-    result.sevenDay = sevenDay;
+  if (sevenDays) {
+    result.sevenDays = sevenDays;
   }
   return result;
 }

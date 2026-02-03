@@ -340,7 +340,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     }
   });
 
-  it('uses seven_day emoji when subscription usage window is seven_day', () => {
+  it('uses seven_days emoji when subscription usage window is seven_days', () => {
     const originalTz = process.env.TZ;
     process.env.TZ = 'UTC';
 
@@ -361,7 +361,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
         updatedAt: '2026-01-20T10:00:00Z',
         lastError: null,
         lastAttemptAt: '2026-01-20T10:00:00Z',
-        window: 'seven_day',
+        window: 'seven_days',
       };
       writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -476,7 +476,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       updatedAt: nowIso,
       lastAttemptAt: nowIso,
       lastError: 'oauth_fetch_failed',
-      window: 'five_hour',
+      window: 'five_hours',
     };
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -501,7 +501,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       updatedAt: nowIso,
       lastAttemptAt: nowIso,
       lastError: 'oauth_fetch_failed',
-      window: 'five_hour',
+      window: 'five_hours',
     };
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -526,7 +526,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       updatedAt: nowIso,
       lastAttemptAt: nowIso,
       lastError: 'oauth_fetch_failed',
-      window: 'five_hour',
+      window: 'five_hours',
     };
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -534,7 +534,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84,000 [███░░░░░] (42%) | ⌛️ Fetch Error...');
   });
 
-  it('uses seven_day label for fetch error when window is seven_day', () => {
+  it('uses seven_days label for fetch error when window is seven_days', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       context_window: {
@@ -549,7 +549,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
       lastError: 'oauth_fetch_failed',
       lastAttemptAt: nowIso,
       updatedAt: nowIso,
-      window: 'seven_day',
+      window: 'seven_days',
     };
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -557,7 +557,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84,000 [███░░░░░] (42%) | 🌙 Fetch Error...');
   });
 
-  it('uses seven_day label for loading when window is seven_day', () => {
+  it('uses seven_days label for loading when window is seven_days', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       context_window: {
@@ -571,7 +571,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     const subscriptionUsage: SubscriptionUsageEntry = {
       lastError: null,
       updatedAt: nowIso,
-      window: 'seven_day',
+      window: 'seven_days',
     };
     writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
@@ -1239,16 +1239,16 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     }
   });
 
-  it('rejects negative utilizationPercent in fiveHour', () => {
+  it('rejects negative utilizationPercent in fiveHours', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: -1,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
-      fiveHour: {
+      window: 'five_hours',
+      fiveHours: {
         utilizationPercent: -1,  // Invalid: negative
         resetsAt: '2026-01-27T15:45:00Z',
       },
-      sevenDay: {
+      sevenDays: {
         utilizationPercent: 75,
         resetsAt: '2026-02-01T22:45:00Z',
       },
@@ -1263,7 +1263,7 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
     const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
 
-    // Should show sevenDay only since fiveHour is invalid
+    // Should show sevenDays only since fiveHours is invalid
     expect(result).toContain('75%');
     expect(result).toContain('(~10:45pm, Feb 1)');
   });
@@ -1287,13 +1287,13 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error...');
   });
 
-  it('shows only seven_day when fiveHour window is missing', () => {
+  it('shows only seven_days when fiveHours window is missing', () => {
     const nowIso = new Date().toISOString();
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 100,
       resetsAt: '2026-02-01T14:00:00.287052+00:00',
-      window: 'seven_day',
-      sevenDay: {
+      window: 'seven_days',
+      sevenDays: {
         utilizationPercent: 100,
         resetsAt: '2026-02-01T14:00:00.287052+00:00',
       },
@@ -1313,13 +1313,13 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(stripAnsi(result)).toBe('🤖 Opus | 🌙 100% [████] (~2pm, Feb 1)');
   });
 
-  it('rejects non-integer utilizationPercent in fiveHour', () => {
+  it('rejects non-integer utilizationPercent in fiveHours', () => {
     const nowIso = new Date().toISOString();
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 55,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
-      fiveHour: {
+      window: 'five_hours',
+      fiveHours: {
         utilizationPercent: 55.5,
         resetsAt: '2026-01-27T15:45:00Z',
       },
@@ -1357,16 +1357,16 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Loading...');
   });
 
-  it('rejects utilizationPercent > 100 in sevenDay', () => {
+  it('rejects utilizationPercent > 100 in sevenDays', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 101,
       resetsAt: '2026-02-01T22:45:00Z',
-      window: 'seven_day',
-      fiveHour: {
+      window: 'seven_days',
+      fiveHours: {
         utilizationPercent: 55,
         resetsAt: '2026-01-27T15:45:00Z',
       },
-      sevenDay: {
+      sevenDays: {
         utilizationPercent: 101,  // Invalid: > 100
         resetsAt: '2026-02-01T22:45:00Z',
       },
@@ -1381,7 +1381,7 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
     const result = generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']);
 
-    // Should show only fiveHour since sevenDay is invalid (but fiveHour is valid)
+    // Should show only fiveHours since sevenDays is invalid (but fiveHours is valid)
     expect(result).toContain('55%');
     expect(result).toContain('(~3:45pm)');
     expect(result).not.toContain('101%');
@@ -1391,12 +1391,12 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 0,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
-      fiveHour: {
+      window: 'five_hours',
+      fiveHours: {
         utilizationPercent: 0,  // Valid: boundary
         resetsAt: '2026-01-27T15:45:00Z',
       },
-      sevenDay: {
+      sevenDays: {
         utilizationPercent: 100,  // Valid: boundary
         resetsAt: '2026-02-01T22:45:00Z',
       },
@@ -1418,16 +1418,16 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(result).toContain('(~10:45pm, Feb 1)');
   });
 
-  it('rounds minute 59 in fiveHour and sevenDay windows', () => {
+  it('rounds minute 59 in fiveHours and sevenDays windows', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 55,
       resetsAt: '2026-01-27T02:59:00Z',
-      window: 'five_hour',
-      fiveHour: {
+      window: 'five_hours',
+      fiveHours: {
         utilizationPercent: 55,
         resetsAt: '2026-01-27T02:59:00Z',
       },
-      sevenDay: {
+      sevenDays: {
         utilizationPercent: 75,
         resetsAt: '2026-02-01T22:59:00Z',
       },
@@ -1475,7 +1475,7 @@ describe('subscription segments never standalone rule', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 55,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
+      window: 'five_hours',
       lastError: null,
     };
 
@@ -1495,12 +1495,12 @@ describe('subscription segments never standalone rule', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 55,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
-      fiveHour: {
+      window: 'five_hours',
+      fiveHours: {
         utilizationPercent: 55,
         resetsAt: '2026-01-27T15:45:00Z',
       },
-      sevenDay: {
+      sevenDays: {
         utilizationPercent: 75,
         resetsAt: '2026-02-01T22:45:00Z',
       },
@@ -1523,7 +1523,7 @@ describe('subscription segments never standalone rule', () => {
     const cacheData: SubscriptionUsageEntry = {
       utilizationPercent: 55,
       resetsAt: '2026-01-27T15:45:00Z',
-      window: 'five_hour',
+      window: 'five_hours',
       lastError: null,
     };
 

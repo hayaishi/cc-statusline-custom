@@ -37,32 +37,32 @@ describe('formatResetTime', () => {
   });
 
   describe('with windowType parameter', () => {
-    it('formats five_hour with time only', () => {
-      expect(formatResetTime('2026-01-20T15:45:00Z', 'five_hour')).toBe('~3:45pm');
+    it('formats five_hours with time only', () => {
+      expect(formatResetTime('2026-01-20T15:45:00Z', 'five_hours')).toBe('~3:45pm');
     });
 
-    it('formats seven_day with time and date', () => {
-      expect(formatResetTime('2026-02-01T22:45:00Z', 'seven_day')).toBe('~10:45pm, Feb 1');
+    it('formats seven_days with time and date', () => {
+      expect(formatResetTime('2026-02-01T22:45:00Z', 'seven_days')).toBe('~10:45pm, Feb 1');
     });
 
-    it('omits minutes when they are zero for seven_day', () => {
-      expect(formatResetTime('2026-03-05T15:00:00Z', 'seven_day')).toBe('~3pm, Mar 5');
+    it('omits minutes when they are zero for seven_days', () => {
+      expect(formatResetTime('2026-03-05T15:00:00Z', 'seven_days')).toBe('~3pm, Mar 5');
     });
 
-    it('formats seven_day with different date', () => {
-      expect(formatResetTime('2026-12-25T10:30:00Z', 'seven_day')).toBe('~10:30am, Dec 25');
+    it('formats seven_days with different date', () => {
+      expect(formatResetTime('2026-12-25T10:30:00Z', 'seven_days')).toBe('~10:30am, Dec 25');
     });
 
-    it('formats seven_day with single-digit day', () => {
-      expect(formatResetTime('2026-03-05T14:15:00Z', 'seven_day')).toBe('~2:15pm, Mar 5');
+    it('formats seven_days with single-digit day', () => {
+      expect(formatResetTime('2026-03-05T14:15:00Z', 'seven_days')).toBe('~2:15pm, Mar 5');
     });
 
     it('defaults to time-only when windowType is undefined', () => {
       expect(formatResetTime('2026-01-20T15:45:00Z')).toBe('~3:45pm');
     });
 
-    it('returns empty string for invalid input with seven_day', () => {
-      expect(formatResetTime('not-a-date', 'seven_day')).toBe('');
+    it('returns empty string for invalid input with seven_days', () => {
+      expect(formatResetTime('not-a-date', 'seven_days')).toBe('');
     });
   });
 });

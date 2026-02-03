@@ -290,13 +290,13 @@ export interface WindowData {
   readonly reset: string;
 }
 
-type SubscriptionWindowType = 'five_hour' | 'seven_day';
+type SubscriptionWindowType = 'five_hours' | 'seven_days';
 
 export function formatSubscriptionUsagePrefix(
   windowType: SubscriptionWindowType,
   options: RenderOptions = DEFAULT_RENDER_OPTIONS
 ): string {
-  if (windowType === 'seven_day') {
+  if (windowType === 'seven_days') {
     return options.showEmojis ? `${EMOJI_SUB_7DAY} ` : '7d: ';
   }
   return options.showEmojis ? `${EMOJI_SUB_5HR} ` : '5h: ';
@@ -310,27 +310,27 @@ export const NORMAL_SUB_BAR_WIDTH = 8; // Same as formatProgressBar default
 const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));
 
 /**
- * Formats the subscription usage segment showing both five_hour and seven_day windows.
+ * Formats the subscription usage segment showing both five_hours and seven_days windows.
  * Output: "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)"
  *
- * When sevenDay is missing or invalid, formats a single window using primaryWindowType.
+ * When sevenDays is missing or invalid, formats a single window using primaryWindowType.
  *
- * @param fiveHour - Five-hour window data (required)
- * @param sevenDay - Seven-day window data (optional)
+ * @param fiveHours - Five-hour window data (required)
+ * @param sevenDays - Seven-day window data (optional)
  * @param options - Render options for emojis and bars
  * @param formatOptions - Window label/bar options for single-window formatting
  * @returns Formatted subscription usage segment or empty string
  */
 export function formatSubscriptionUsageAllSegment(
-  fiveHour: WindowData | null,
-  sevenDay: WindowData | null,
+  fiveHours: WindowData | null,
+  sevenDays: WindowData | null,
   options: RenderOptions = DEFAULT_RENDER_OPTIONS,
   formatOptions: {
     readonly primaryWindowType?: SubscriptionWindowType;
     readonly barWidth?: number;
   } = {}
 ): string {
-  const primaryWindowType = formatOptions.primaryWindowType ?? 'five_hour';
+  const primaryWindowType = formatOptions.primaryWindowType ?? 'five_hours';
   const requestedBarWidth = formatOptions.barWidth;
   const barWidth =
     typeof requestedBarWidth === 'number' &&
@@ -355,28 +355,28 @@ export function formatSubscriptionUsageAllSegment(
   const isValidWindow = (data: WindowData | null): data is WindowData =>
     data !== null && Number.isFinite(data.percent) && data.reset.trim() !== '';
 
-  const fiveHourValid = isValidWindow(fiveHour) ? fiveHour : null;
-  const sevenDayValid = isValidWindow(sevenDay) ? sevenDay : null;
+  const fiveHoursValid = isValidWindow(fiveHours) ? fiveHours : null;
+  const sevenDaysValid = isValidWindow(sevenDays) ? sevenDays : null;
 
-  if (fiveHourValid === null && sevenDayValid === null) {
+  if (fiveHoursValid === null && sevenDaysValid === null) {
     return '';
   }
 
-  if (fiveHourValid !== null && sevenDayValid === null) {
-    return formatWindow(fiveHourValid, primaryWindowType);
+  if (fiveHoursValid !== null && sevenDaysValid === null) {
+    return formatWindow(fiveHoursValid, primaryWindowType);
   }
 
-  if (fiveHourValid === null && sevenDayValid !== null) {
-    return formatWindow(sevenDayValid, 'seven_day');
+  if (fiveHoursValid === null && sevenDaysValid !== null) {
+    return formatWindow(sevenDaysValid, 'seven_days');
   }
 
-  if (fiveHourValid === null || sevenDayValid === null) {
+  if (fiveHoursValid === null || sevenDaysValid === null) {
     return '';
   }
 
-  const fiveHourStr = formatWindow(fiveHourValid, 'five_hour');
-  const sevenDayStr = formatWindow(sevenDayValid, 'seven_day');
+  const fiveHoursStr = formatWindow(fiveHoursValid, 'five_hours');
+  const sevenDaysStr = formatWindow(sevenDaysValid, 'seven_days');
 
   // Join with single space for compact display
-  return `${fiveHourStr} ${sevenDayStr}`;
+  return `${fiveHoursStr} ${sevenDaysStr}`;
 }

@@ -152,25 +152,25 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
   // In that case we accept seven_day-only responses and skip five_hour rendering.
   // Priority: 7-day window if utilization is 100% or more (when both exist)
   // Otherwise: 5-hour window (default), or 7-day when 5-hour is missing
-  const fiveHour = usage.fiveHour;
-  const sevenDay = usage.sevenDay;
-  const hasFiveHour = fiveHour !== undefined;
-  const hasSevenDay = sevenDay !== undefined;
-  const fiveHourData = fiveHour ?? { utilization: Number.NaN, resetsAt: '' };
-  const sevenDayData = sevenDay ?? { utilization: Number.NaN, resetsAt: '' };
+  const fiveHours = usage.fiveHours;
+  const sevenDays = usage.sevenDays;
+  const hasFiveHours = fiveHours !== undefined;
+  const hasSevenDays = sevenDays !== undefined;
+  const fiveHoursData = fiveHours ?? { utilization: Number.NaN, resetsAt: '' };
+  const sevenDaysData = sevenDays ?? { utilization: Number.NaN, resetsAt: '' };
 
-  if (!hasFiveHour && !hasSevenDay) {
+  if (!hasFiveHours && !hasSevenDays) {
     return { ...base, lastError: 'oauth_response_invalid' };
   }
 
-  let selectedWindow = hasFiveHour ? fiveHourData : sevenDayData;
-  let windowType: 'five_hour' | 'seven_day' = hasFiveHour ? 'five_hour' : 'seven_day';
+  let selectedWindow = hasFiveHours ? fiveHoursData : sevenDaysData;
+  let windowType: 'five_hours' | 'seven_days' = hasFiveHours ? 'five_hours' : 'seven_days';
 
-  if (hasFiveHour && hasSevenDay) {
-    const sevenDayPercent = normalizeUtilizationPercent(sevenDayData.utilization);
-    if (sevenDayPercent !== null && sevenDayPercent >= 100) {
-      selectedWindow = sevenDayData;
-      windowType = 'seven_day';
+  if (hasFiveHours && hasSevenDays) {
+    const sevenDaysPercent = normalizeUtilizationPercent(sevenDaysData.utilization);
+    if (sevenDaysPercent !== null && sevenDaysPercent >= 100) {
+      selectedWindow = sevenDaysData;
+      windowType = 'seven_days';
     }
   }
 
@@ -184,22 +184,22 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
   }
 
   // Populate detailed window data
-  const fiveHourPercent = normalizeUtilizationPercent(fiveHourData.utilization);
-  const fiveHourEntry =
-    hasFiveHour && fiveHourPercent !== null
+  const fiveHoursPercent = normalizeUtilizationPercent(fiveHoursData.utilization);
+  const fiveHoursEntry =
+    hasFiveHours && fiveHoursPercent !== null
       ? {
-          utilizationPercent: fiveHourPercent,
-          resetsAt: fiveHourData.resetsAt,
+          utilizationPercent: fiveHoursPercent,
+          resetsAt: fiveHoursData.resetsAt,
         }
       : undefined;
 
-  let sevenDayEntry: { utilizationPercent: number; resetsAt: string } | undefined;
-  if (hasSevenDay) {
-    const sevenDayPercent = normalizeUtilizationPercent(sevenDayData.utilization);
-    if (sevenDayPercent !== null) {
-      sevenDayEntry = {
-        utilizationPercent: sevenDayPercent,
-        resetsAt: sevenDayData.resetsAt,
+  let sevenDaysEntry: { utilizationPercent: number; resetsAt: string } | undefined;
+  if (hasSevenDays) {
+    const sevenDaysPercent = normalizeUtilizationPercent(sevenDaysData.utilization);
+    if (sevenDaysPercent !== null) {
+      sevenDaysEntry = {
+        utilizationPercent: sevenDaysPercent,
+        resetsAt: sevenDaysData.resetsAt,
       };
     }
   }
@@ -210,8 +210,8 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
     resetsAt: selectedWindow.resetsAt,
     lastError: null,
     window: windowType,
-    ...(fiveHourEntry ? { fiveHour: fiveHourEntry } : {}),
-    ...(sevenDayEntry ? { sevenDay: sevenDayEntry } : {}),
+    ...(fiveHoursEntry ? { fiveHours: fiveHoursEntry } : {}),
+    ...(sevenDaysEntry ? { sevenDays: sevenDaysEntry } : {}),
   };
 }
 

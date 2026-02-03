@@ -60,11 +60,11 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toEqual({
+    expect(result.fiveHours).toEqual({
       utilization: 0.5,
       resetsAt: '2025-01-25T12:00:00Z',
     });
-    expect(result.sevenDay).toBeUndefined();
+    expect(result.sevenDays).toBeUndefined();
   });
 
   it('should parse dual response when five_hour and seven_day are present', () => {
@@ -81,11 +81,11 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toEqual({
+    expect(result.fiveHours).toEqual({
       utilization: 0.5,
       resetsAt: '2025-01-25T12:00:00Z',
     });
-    expect(result.sevenDay).toEqual({
+    expect(result.sevenDays).toEqual({
       utilization: 0.8,
       resetsAt: '2025-02-01T12:00:00Z',
     });
@@ -101,7 +101,7 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toEqual({
+    expect(result.fiveHours).toEqual({
       utilization: 0.5,
       resetsAt: '2025-01-25T12:00:00Z',
     });
@@ -119,7 +119,7 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toEqual({
+    expect(result.fiveHours).toEqual({
       utilization: 0.5,
       resetsAt: '2025-01-25T12:00:00Z',
     });
@@ -137,8 +137,8 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toBeUndefined();
-    expect(result.sevenDay).toEqual({
+    expect(result.fiveHours).toBeUndefined();
+    expect(result.sevenDays).toEqual({
       utilization: 100.0,
       resetsAt: '2026-02-01T14:00:00.287052+00:00',
     });
@@ -158,8 +158,8 @@ describe('parseOAuthUsage', () => {
 
     const result = parseOAuthUsage(json);
 
-    expect(result.fiveHour).toBeDefined();
-    expect(result.sevenDay).toBeUndefined();
+    expect(result.fiveHours).toBeDefined();
+    expect(result.sevenDays).toBeUndefined();
   });
 
   it('should parse response when only seven_day is present', () => {
@@ -171,8 +171,8 @@ describe('parseOAuthUsage', () => {
     });
 
     const result = parseOAuthUsage(json);
-    expect(result.fiveHour).toBeUndefined();
-    expect(result.sevenDay).toEqual({
+    expect(result.fiveHours).toBeUndefined();
+    expect(result.sevenDays).toEqual({
       utilization: 0.8,
       resetsAt: '2025-02-01T12:00:00Z',
     });
@@ -199,8 +199,8 @@ describe('parseOAuthUsage', () => {
     });
 
     const result = parseOAuthUsage(json);
-    expect(result.fiveHour).toBeUndefined();
-    expect(result.sevenDay).toEqual({
+    expect(result.fiveHours).toBeUndefined();
+    expect(result.sevenDays).toEqual({
       utilization: 100.0,
       resetsAt: '2026-02-01T14:00:00.287052+00:00',
     });
@@ -232,9 +232,9 @@ describe('parseOAuthUsage', () => {
     });
 
     const result = parseOAuthUsage(json);
-    expect(result.fiveHour).toBeDefined();
-    if (result.fiveHour) {
-      expect(result.fiveHour.utilization).toBe(0.5);
+    expect(result.fiveHours).toBeDefined();
+    if (result.fiveHours) {
+      expect(result.fiveHours.utilization).toBe(0.5);
     }
   });
 });
@@ -256,7 +256,7 @@ describe('fetchOAuthUsage', () => {
     response?.emit('end');
 
     await expect(promise).resolves.toEqual({
-      fiveHour: {
+      fiveHours: {
         utilization: 0.42,
         resetsAt: '2026-01-20T12:00:00Z',
       },

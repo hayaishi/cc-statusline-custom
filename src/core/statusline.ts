@@ -548,9 +548,9 @@ function buildSubscriptionUsageSegment(
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
   const entryWindow = entry !== null
-    ? (entry as { window?: 'five_hour' | 'seven_day' }).window
+    ? (entry as { window?: 'five_hours' | 'seven_days' }).window
     : undefined;
-  const fallbackWindowType = entryWindow === 'seven_day' ? 'seven_day' : 'five_hour';
+  const fallbackWindowType = entryWindow === 'seven_days' ? 'seven_days' : 'five_hours';
   const prefix = formatSubscriptionUsagePrefix(fallbackWindowType, options);
 
   // Happy path: fresh valid cache
@@ -586,7 +586,7 @@ function buildSubscriptionUsageSegment(
  */
 function extractWindowData(
   window: { utilizationPercent?: unknown; resetsAt?: unknown } | undefined,
-  windowType: 'five_hour' | 'seven_day'
+  windowType: 'five_hours' | 'seven_days'
 ): WindowData | null {
   if (!window) return null;
 
@@ -611,7 +611,7 @@ function extractWindowData(
 }
 
 /**
- * Builds the subscription_usage_all segment showing both five_hour and seven_day windows.
+ * Builds the subscription_usage_all segment showing both five_hours and seven_days windows.
  *
  * Returns formatted segment with both windows, or fallback messages:
  * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)" (happy path)
@@ -630,19 +630,19 @@ function buildSubscriptionUsageAllSegment(
   debug: boolean
 ): string {
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const prefix = formatSubscriptionUsagePrefix('five_hour', options);
+  const prefix = formatSubscriptionUsagePrefix('five_hours', options);
 
   // Happy path: fresh valid cache with both windows
   if (entry !== null && isFresh) {
     const record = entry as {
-      fiveHour?: { utilizationPercent?: unknown; resetsAt?: unknown };
-      sevenDay?: { utilizationPercent?: unknown; resetsAt?: unknown };
+      fiveHours?: { utilizationPercent?: unknown; resetsAt?: unknown };
+      sevenDays?: { utilizationPercent?: unknown; resetsAt?: unknown };
     };
 
-    const fiveHourData = extractWindowData(record.fiveHour, 'five_hour');
-    const sevenDayData = extractWindowData(record.sevenDay, 'seven_day');
+    const fiveHoursData = extractWindowData(record.fiveHours, 'five_hours');
+    const sevenDaysData = extractWindowData(record.sevenDays, 'seven_days');
 
-    const result = formatSubscriptionUsageAllSegment(fiveHourData, sevenDayData, options);
+    const result = formatSubscriptionUsageAllSegment(fiveHoursData, sevenDaysData, options);
     if (result !== '') {
       return result;
     }

@@ -1,7 +1,7 @@
 globalThis.__ccusageUpdaterDeps = {
   getOAuthToken: () => 'test-token',
   fetchOAuthUsage: async () => ({
-    fiveHour: {
+    fiveHours: {
       utilization: 55,
       resetsAt: '2026-01-20T15:45:00Z',
     },

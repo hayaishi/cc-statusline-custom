@@ -1242,12 +1242,12 @@ describe('CLI Integration Tests', () => {
         JSON.stringify({
           utilizationPercent: 55,
           resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hour',
-          fiveHour: {
+          window: 'five_hours',
+          fiveHours: {
             utilizationPercent: 55,
             resetsAt: '2026-01-27T15:45:00Z',
           },
-          sevenDay: {
+          sevenDays: {
             utilizationPercent: 75,
             resetsAt: '2026-02-01T22:45:00Z',
           },
@@ -1267,12 +1267,12 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      // five_hour: time only, seven_day: time + date
+      // five_hours: time only, seven_days: time + date
       // bar width is 4 (half of 8)
       expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, Feb 1)');
     });
 
-    it('renders only five_hour when seven_day is missing', () => {
+    it('renders only five_hours when seven_days is missing', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
       writeFileSync(
@@ -1280,12 +1280,12 @@ describe('CLI Integration Tests', () => {
         JSON.stringify({
           utilizationPercent: 55,
           resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hour',
-          fiveHour: {
+          window: 'five_hours',
+          fiveHours: {
             utilizationPercent: 55,
             resetsAt: '2026-01-27T15:45:00Z',
           },
-          // sevenDay is missing
+          // sevenDays is missing
           lastError: null,
           lastAttemptAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -1302,7 +1302,7 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      // No trailing separators, only fiveHour shown
+      // No trailing separators, only fiveHours shown
       expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm)');
       expect(cleanOutput).not.toContain('🌙');
     });
@@ -1344,8 +1344,8 @@ describe('CLI Integration Tests', () => {
         JSON.stringify({
           utilizationPercent: 55,
           resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hour',
-          fiveHour: {
+          window: 'five_hours',
+          fiveHours: {
             utilizationPercent: 55,
             resetsAt: '2026-01-27T15:45:00Z',
           },
@@ -1380,12 +1380,12 @@ describe('CLI Integration Tests', () => {
         JSON.stringify({
           utilizationPercent: 55,
           resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hour',
-          fiveHour: {
+          window: 'five_hours',
+          fiveHours: {
             utilizationPercent: 55,
             resetsAt: '2026-01-27T15:45:00Z',
           },
-          sevenDay: {
+          sevenDays: {
             utilizationPercent: 75,
             resetsAt: '2026-02-01T22:45:00Z',
           },
@@ -1416,12 +1416,12 @@ describe('CLI Integration Tests', () => {
         JSON.stringify({
           utilizationPercent: 55,
           resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hour',
-          fiveHour: {
+          window: 'five_hours',
+          fiveHours: {
             utilizationPercent: 55,
             resetsAt: '2026-01-27T15:45:00Z',
           },
-          sevenDay: {
+          sevenDays: {
             utilizationPercent: 75,
             resetsAt: '2026-02-01T22:45:00Z',
           },
