@@ -8,7 +8,7 @@ import { assertSingleLine } from '../helpers/assertions.js';
 
 describe('--update-cache integration', () => {
   const distPath = join(process.cwd(), 'dist', 'index.js');
-  const testCacheDir = join(tmpdir(), `ccusage-statusline-update-cache-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-statusline-custom-update-cache-test-${String(process.pid)}`);
   const updaterMocksUrl = pathToFileURL(
     join(process.cwd(), 'tests', 'helpers', 'updater-mocks.mjs')
   ).href;

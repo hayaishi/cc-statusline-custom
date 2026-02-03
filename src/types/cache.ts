@@ -10,7 +10,7 @@ import { join } from 'node:path';
 /**
  * Default cache directory path.
  */
-export const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'ccusage-statusline');
+export const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'cc-statusline-custom');
 
 /**
  * Default cache TTL in seconds.

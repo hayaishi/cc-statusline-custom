@@ -38,7 +38,7 @@ const getConfigPath = (): string =>
 
 beforeEach(() => {
   mockExecFileSync.mockReset();
-  osState.testHome = mkdtempSync(join(tmpdir(), 'ccusage-token-test-'));
+  osState.testHome = mkdtempSync(join(tmpdir(), 'cc-token-test-'));
 });
 
 afterEach(() => {

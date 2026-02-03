@@ -1,4 +1,4 @@
-# ccusage-statusline-custom
+# cc-statusline-custom
 
 Custom statusline integration for Claude Code that renders model, session cost, context usage, and subscription usage (from cache).
 
@@ -48,7 +48,7 @@ chmod +x dist/index.js
 The CLI reads JSON from stdin and outputs a single statusline:
 
 ```bash
-echo '{"model":{"display_name":"Claude Opus 4.5"},"cost":{"total_cost_usd":0.23},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"input_tokens":80000,"output_tokens":4000}}}' | ~/git/ccusage-statusline-custom/dist/index.js
+echo '{"model":{"display_name":"Claude Opus 4.5"},"cost":{"total_cost_usd":0.23},"context_window":{"used_percentage":42,"context_window_size":200000,"current_usage":{"input_tokens":80000,"output_tokens":4000}}}' | ~/git/cc-statusline-custom/dist/index.js
 ```
 
 From the repo root, direct execution works as well:
@@ -60,20 +60,20 @@ echo '{}' | ./dist/index.js
 Update the cache (out-of-band):
 
 ```bash
-~/git/ccusage-statusline-custom/dist/index.js --update-cache
+~/git/cc-statusline-custom/dist/index.js --update-cache
 ```
 
 Enable debug output (shows error codes and stores raw response body in cache on failure):
 
 ```bash
-~/git/ccusage-statusline-custom/dist/index.js --debug
-~/git/ccusage-statusline-custom/dist/index.js --update-cache --debug
+~/git/cc-statusline-custom/dist/index.js --debug
+~/git/cc-statusline-custom/dist/index.js --update-cache --debug
 ```
 
 Disable background cache updates:
 
 ```bash
-~/git/ccusage-statusline-custom/dist/index.js --disable-bg-update
+~/git/cc-statusline-custom/dist/index.js --disable-bg-update
 ```
 
 ### Segment Order/Visibility
@@ -204,7 +204,7 @@ Use `--disable-bg-update` when:
 {
   "statusLine": {
     "type": "command",
-    "command": "~/git/ccusage-statusline-custom/dist/index.js",
+    "command": "~/git/cc-statusline-custom/dist/index.js",
     "padding": 0
   }
 }
@@ -222,7 +222,7 @@ Combined statusLine + hooks example (copy/paste):
 {
   "statusLine": {
     "type": "command",
-    "command": "~/git/ccusage-statusline-custom/dist/index.js",
+    "command": "~/git/cc-statusline-custom/dist/index.js",
     "padding": 0
   },
   "hooks": {
@@ -231,7 +231,7 @@ Combined statusLine + hooks example (copy/paste):
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/git/ccusage-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
+            "command": "\"$HOME\"/git/cc-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
             "timeout": 15
           }
         ]
@@ -242,7 +242,7 @@ Combined statusLine + hooks example (copy/paste):
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/git/ccusage-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
+            "command": "\"$HOME\"/git/cc-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
@@ -262,7 +262,7 @@ Hooks-only example:
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/git/ccusage-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
+            "command": "\"$HOME\"/git/cc-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
             "timeout": 15
           }
         ]
@@ -273,7 +273,7 @@ Hooks-only example:
         "hooks": [
           {
             "type": "command",
-            "command": "\"$HOME\"/git/ccusage-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
+            "command": "\"$HOME\"/git/cc-statusline-custom/dist/index.js --update-cache >/dev/null 2>&1 || true",
             "timeout": 5
           }
         ]
@@ -327,7 +327,7 @@ Notes:
 
 ### Cache files
 
-Default cache directory: `~/.cache/ccusage-statusline` (override with `CCSTATUSLINE_CACHE_DIR`).
+Default cache directory: `~/.cache/cc-statusline-custom` (override with `CCSTATUSLINE_CACHE_DIR`).
 
 Files:
 - `subscription-usage.json` (written by `--update-cache`)
@@ -370,7 +370,7 @@ Environment variables (only these affect behavior):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CCSTATUSLINE_CACHE_DIR` | `~/.cache/ccusage-statusline` | Cache directory |
+| `CCSTATUSLINE_CACHE_DIR` | `~/.cache/cc-statusline-custom` | Cache directory |
 | `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` | `60` | Subscription usage cache TTL (seconds, mtime-based) |
 | `CCSTATUSLINE_CONTEXT_LOW_THRESHOLD` | `50` | Green threshold for context usage (%) |
 | `CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD` | `80` | Yellow threshold for context usage (%) |

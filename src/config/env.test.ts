@@ -125,7 +125,7 @@ describe('env config', () => {
       delete process.env.CCSTATUSLINE_CACHE_DIR;
       const result = getCacheDir();
       expect(result).toContain('.cache');
-      expect(result).toContain('ccusage-statusline');
+      expect(result).toContain('cc-statusline-custom');
     });
 
     it('returns custom path when set', () => {

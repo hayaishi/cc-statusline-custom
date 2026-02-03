@@ -6,7 +6,7 @@ import { writeCacheAtomic, acquireLock, releaseLock } from './cache.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
 
 describe('cache', () => {
-  const testDir = join(tmpdir(), `ccusage-statusline-cache-test-${String(process.pid)}`);
+  const testDir = join(tmpdir(), `cc-statusline-custom-cache-test-${String(process.pid)}`);
 
   beforeEach(() => {
     if (!existsSync(testDir)) {

@@ -197,7 +197,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('new legacy format', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-format-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-format-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -313,7 +313,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('graceful degradation', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-degrade-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-degrade-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -406,7 +406,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('cache integration (always reads cache now)', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-cache-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-cache-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -476,7 +476,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('CLI --segments flag', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-segments-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-segments-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -875,7 +875,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('display toggles (--no-emojis, --no-bars)', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-toggles-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-toggles-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {
@@ -1226,7 +1226,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('subscription_usage_all segment integration', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-int-sub-all-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-int-sub-all-${String(process.pid)}`);
 
     afterEach(() => {
       if (existsSync(testCacheDir)) {

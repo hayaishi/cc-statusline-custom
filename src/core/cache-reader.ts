@@ -54,7 +54,7 @@ function getCacheFilePath(key: CacheKey, cacheDir: string): string {
  * Reads a cache entry synchronously.
  *
  * @param key - Cache key ('subscriptionUsage')
- * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/ccusage-statusline)
+ * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/cc-statusline-custom)
  * @param ttlSeconds - TTL in seconds (optional, defaults to 60)
  * @returns The cached entry or null if unavailable/invalid/stale
  */
@@ -120,7 +120,7 @@ export interface CacheReadWithMtime {
  * Unlike readCacheSync, stale entries are returned with isFresh=false.
  *
  * @param key - Cache key ('subscriptionUsage')
- * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/ccusage-statusline)
+ * @param cacheDir - Cache directory path (optional, defaults to ~/.cache/cc-statusline-custom)
  * @param ttlSeconds - TTL in seconds (optional, defaults to 60)
  * @returns Entry with freshness flag
  */

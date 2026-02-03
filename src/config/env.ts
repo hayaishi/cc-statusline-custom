@@ -1,5 +1,5 @@
 /**
- * Environment variable configuration for ccusage-statusline.
+ * Environment variable configuration for cc-statusline-custom.
  *
  * All getters are pure functions with O(1) complexity.
  * Invalid values fall back to safe defaults.
@@ -53,7 +53,7 @@ export function getSubscriptionCacheTtl(): number {
 /**
  * Gets the cache directory path.
  *
- * @returns Cache directory path (default: ~/.cache/ccusage-statusline)
+ * @returns Cache directory path (default: ~/.cache/cc-statusline-custom)
  */
 export function getCacheDir(): string {
   const value = process.env.CCSTATUSLINE_CACHE_DIR?.trim();

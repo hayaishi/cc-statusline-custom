@@ -1,4 +1,4 @@
-# AGENTS.md - ccusage-statusline-custom Development Guidelines
+# AGENTS.md - cc-statusline-custom Development Guidelines
 
 > **About this document**: This file defines ground rules for Claude Code, GitHub Copilot, Cursor, other AI coding assistants, and human developers working on this project.
 
@@ -6,7 +6,7 @@
 
 ## 🎯 Project Overview
 
-**ccusage-statusline-custom** integrates ccusage usage statistics into Claude Code's `/statusline` feature.
+**cc-statusline-custom** integrates ccusage usage statistics into Claude Code's `/statusline` feature.
 
 ### Primary Goals
 
@@ -78,7 +78,7 @@ export async function generateStatusline(input: string): Promise<string> {
     return await buildStatusline(data);
   } catch (error) {
     // Log for debugging, but ALWAYS return a fallback
-    console.error('[ccusage-statusline-custom]', error);
+    console.error('[cc-statusline-custom]', error);
     return '🤖 ? | ⏳ Loading...';
   }
 }
@@ -254,7 +254,7 @@ Co-Authored-By: Gemini CLI <gemini-cli@users.noreply.github.com>
 ### Directory Structure
 
 ```
-ccusage-statusline-custom/
+cc-statusline-custom/
 ├── src/
 │   ├── index.ts              # CLI entry point
 │   ├── types/                # Type definitions

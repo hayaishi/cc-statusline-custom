@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * ccusage-statusline-custom
+ * cc-statusline-custom
  *
  * CLI entry point for Claude Code statusline integration.
  * Reads JSON from stdin, generates statusline, outputs to stdout.

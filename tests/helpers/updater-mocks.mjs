@@ -1,4 +1,4 @@
-globalThis.__ccusageUpdaterDeps = {
+globalThis.__ccUpdaterDeps = {
   getOAuthToken: () => 'test-token',
   fetchOAuthUsage: async () => ({
     fiveHours: {

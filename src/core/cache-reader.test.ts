@@ -9,7 +9,7 @@ import {
 import type { SubscriptionUsageEntry } from '../types/cache.js';
 
 describe('cache-reader', () => {
-  const testDir = join(tmpdir(), `ccusage-statusline-test-${String(process.pid)}`);
+  const testDir = join(tmpdir(), `cc-statusline-custom-test-${String(process.pid)}`);
 
   beforeEach(() => {
     // Create test directory

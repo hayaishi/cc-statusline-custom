@@ -40,7 +40,7 @@ function getUpdaterOverrides(): Partial<UpdaterDeps> {
     return {};
   }
 
-  const globalValue = (globalThis as { __ccusageUpdaterDeps?: unknown }).__ccusageUpdaterDeps;
+  const globalValue = (globalThis as { __ccUpdaterDeps?: unknown }).__ccUpdaterDeps;
   if (typeof globalValue !== 'object' || globalValue === null) {
     return {};
   }

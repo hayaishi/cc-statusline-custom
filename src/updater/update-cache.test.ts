@@ -30,7 +30,7 @@ beforeAll(async () => {
 });
 
 describe('update-cache', () => {
-  const testDir = join(tmpdir(), `ccusage-statusline-updater-test-${String(process.pid)}`);
+  const testDir = join(tmpdir(), `cc-statusline-custom-updater-test-${String(process.pid)}`);
 
   beforeEach(() => {
     if (!existsSync(testDir)) {
@@ -51,8 +51,8 @@ describe('update-cache', () => {
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true });
     }
-    const globalState = globalThis as { __ccusageUpdaterDeps?: unknown };
-    delete globalState.__ccusageUpdaterDeps;
+    const globalState = globalThis as { __ccUpdaterDeps?: unknown };
+    delete globalState.__ccUpdaterDeps;
   });
 
   it('should return success result when update completes', async () => {
@@ -383,8 +383,8 @@ describe('update-cache', () => {
         resetsAt: '2026-01-20T15:45:00Z',
       },
     }));
-    const globalState = globalThis as { __ccusageUpdaterDeps?: unknown };
-    globalState.__ccusageUpdaterDeps = {
+    const globalState = globalThis as { __ccUpdaterDeps?: unknown };
+    globalState.__ccUpdaterDeps = {
       getOAuthToken: overrideGetOAuthToken,
       fetchOAuthUsage: overrideFetchOAuthUsage,
     };

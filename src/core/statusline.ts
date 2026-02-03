@@ -694,7 +694,7 @@ function ensureVisibleOutput(text: string): string {
  * - Ensures output is exactly one visible line
  *
  * @param input - Parsed input from Claude Code, or null if parsing failed
- * @param cacheDir - Cache directory (defaults to ~/.cache/ccusage-statusline)
+ * @param cacheDir - Cache directory (defaults to ~/.cache/cc-statusline-custom)
  * @param segments - Segment order (defaults to DEFAULT_SEGMENT_ORDER)
  * @param renderOptions - Render options for emojis and bars (defaults to DEFAULT_RENDER_OPTIONS)
  * @returns A non-empty, single-line string

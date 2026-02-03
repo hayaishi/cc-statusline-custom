@@ -32,7 +32,7 @@ describe('canonical full example line', () => {
 });
 
 describe('generateStatusline', () => {
-  const testCacheDir = join(tmpdir(), `ccusage-statusline-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-statusline-custom-test-${String(process.pid)}`);
 
   beforeEach(() => {
     if (!existsSync(testCacheDir)) {
@@ -272,7 +272,7 @@ describe('generateStatusline', () => {
 });
 
 describe('generateStatuslineWithExtended (cache integration)', () => {
-  const testCacheDir = join(tmpdir(), `ccusage-statusline-ext-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-statusline-custom-ext-test-${String(process.pid)}`);
 
   beforeEach(() => {
     if (!existsSync(testCacheDir)) {
@@ -902,7 +902,7 @@ describe('segment configuration', () => {
   });
 
   describe('shouldRequestBgCacheUpdate', () => {
-    const testCacheDir = join(tmpdir(), `ccusage-statusline-bgupdate-test-${String(process.pid)}`);
+    const testCacheDir = join(tmpdir(), `cc-statusline-custom-bgupdate-test-${String(process.pid)}`);
 
     beforeEach(() => {
       if (!existsSync(testCacheDir)) {
@@ -1051,7 +1051,7 @@ describe('segment configuration', () => {
 });
 
 describe('generateStatusline with custom segment order', () => {
-  const testCacheDir = join(tmpdir(), `ccusage-statusline-order-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-statusline-custom-order-test-${String(process.pid)}`);
 
   beforeEach(() => {
     if (!existsSync(testCacheDir)) {
@@ -1218,7 +1218,7 @@ describe('resolveRenderOptions', () => {
 });
 
 describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', () => {
-  const testCacheDir = join(tmpdir(), `ccusage-validation-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-validation-test-${String(process.pid)}`);
   const originalTz = process.env.TZ;
 
   beforeEach(() => {
@@ -1450,7 +1450,7 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
 });
 
 describe('subscription segments never standalone rule', () => {
-  const testCacheDir = join(tmpdir(), `ccusage-standalone-test-${String(process.pid)}`);
+  const testCacheDir = join(tmpdir(), `cc-standalone-test-${String(process.pid)}`);
   const originalTz = process.env.TZ;
 
   beforeEach(() => {
