@@ -22,17 +22,6 @@ function parseTtlSeconds(value: string | undefined, defaultSeconds: number): num
 }
 
 /**
- * Gets whether extended metrics are enabled.
- * Extended metrics include subscription usage.
- *
- * @returns true if CCSTATUSLINE_EXTENDED_METRICS is "true" or "1"
- */
-export function getExtendedMetricsEnabled(): boolean {
-  const value = process.env.CCSTATUSLINE_EXTENDED_METRICS?.toLowerCase();
-  return value === 'true' || value === '1';
-}
-
-/**
  * Gets the cache TTL in seconds.
  *
  * @returns Cache TTL (default: 60 seconds)

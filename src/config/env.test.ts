@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
-  getExtendedMetricsEnabled,
   getCacheTtl,
   getSubscriptionCacheTtl,
   getCacheDir,
@@ -22,38 +21,6 @@ describe('env config', () => {
 
   afterEach(() => {
     process.env = originalEnv;
-  });
-
-  describe('getExtendedMetricsEnabled', () => {
-    it('returns false by default', () => {
-      delete process.env.CCSTATUSLINE_EXTENDED_METRICS;
-      expect(getExtendedMetricsEnabled()).toBe(false);
-    });
-
-    it('returns true when set to "true"', () => {
-      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'true';
-      expect(getExtendedMetricsEnabled()).toBe(true);
-    });
-
-    it('returns true when set to "1"', () => {
-      process.env.CCSTATUSLINE_EXTENDED_METRICS = '1';
-      expect(getExtendedMetricsEnabled()).toBe(true);
-    });
-
-    it('returns false when set to "false"', () => {
-      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'false';
-      expect(getExtendedMetricsEnabled()).toBe(false);
-    });
-
-    it('returns false when set to "0"', () => {
-      process.env.CCSTATUSLINE_EXTENDED_METRICS = '0';
-      expect(getExtendedMetricsEnabled()).toBe(false);
-    });
-
-    it('returns false for invalid values', () => {
-      process.env.CCSTATUSLINE_EXTENDED_METRICS = 'invalid';
-      expect(getExtendedMetricsEnabled()).toBe(false);
-    });
   });
 
   describe('getCacheTtl', () => {
@@ -228,12 +195,6 @@ describe('env config', () => {
       process.env[`${legacyPrefix}SUBSCRIPTION_CACHE_TTL`] = '999';
       delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
       expect(getSubscriptionCacheTtl()).toBe(60);
-    });
-
-    it('ignores legacy extended metrics flag when new var is unset', () => {
-      process.env[`${legacyPrefix}EXTENDED_METRICS`] = 'true';
-      delete process.env.CCSTATUSLINE_EXTENDED_METRICS;
-      expect(getExtendedMetricsEnabled()).toBe(false);
     });
 
     it('ignores legacy debug flag when new var is unset', () => {
