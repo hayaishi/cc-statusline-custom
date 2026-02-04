@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import {
-  executePluginCommand,
-  executePluginCommandSync,
-  updatePluginCaches,
-} from './plugin-executor.js';
+import { executePluginCommand, updatePluginCaches } from './plugin-executor.js';
 import type { PluginConfig } from '../types/plugin.js';
 import { CURRENT_SESSION_ID } from '../core/plugin-cache.js';
 
@@ -120,33 +116,6 @@ describe('plugin-executor', () => {
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
     });
-  });
-
-  describe('executePluginCommandSync', () => {
-    it('should execute command synchronously', () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'echo sync-test',
-        ttl: 60,
-      };
-
-      const result = executePluginCommandSync(config);
-      expect(result.success).toBe(true);
-      expect(result.value).toBe('sync-test');
-    });
-
-    it('should handle sync command timeout', () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'sleep 10',
-        ttl: 60,
-        timeout: 100,
-      };
-
-      const result = executePluginCommandSync(config);
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('timeout');
-    }, 5000);
   });
 
   describe('updatePluginCaches', () => {

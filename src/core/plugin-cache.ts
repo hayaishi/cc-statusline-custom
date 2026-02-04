@@ -1,8 +1,5 @@
 /**
- * Plugin cache management.
- *
- * Provides synchronous cache reading for the statusline hot path
- * and cache writing for background updates.
+ * Plugin cache management for statusline.
  */
 
 import {
@@ -18,62 +15,25 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { PLUGIN_CACHE_DIR_NAME, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
 
-/**
- * Maximum cache file size in bytes (4KB - plugins may have larger output than subscription).
- */
 const MAX_PLUGIN_CACHE_FILE_SIZE_BYTES = 4096;
 
-/**
- * Generate a unique session ID.
- * Called once at module load time to establish the current session.
- */
 export function generateSessionId(): string {
   return randomBytes(8).toString('hex') + '-' + Date.now().toString(36);
 }
 
-/**
- * Current session ID - generated once when the module loads.
- * Used for session_start refresh detection.
- */
 export const CURRENT_SESSION_ID = generateSessionId();
 
-/**
- * Get the cache file path for a plugin.
- *
- * @param pluginId - Plugin identifier
- * @param cacheDir - Base cache directory
- * @returns Full path to the plugin's cache file
- */
 export function getPluginCacheFilePath(pluginId: string, cacheDir: string): string {
   return join(cacheDir, PLUGIN_CACHE_DIR_NAME, `${pluginId}.json`);
 }
 
-/**
- * Get the plugins cache directory path.
- */
-function getPluginsCacheDir(cacheDir: string): string {
-  return join(cacheDir, PLUGIN_CACHE_DIR_NAME);
-}
-
-/**
- * Ensures the plugins cache directory exists.
- */
 function ensurePluginsCacheDir(cacheDir: string): void {
-  const dir = getPluginsCacheDir(cacheDir);
+  const dir = join(cacheDir, PLUGIN_CACHE_DIR_NAME);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 }
 
-/**
- * Read a plugin cache entry synchronously.
- *
- * @param pluginId - Plugin identifier
- * @param cacheDir - Base cache directory
- * @param ttlSeconds - TTL in seconds (0 = check sessionId only if provided)
- * @param sessionId - Optional session ID for session_start checking
- * @returns Cached entry or null if unavailable/invalid/stale
- */
 export function readPluginCacheSync(
   pluginId: string,
   cacheDir: string,
@@ -82,7 +42,6 @@ export function readPluginCacheSync(
 ): PluginCacheEntry | null {
   try {
     const filePath = getPluginCacheFilePath(pluginId, cacheDir);
-
     if (!existsSync(filePath)) {
       return null;
     }
@@ -92,7 +51,6 @@ export function readPluginCacheSync(
       return null;
     }
 
-    // Check mtime-based TTL (only if ttlSeconds > 0)
     if (ttlSeconds > 0) {
       const ageSeconds = (Date.now() - stat.mtimeMs) / 1000;
       if (ageSeconds >= ttlSeconds) {
@@ -111,12 +69,8 @@ export function readPluginCacheSync(
     }
 
     const entry = parsed as PluginCacheEntry;
-
-    // For TTL 0 with sessionId, check sessionId match
-    if (ttlSeconds === 0 && sessionId !== undefined) {
-      if (entry.sessionId !== sessionId) {
-        return null;
-      }
+    if (ttlSeconds === 0 && sessionId !== undefined && entry.sessionId !== sessionId) {
+      return null;
     }
 
     return entry;
@@ -125,15 +79,6 @@ export function readPluginCacheSync(
   }
 }
 
-/**
- * Write a plugin cache entry.
- *
- * @param pluginId - Plugin identifier
- * @param value - Command output value
- * @param cacheDir - Base cache directory
- * @param error - Error message if command failed
- * @param sessionId - Optional session ID for session_start tracking
- */
 export function writePluginCache(
   pluginId: string,
   value: string,
@@ -168,24 +113,14 @@ export function writePluginCache(
   }
 }
 
-/**
- * Determine if a plugin's cache should be refreshed.
- *
- * @param config - Plugin configuration
- * @param cacheDir - Base cache directory
- * @returns true if refresh is needed
- */
 export function shouldRefreshPlugin(config: PluginConfig, cacheDir: string): boolean {
   try {
     const filePath = getPluginCacheFilePath(config.id, cacheDir);
-
     if (!existsSync(filePath)) {
       return true;
     }
 
     const stat = statSync(filePath);
-
-    // Check mtime-based TTL first (if TTL > 0)
     if (config.ttl > 0) {
       const ageSeconds = (Date.now() - stat.mtimeMs) / 1000;
       if (ageSeconds >= config.ttl) {
@@ -193,12 +128,10 @@ export function shouldRefreshPlugin(config: PluginConfig, cacheDir: string): boo
       }
     }
 
-    // If TTL is 0 and no refreshOn, always refresh
     if (config.ttl === 0 && config.refreshOn === undefined) {
       return true;
     }
 
-    // For session_start, check sessionId
     if (config.refreshOn === 'session_start') {
       const content = readFileSync(filePath, 'utf-8');
       const parsed: unknown = JSON.parse(content);

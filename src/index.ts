@@ -34,41 +34,19 @@ import type { PluginConfig } from './types/plugin.js';
  */
 const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
 
-/**
- * Loads plugin configurations from the specified config file.
- * Returns null if no config file is specified or the file doesn't exist/is invalid.
- *
- * @param configPath - Path to the plugin config YAML file, or undefined
- * @returns Array of valid plugin configs, or null if no plugins
- */
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  if (configPath === undefined || configPath === '') {
-    return null;
-  }
+  if (!configPath) return null;
 
-  // Expand tilde in path
   const expandedPath = configPath.replace(/^~/, process.env.HOME ?? '');
-
   const pluginsFile = loadPluginConfig(expandedPath);
-  if (pluginsFile === null) {
-    return null;
-  }
+  if (!pluginsFile) return null;
 
   const parsed = parsePluginsFile(pluginsFile);
-  if (parsed.plugins.length === 0) {
-    return null;
-  }
-
-  return parsed.plugins;
+  return parsed.plugins.length > 0 ? parsed.plugins : null;
 }
 
-/**
- * Creates a plugin configuration map from an array of plugin configs.
- */
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  if (plugins === null || plugins.length === 0) {
-    return undefined;
-  }
+  if (!plugins || plugins.length === 0) return undefined;
   return new Map(plugins.map(p => [p.id, p]));
 }
 
@@ -166,20 +144,11 @@ function trySpawnBackgroundUpdate(
   }
 }
 
-/**
- * Checks if any plugins need a cache refresh and triggers update if needed.
- * This runs synchronously in the background update process.
- *
- * @param plugins - Array of plugin configurations
- */
 async function tryUpdatePluginCaches(plugins: readonly PluginConfig[] | null): Promise<void> {
-  if (plugins === null || plugins.length === 0) {
-    return;
-  }
+  if (!plugins || plugins.length === 0) return;
 
   const cacheDir = getCacheDir();
   const pluginsNeedingRefresh = plugins.filter(p => shouldRefreshPlugin(p, cacheDir));
-
   if (pluginsNeedingRefresh.length > 0) {
     await updatePluginCaches(pluginsNeedingRefresh, cacheDir);
   }

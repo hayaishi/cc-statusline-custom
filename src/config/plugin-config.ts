@@ -1,7 +1,5 @@
 /**
  * Plugin configuration file parser and validator.
- *
- * Loads and validates YAML plugin configuration files.
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -13,39 +11,19 @@ import {
   MIN_PLUGIN_TTL_SECONDS,
 } from '../types/plugin.js';
 
-/**
- * Result of plugin config validation.
- */
 export interface PluginValidationResult {
   readonly valid: boolean;
   readonly errors: readonly string[];
 }
 
-/**
- * Result of parsing a plugins file.
- */
 export interface PluginsFileParseResult {
   readonly valid: boolean;
   readonly plugins: readonly PluginConfig[];
   readonly errors: readonly string[];
 }
 
-/**
- * Error type for plugin config operations.
- */
-export type PluginConfigError = string;
-
-/**
- * Valid characters for plugin IDs: alphanumeric, underscores, hyphens.
- */
 const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-/**
- * Load plugin configuration from a YAML file.
- *
- * @param configPath - Path to the YAML configuration file
- * @returns Parsed plugins file or null if file doesn't exist or is invalid
- */
 export function loadPluginConfig(configPath: string): PluginsFile | null {
   if (!existsSync(configPath)) {
     return null;
@@ -58,7 +36,11 @@ export function loadPluginConfig(configPath: string): PluginsFile | null {
     }
 
     const parsed: unknown = parseYaml(content);
-    if (!isPluginsFileShape(parsed)) {
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+    const record = parsed as Record<string, unknown>;
+    if (!Array.isArray(record.plugins)) {
       return null;
     }
 
@@ -68,27 +50,9 @@ export function loadPluginConfig(configPath: string): PluginsFile | null {
   }
 }
 
-/**
- * Check if the parsed object has the expected PluginsFile shape.
- */
-function isPluginsFileShape(obj: unknown): boolean {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-  const record = obj as Record<string, unknown>;
-  return Array.isArray(record.plugins);
-}
-
-/**
- * Validate a single plugin configuration.
- *
- * @param config - Plugin configuration to validate
- * @returns Validation result with any errors
- */
 export function validatePluginConfig(config: PluginConfig): PluginValidationResult {
   const errors: string[] = [];
 
-  // Required fields
   if (typeof config.id !== 'string' || config.id.length === 0) {
     errors.push('id must be a non-empty string');
   } else if (!VALID_ID_PATTERN.test(config.id)) {
@@ -103,7 +67,6 @@ export function validatePluginConfig(config: PluginConfig): PluginValidationResu
     errors.push('ttl must be a non-negative number');
   }
 
-  // Optional fields
   if (config.timeout !== undefined) {
     if (typeof config.timeout !== 'number' || config.timeout <= 0) {
       errors.push('timeout must be a positive number');
@@ -122,18 +85,9 @@ export function validatePluginConfig(config: PluginConfig): PluginValidationResu
     }
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return { valid: errors.length === 0, errors };
 }
 
-/**
- * Parse and validate a plugins file, filtering out invalid plugins.
- *
- * @param data - Raw plugins file data
- * @returns Parse result with valid plugins and any errors
- */
 export function parsePluginsFile(data: PluginsFile): PluginsFileParseResult {
   const errors: string[] = [];
   const validPlugins: PluginConfig[] = [];
@@ -141,10 +95,8 @@ export function parsePluginsFile(data: PluginsFile): PluginsFileParseResult {
 
   for (const plugin of data.plugins) {
     const validation = validatePluginConfig(plugin);
-
     if (!validation.valid) {
-      const pluginId = plugin.id || '(unknown)';
-      errors.push(`Plugin "${pluginId}": ${validation.errors.join(', ')}`);
+      errors.push(`Plugin "${plugin.id || '(unknown)'}": ${validation.errors.join(', ')}`);
       continue;
     }
 
@@ -157,9 +109,5 @@ export function parsePluginsFile(data: PluginsFile): PluginsFileParseResult {
     validPlugins.push(plugin);
   }
 
-  return {
-    valid: true,
-    plugins: validPlugins,
-    errors,
-  };
+  return { valid: true, plugins: validPlugins, errors };
 }
