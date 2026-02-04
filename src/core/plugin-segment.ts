@@ -46,9 +46,7 @@ export function buildPluginSegment(
   const sessionId = config.refreshOn === 'session_start' ? CURRENT_SESSION_ID : undefined;
   const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId);
 
-  if (cached === null || cached.error !== null || cached.value.trim() === '') {
-    return formatPluginSegment(config, '', options);
-  }
-
-  return formatPluginSegment(config, cached.value, options);
+  // Pass raw value through; formatPluginSegment applies fallbackValue when value is empty
+  const value = cached !== null && cached.error === null ? cached.value : '';
+  return formatPluginSegment(config, value, options);
 }

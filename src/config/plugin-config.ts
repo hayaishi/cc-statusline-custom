@@ -22,6 +22,7 @@ export interface PluginsFileParseResult {
   readonly errors: readonly string[];
 }
 
+// Filesystem-safe characters only: plugin IDs are used directly as cache file names
 const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export function loadPluginConfig(configPath: string): PluginsFile | null {

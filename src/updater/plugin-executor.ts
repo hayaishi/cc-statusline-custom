@@ -23,7 +23,7 @@ export interface PluginCommandResult {
   readonly error: string | null;
 }
 
-function processOutput(output: string, maxLength: number): string {
+function normalizeOutput(output: string, maxLength: number): string {
   let result = output.trim();
   const newlineIndex = result.indexOf('\n');
   if (newlineIndex !== -1) {
@@ -35,8 +35,9 @@ function processOutput(output: string, maxLength: number): string {
   return result;
 }
 
-function getErrorMessage(error: unknown): string {
+function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
+    // Node reports timeouts via killed flag or message text depending on platform/version
     if ('killed' in error && error.killed === true) {
       return 'Command timeout';
     }
@@ -59,12 +60,13 @@ export async function executePluginCommand(
       timeout,
       cwd: config.workingDir,
       shell: '/bin/sh',
+      // Must buffer full output before we can extract the first line
       maxBuffer: 1024 * 1024,
     });
 
-    return { success: true, value: processOutput(stdout, maxLength), error: null };
+    return { success: true, value: normalizeOutput(stdout, maxLength), error: null };
   } catch (error: unknown) {
-    return { success: false, value: '', error: getErrorMessage(error) };
+    return { success: false, value: '', error: extractErrorMessage(error) };
   }
 }
 

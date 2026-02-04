@@ -1,10 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { executePluginCommand, updatePluginCaches } from './plugin-executor.js';
 import type { PluginConfig } from '../types/plugin.js';
 import { CURRENT_SESSION_ID } from '../core/plugin-cache.js';
+
+/** Minimal valid PluginConfig with sensible test defaults. */
+function makeConfig(overrides: Partial<PluginConfig> = {}): PluginConfig {
+  return { id: 'test', command: 'echo hello', ttl: 60, ...overrides };
+}
 
 describe('plugin-executor', () => {
   let tempDir: string;
@@ -21,98 +26,60 @@ describe('plugin-executor', () => {
 
   describe('executePluginCommand', () => {
     it('should execute simple command and return output', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'echo hello',
-        ttl: 60,
-      };
+      const result = await executePluginCommand(makeConfig());
 
-      const result = await executePluginCommand(config);
       expect(result.success).toBe(true);
       expect(result.value).toBe('hello');
       expect(result.error).toBeNull();
     });
 
     it('should trim output whitespace', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'echo "  hello  "',
-        ttl: 60,
-      };
+      const result = await executePluginCommand(makeConfig({ command: 'echo "  hello  "' }));
 
-      const result = await executePluginCommand(config);
       expect(result.value).toBe('hello');
     });
 
     it('should handle multiline output and take first line', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'printf "line1\\nline2\\nline3"',
-        ttl: 60,
-      };
+      const result = await executePluginCommand(makeConfig({ command: 'printf "line1\\nline2\\nline3"' }));
 
-      const result = await executePluginCommand(config);
       expect(result.value).toBe('line1');
     });
 
     it('should truncate output to maxLength', async () => {
-      const config: PluginConfig = {
-        id: 'test',
+      const result = await executePluginCommand(makeConfig({
         command: 'echo "this is a very long string that should be truncated"',
-        ttl: 60,
         maxLength: 10,
-      };
+      }));
 
-      const result = await executePluginCommand(config);
       expect(result.value.length).toBeLessThanOrEqual(10);
     });
 
     it('should return error for failing command', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'exit 1',
-        ttl: 60,
-      };
+      const result = await executePluginCommand(makeConfig({ command: 'exit 1' }));
 
-      const result = await executePluginCommand(config);
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
     });
 
     it('should return error for command that times out', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'sleep 10',
-        ttl: 60,
-        timeout: 100, // 100ms timeout
-      };
+      const result = await executePluginCommand(makeConfig({ command: 'sleep 10', timeout: 100 }));
 
-      const result = await executePluginCommand(config);
       expect(result.success).toBe(false);
       expect(result.error).toContain('timeout');
     }, 5000);
 
     it('should use workingDir if specified', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'pwd',
-        ttl: 60,
-        workingDir: '/tmp',
-      };
+      // maxLength raised: default 32 would truncate the temp path before we can assert
+      const result = await executePluginCommand(makeConfig({ command: 'pwd', workingDir: tempDir, maxLength: 256 }));
 
-      const result = await executePluginCommand(config);
       expect(result.success).toBe(true);
-      expect(result.value).toBe('/tmp');
+      // realpathSync resolves macOS /tmp → /private/tmp symlink
+      expect(result.value).toBe(realpathSync(tempDir));
     });
 
     it('should handle command not found', async () => {
-      const config: PluginConfig = {
-        id: 'test',
-        command: 'nonexistentcommand12345',
-        ttl: 60,
-      };
+      const result = await executePluginCommand(makeConfig({ command: 'nonexistentcommand12345' }));
 
-      const result = await executePluginCommand(config);
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
     });
@@ -120,81 +87,57 @@ describe('plugin-executor', () => {
 
   describe('updatePluginCaches', () => {
     it('should update cache for plugins that need refresh', async () => {
-      const configs: PluginConfig[] = [
-        { id: 'plugin1', command: 'echo value1', ttl: 60 },
-        { id: 'plugin2', command: 'echo value2', ttl: 60 },
+      const configs = [
+        makeConfig({ id: 'plugin1', command: 'echo value1' }),
+        makeConfig({ id: 'plugin2', command: 'echo value2' }),
       ];
 
       await updatePluginCaches(configs, tempDir);
 
-      // Check both caches were written
-      const cache1 = join(pluginCacheDir, 'plugin1.json');
-      const cache2 = join(pluginCacheDir, 'plugin2.json');
-      expect(existsSync(cache1)).toBe(true);
-      expect(existsSync(cache2)).toBe(true);
-
-      const content1 = JSON.parse(readFileSync(cache1, 'utf-8'));
-      expect(content1.value).toBe('value1');
+      const cache1Path = join(pluginCacheDir, 'plugin1.json');
+      const cache2Path = join(pluginCacheDir, 'plugin2.json');
+      expect(existsSync(cache1Path)).toBe(true);
+      expect(existsSync(cache2Path)).toBe(true);
+      expect(JSON.parse(readFileSync(cache1Path, 'utf-8')).value).toBe('value1');
     });
 
     it('should include sessionId when refreshOn is session_start', async () => {
-      const configs: PluginConfig[] = [
-        { id: 'plugin1', command: 'echo value1', ttl: 0, refreshOn: 'session_start' },
+      const configs = [
+        makeConfig({ id: 'plugin1', command: 'echo value1', ttl: 0, refreshOn: 'session_start' }),
       ];
 
       await updatePluginCaches(configs, tempDir);
 
-      const cache1 = join(pluginCacheDir, 'plugin1.json');
-      const content1 = JSON.parse(readFileSync(cache1, 'utf-8'));
-      expect(content1.sessionId).toBe(CURRENT_SESSION_ID);
+      const cached = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
+      expect(cached.sessionId).toBe(CURRENT_SESSION_ID);
     });
 
     it('should skip plugins that do not need refresh', async () => {
-      // Pre-populate cache
       mkdirSync(pluginCacheDir, { recursive: true });
-      const { writeFileSync } = await import('node:fs');
       writeFileSync(
         join(pluginCacheDir, 'plugin1.json'),
-        JSON.stringify({
-          value: 'cached',
-          updatedAt: new Date().toISOString(),
-          error: null,
-        })
+        JSON.stringify({ value: 'cached', updatedAt: new Date().toISOString(), error: null })
       );
 
-      const configs: PluginConfig[] = [
-        { id: 'plugin1', command: 'echo new-value', ttl: 3600 }, // Very long TTL
-      ];
+      // TTL of 1 hour — cache is fresh, so the command should not re-execute
+      await updatePluginCaches([makeConfig({ id: 'plugin1', command: 'echo new-value', ttl: 3600 })], tempDir);
 
-      // Run update
-      await updatePluginCaches(configs, tempDir);
-
-      // Value should still be cached value (not updated)
-      const content = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
-      expect(content.value).toBe('cached');
+      const cached = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
+      expect(cached.value).toBe('cached');
     });
 
     it('should handle errors gracefully and continue with other plugins', async () => {
-      const configs: PluginConfig[] = [
-        { id: 'plugin1', command: 'exit 1', ttl: 60 }, // Will fail
-        { id: 'plugin2', command: 'echo success', ttl: 60 }, // Will succeed
+      const configs = [
+        makeConfig({ id: 'plugin1', command: 'exit 1' }),
+        makeConfig({ id: 'plugin2', command: 'echo success' }),
       ];
 
       await updatePluginCaches(configs, tempDir);
 
-      // Both should have cache entries
-      const cache1 = join(pluginCacheDir, 'plugin1.json');
-      const cache2 = join(pluginCacheDir, 'plugin2.json');
-      expect(existsSync(cache1)).toBe(true);
-      expect(existsSync(cache2)).toBe(true);
-
-      // plugin1 should have error
-      const content1 = JSON.parse(readFileSync(cache1, 'utf-8'));
-      expect(content1.error).not.toBeNull();
-
-      // plugin2 should have value
-      const content2 = JSON.parse(readFileSync(cache2, 'utf-8'));
-      expect(content2.value).toBe('success');
+      const cache1 = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
+      const cache2 = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin2.json'), 'utf-8'));
+      expect(cache1.error).not.toBeNull();
+      expect(cache2.value).toBe('success');
     });
   });
 });
