@@ -8,6 +8,7 @@
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { CacheEntry } from '../types/cache.js';
 import { DEFAULT_CACHE_DIR } from '../types/cache.js';
+import type { PluginConfig } from '../types/plugin.js';
 import {
   extractModelDisplayName,
   extractSessionCost,
@@ -35,11 +36,21 @@ import {
 } from '../config/env.js';
 import { formatResetTime, normalizeSubscriptionResetTime } from '../utils/time.js';
 import type { RenderOptions } from './formatter.js';
+import {
+  isPluginSegmentId,
+  parsePluginSegmentId,
+  buildPluginSegment,
+} from './plugin-segment.js';
 
 /**
- * Canonical segment identifiers.
+ * Canonical segment identifiers for built-in segments.
  */
-export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+
+/**
+ * Segment identifier - either a built-in segment or a plugin segment (plugin:xxx).
+ */
+export type SegmentId = BuiltinSegmentId | `plugin:${string}`;
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -86,16 +97,28 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 /**
  * Normalizes a segment identifier to its canonical form.
  *
- * Example: "ctx" → "context", "sub" → "subscription_usage"
+ * Example: "ctx" → "context", "sub" → "subscription_usage", "plugin:git" → "plugin:git"
  *
  * @param id - User-provided segment identifier
  * @returns Canonical SegmentId or null if unknown/empty
  */
 export function normalizeSegmentId(id: string): SegmentId | null {
-  const normalized = id.trim().toLowerCase();
-  if (normalized === '') {
+  const trimmed = id.trim();
+  if (trimmed === '') {
     return null;
   }
+
+  // Handle plugin segments (plugin:xxx)
+  if (isPluginSegmentId(trimmed)) {
+    const pluginId = parsePluginSegmentId(trimmed);
+    if (pluginId !== null && pluginId !== '') {
+      return trimmed as SegmentId;
+    }
+    return null;
+  }
+
+  // Handle built-in segments
+  const normalized = trimmed.toLowerCase();
   return SEGMENT_ALIASES[normalized] ?? null;
 }
 
@@ -197,9 +220,9 @@ export function resolveRenderOptions(
 export type CacheTargetId = 'subscriptionUsage';
 
 /**
- * Mapping from segment identifiers to required cache targets.
+ * Mapping from built-in segment identifiers to required cache targets.
  */
-const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
+const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly CacheTargetId[]> = {
   model: [],
   cost_session: [],
   context: [],
@@ -212,11 +235,19 @@ const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
  *
  * Example: ["model", "subscription_usage"] → ["subscriptionUsage"]
  *
+ * Note: Plugin segments have their own cache system and are not included here.
+ *
  * @param segments - Array of segment identifiers
  * @returns Array of cache target identifiers (deduplicated)
  */
 export function getCacheTargetsForSegments(segments: readonly SegmentId[]): CacheTargetId[] {
-  const allTargets = segments.flatMap(seg => SEGMENT_CACHE_TARGETS[seg]);
+  const allTargets = segments.flatMap(seg => {
+    // Plugin segments have their own cache system
+    if (isPluginSegmentId(seg)) {
+      return [];
+    }
+    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId] ?? [];
+  });
   return [...new Set(allTargets)];
 }
 
@@ -402,10 +433,10 @@ function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
 type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: RenderOptions) => string;
 
 /**
- * Creates the segment builder registry.
+ * Creates the segment builder registry for built-in segments.
  * Each builder returns an empty string if the segment should be omitted.
  */
-function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder> {
+function createSegmentBuilders(debug: boolean): Record<BuiltinSegmentId, SegmentBuilder> {
   return {
     model: (input, _cacheDir, options): string => {
       const modelName = extractModelDisplayName(input);
@@ -434,6 +465,11 @@ function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder
 }
 
 /**
+ * Plugin configuration map keyed by plugin ID.
+ */
+export type PluginConfigMap = ReadonlyMap<string, PluginConfig>;
+
+/**
  * Composes segments in the specified order, filtering empty results.
  *
  * Special rule: subscription_usage only renders if at least one other segment exists
@@ -443,6 +479,7 @@ function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder
  * @param cacheDir - Cache directory
  * @param segmentOrder - Order of segments to render
  * @param renderOptions - Render options for emojis and bars
+ * @param pluginConfigs - Optional plugin configuration map
  * @returns Array of non-empty segment strings
  */
 function composeSegments(
@@ -450,22 +487,40 @@ function composeSegments(
   cacheDir: string,
   segmentOrder: readonly SegmentId[],
   renderOptions: RenderOptions,
-  debug: boolean
+  debug: boolean,
+  pluginConfigs?: PluginConfigMap
 ): string[] {
   const builders = createSegmentBuilders(debug);
 
   return segmentOrder.reduce<string[]>((segments, segmentId) => {
-    const builder = builders[segmentId];
+    let renderedSegment = '';
 
-    // Subscription usage segments only show when other context exists (never standalone)
-    const isSubscriptionSegment =
-      segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
-    const hasNoOtherSegments = segments.length === 0;
-    if (isSubscriptionSegment && hasNoOtherSegments) {
-      return segments;
+    // Handle plugin segments
+    if (isPluginSegmentId(segmentId)) {
+      const pluginId = parsePluginSegmentId(segmentId);
+      if (pluginId !== null && pluginConfigs !== undefined) {
+        const pluginConfig = pluginConfigs.get(pluginId);
+        if (pluginConfig !== undefined) {
+          renderedSegment = buildPluginSegment(pluginConfig, cacheDir, renderOptions);
+        }
+      }
+    } else {
+      // Handle built-in segments
+      const builder = builders[segmentId as BuiltinSegmentId];
+
+      // Subscription usage segments only show when other context exists (never standalone)
+      const isSubscriptionSegment =
+        segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
+      const hasNoOtherSegments = segments.length === 0;
+      if (isSubscriptionSegment && hasNoOtherSegments) {
+        return segments;
+      }
+
+      if (builder !== undefined) {
+        renderedSegment = builder(input, cacheDir, renderOptions);
+      }
     }
 
-    const renderedSegment = builder(input, cacheDir, renderOptions);
     const hasContent = renderedSegment !== '';
     if (hasContent) {
       segments.push(renderedSegment);
@@ -678,6 +733,17 @@ function ensureVisibleOutput(text: string): string {
 }
 
 /**
+ * Options for statusline generation.
+ */
+export interface GenerateStatuslineOptions {
+  readonly cacheDir?: string;
+  readonly segments?: readonly SegmentId[];
+  readonly renderOptions?: RenderOptions;
+  readonly debug?: boolean;
+  readonly pluginConfigs?: PluginConfigMap;
+}
+
+/**
  * Generates a statusline string from Claude Code input.
  *
  * This is the main entry point for statusline generation.
@@ -697,6 +763,8 @@ function ensureVisibleOutput(text: string): string {
  * @param cacheDir - Cache directory (defaults to ~/.cache/cc-statusline-custom)
  * @param segments - Segment order (defaults to DEFAULT_SEGMENT_ORDER)
  * @param renderOptions - Render options for emojis and bars (defaults to DEFAULT_RENDER_OPTIONS)
+ * @param debug - Enable debug mode
+ * @param pluginConfigs - Optional plugin configuration map
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
@@ -704,7 +772,8 @@ export function generateStatusline(
   cacheDir: string = DEFAULT_CACHE_DIR,
   segments?: readonly SegmentId[],
   renderOptions?: RenderOptions,
-  debug = false
+  debug = false,
+  pluginConfigs?: PluginConfigMap
 ): string {
   try {
     if (input === null) {
@@ -714,7 +783,7 @@ export function generateStatusline(
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
     const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
 
-    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug, pluginConfigs);
 
     if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;

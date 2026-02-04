@@ -120,3 +120,72 @@ export function parseAutoArg(args: string[]): boolean {
 export function parseDebugArg(args: string[]): boolean {
   return args.includes('--debug');
 }
+
+/**
+ * Parses the --config or -c argument from CLI args.
+ *
+ * Supports:
+ * - `--config=value`
+ * - `--config value`
+ * - `-c value`
+ *
+ * Uses "last-wins" semantics: if multiple flags are provided, the last one takes precedence.
+ *
+ * Returns:
+ * - undefined: CLI flag not present at all
+ * - '': CLI flag present but value missing or next arg is another flag
+ * - path string: valid value provided
+ *
+ * @param args - CLI arguments (process.argv.slice(2))
+ * @returns Config path, '' if flag present but no valid value, or undefined if flag not present
+ */
+export function parseConfigArg(args: string[]): string | undefined {
+  let result: string | undefined = undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === undefined) continue;
+
+    // --config=value (flag present, may have empty value)
+    if (arg.startsWith('--config=')) {
+      result = arg.slice('--config='.length);
+      continue;
+    }
+
+    // --config at end or --config followed by another flag
+    if (arg === '--config') {
+      if (i + 1 >= args.length) {
+        // Flag present but no value (at end)
+        result = '';
+        continue;
+      }
+      const nextArg = args[i + 1];
+      if (nextArg !== undefined && !nextArg.startsWith('-')) {
+        result = nextArg;
+      } else {
+        // Flag present but next arg is another flag
+        result = '';
+      }
+      continue;
+    }
+
+    // -c at end or -c followed by another flag
+    if (arg === '-c') {
+      if (i + 1 >= args.length) {
+        // Flag present but no value (at end)
+        result = '';
+        continue;
+      }
+      const nextArg = args[i + 1];
+      if (nextArg !== undefined && !nextArg.startsWith('-')) {
+        result = nextArg;
+      } else {
+        // Flag present but next arg is another flag
+        result = '';
+      }
+      continue;
+    }
+  }
+
+  return result;
+}
