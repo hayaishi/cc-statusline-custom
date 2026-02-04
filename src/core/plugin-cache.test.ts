@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync, utimesSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -80,9 +80,8 @@ describe('plugin-cache', () => {
       };
       writeFileSync(join(pluginCacheDir, 'git_branch.json'), JSON.stringify(entry));
 
-      // Use fs to backdate the file mtime
+      // Backdate mtime so TTL check sees this entry as stale
       const filePath = join(pluginCacheDir, 'git_branch.json');
-      const { utimesSync } = require('node:fs');
       const pastTime = new Date(Date.now() - 120000);
       utimesSync(filePath, pastTime, pastTime);
 
@@ -171,6 +170,13 @@ describe('plugin-cache', () => {
       const content = JSON.parse(readFileSync(filePath, 'utf-8'));
       expect(content.value).toBe('second');
     });
+
+    it('should write cache file with 0o600 permissions', () => {
+      writePluginCache('test', 'value', tempDir);
+      const filePath = getPluginCacheFilePath('test', tempDir);
+      const mode = statSync(filePath).mode & 0o777;
+      expect(mode).toBe(0o600);
+    });
   });
 
   describe('shouldRefreshPlugin', () => {
@@ -208,8 +214,7 @@ describe('plugin-cache', () => {
       const filePath = join(pluginCacheDir, 'test.json');
       writeFileSync(filePath, JSON.stringify(entry));
 
-      // Backdate file
-      const { utimesSync } = require('node:fs');
+      // Backdate mtime so TTL check sees this entry as stale
       const pastTime = new Date(Date.now() - 120000);
       utimesSync(filePath, pastTime, pastTime);
 

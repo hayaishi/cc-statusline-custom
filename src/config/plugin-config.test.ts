@@ -269,5 +269,26 @@ plugins:
       expect(result.valid).toBe(true);
       expect(result.plugins).toHaveLength(0);
     });
+
+    it('should skip null entries and collect errors', () => {
+      const data = {
+        plugins: [null, { id: 'valid', command: 'echo hello', ttl: 60 }],
+      } as unknown as PluginsFile;
+      const result = parsePluginsFile(data);
+      expect(result.plugins).toHaveLength(1);
+      expect(result.plugins[0]?.id).toBe('valid');
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain('expected object');
+    });
+
+    it('should skip non-object entries (string, number)', () => {
+      const data = {
+        plugins: ['not-an-object', 42, { id: 'ok', command: 'echo', ttl: 60 }],
+      } as unknown as PluginsFile;
+      const result = parsePluginsFile(data);
+      expect(result.plugins).toHaveLength(1);
+      expect(result.plugins[0]?.id).toBe('ok');
+      expect(result.errors).toHaveLength(2);
+    });
   });
 });

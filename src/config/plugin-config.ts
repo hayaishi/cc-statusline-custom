@@ -95,6 +95,11 @@ export function parsePluginsFile(data: PluginsFile): PluginsFileParseResult {
   const seenIds = new Set<string>();
 
   for (const plugin of data.plugins) {
+    if (typeof plugin !== 'object' || plugin === null) {
+      errors.push(`Invalid plugin entry: expected object, got ${plugin === null ? 'null' : typeof plugin}`);
+      continue;
+    }
+
     const validation = validatePluginConfig(plugin);
     if (!validation.valid) {
       errors.push(`Plugin "${plugin.id || '(unknown)'}": ${validation.errors.join(', ')}`);

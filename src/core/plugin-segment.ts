@@ -47,6 +47,8 @@ export function buildPluginSegment(
   const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId);
 
   // Pass raw value through; formatPluginSegment applies fallbackValue when value is empty
-  const value = cached !== null && cached.error === null ? cached.value : '';
+  const value = cached !== null && cached.error === null && typeof cached.value === 'string'
+    ? cached.value
+    : '';
   return formatPluginSegment(config, value, options);
 }

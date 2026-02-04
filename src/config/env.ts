@@ -133,3 +133,16 @@ export function getBarsEnabled(): boolean {
   const value = process.env.CCSTATUSLINE_NO_BARS?.toLowerCase();
   return !(value === 'true' || value === '1');
 }
+
+/**
+ * Gets the plugin config file path from environment.
+ *
+ * @returns CCSTATUSLINE_PLUGIN_CONFIG value if set, undefined otherwise
+ */
+export function getPluginConfigPath(): string | undefined {
+  const value = process.env.CCSTATUSLINE_PLUGIN_CONFIG?.trim();
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  return value;
+}

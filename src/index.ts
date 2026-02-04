@@ -39,7 +39,7 @@ import {
   type SegmentId,
   type PluginConfigMap,
 } from './core/statusline.js';
-import { getCacheDir } from './config/env.js';
+import { getCacheDir, getPluginConfigPath } from './config/env.js';
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
 import { updatePluginCaches } from './updater/plugin-executor.js';
@@ -48,9 +48,11 @@ import type { PluginConfig } from './types/plugin.js';
 const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
 
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  if (!configPath) return null;
+  // CLI > ENV > (no default: plugin config is opt-in)
+  const effectivePath = configPath || getPluginConfigPath();
+  if (!effectivePath) return null;
 
-  const expandedPath = configPath.replace(/^~/, process.env.HOME ?? '');
+  const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
   if (!pluginsFile) return null;
 

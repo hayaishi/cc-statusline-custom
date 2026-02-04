@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -189,8 +189,7 @@ describe('plugin-segment', () => {
       const filePath = join(pluginCacheDir, 'test.json');
       writeFileSync(filePath, JSON.stringify(entry));
 
-      // Backdate the file
-      const { utimesSync } = require('node:fs');
+      // Backdate mtime so TTL check sees this entry as expired
       const pastTime = new Date(Date.now() - 120000);
       utimesSync(filePath, pastTime, pastTime);
 

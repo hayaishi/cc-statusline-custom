@@ -9,6 +9,7 @@ import {
   getSegmentsConfig,
   getEmojisEnabled,
   getBarsEnabled,
+  getPluginConfigPath,
 } from './env.js';
 
 describe('env config', () => {
@@ -305,6 +306,33 @@ describe('env config', () => {
 
       process.env.CCSTATUSLINE_NO_BARS = 'True';
       expect(getBarsEnabled()).toBe(false);
+    });
+  });
+
+  describe('getPluginConfigPath', () => {
+    it('returns the path when CCSTATUSLINE_PLUGIN_CONFIG is set', () => {
+      process.env.CCSTATUSLINE_PLUGIN_CONFIG = '~/.config/plugins.yaml';
+      expect(getPluginConfigPath()).toBe('~/.config/plugins.yaml');
+    });
+
+    it('returns undefined when not set', () => {
+      delete process.env.CCSTATUSLINE_PLUGIN_CONFIG;
+      expect(getPluginConfigPath()).toBeUndefined();
+    });
+
+    it('returns undefined for empty string', () => {
+      process.env.CCSTATUSLINE_PLUGIN_CONFIG = '';
+      expect(getPluginConfigPath()).toBeUndefined();
+    });
+
+    it('returns undefined for whitespace-only', () => {
+      process.env.CCSTATUSLINE_PLUGIN_CONFIG = '   ';
+      expect(getPluginConfigPath()).toBeUndefined();
+    });
+
+    it('returns trimmed value', () => {
+      process.env.CCSTATUSLINE_PLUGIN_CONFIG = '  /etc/plugins.yaml  ';
+      expect(getPluginConfigPath()).toBe('/etc/plugins.yaml');
     });
   });
 });
