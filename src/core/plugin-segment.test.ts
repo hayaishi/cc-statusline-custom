@@ -9,6 +9,7 @@ import {
   parsePluginSegmentId,
   PLUGIN_SEGMENT_PREFIX,
 } from './plugin-segment.js';
+import { writePluginCache } from './plugin-cache.js';
 import type { PluginConfig, PluginCacheEntry } from '../types/plugin.js';
 import type { RenderOptions } from './formatter.js';
 
@@ -118,7 +119,7 @@ describe('plugin-segment', () => {
         emoji: '🔧',
       };
       const result = formatPluginSegment(config, '', defaultOptions);
-      expect(result).toBe('🔧 ?');
+      expect(result).toBe('🔧 …');
     });
   });
 
@@ -179,6 +180,34 @@ describe('plugin-segment', () => {
       expect(result).toBe('🔧 error');
     });
 
+    it('should read cache from workingDir-specific path when projectDir is provided', () => {
+      writePluginCache('git_branch', 'feature/xyz', tempDir, null, undefined, '/my/project');
+
+      const config: PluginConfig = {
+        id: 'git_branch',
+        command: 'git branch',
+        ttl: 60,
+        emoji: '🌿',
+      };
+      const result = buildPluginSegment(config, tempDir, defaultOptions, '/my/project');
+      expect(result).toBe('🌿 feature/xyz');
+    });
+
+    it('should use config.workingDir over projectDir for cache lookup', () => {
+      writePluginCache('git_branch', 'from-explicit', tempDir, null, undefined, '/explicit/dir');
+      writePluginCache('git_branch', 'from-project', tempDir, null, undefined, '/project/dir');
+
+      const config: PluginConfig = {
+        id: 'git_branch',
+        command: 'git branch',
+        ttl: 60,
+        emoji: '🌿',
+        workingDir: '/explicit/dir',
+      };
+      const result = buildPluginSegment(config, tempDir, defaultOptions, '/project/dir');
+      expect(result).toBe('🌿 from-explicit');
+    });
+
     it('should return fallback when cache is expired', () => {
       mkdirSync(pluginCacheDir, { recursive: true });
       const entry: PluginCacheEntry = {
@@ -200,10 +229,7 @@ describe('plugin-segment', () => {
         emoji: '🔧',
         fallbackValue: 'expired',
       };
-      // Even with expired cache, we return the stale value (better UX)
-      // The background refresh will update it
       const result = buildPluginSegment(config, tempDir, defaultOptions);
-      // On expired, we still show fallback for statusline
       expect(result).toBe('🔧 expired');
     });
   });

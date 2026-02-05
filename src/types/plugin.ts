@@ -39,7 +39,7 @@ export interface PluginConfig {
   /** Working directory for command execution */
   readonly workingDir?: string;
 
-  /** Value to display on error. Default: "?" */
+  /** Value to display when cache is missing or loading. Default: "…" */
   readonly fallbackValue?: string;
 
   /** Maximum output length in characters. Default: 32 */
@@ -75,7 +75,7 @@ export interface PluginCacheEntry {
  */
 export const PLUGIN_DEFAULTS = {
   timeout: 5000,
-  fallbackValue: '?',
+  fallbackValue: '…',
   maxLength: 32,
 } as const;
 

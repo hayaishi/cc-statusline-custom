@@ -35,6 +35,28 @@ describe('plugin-cache', () => {
       const path = getPluginCacheFilePath('my-plugin', tempDir);
       expect(path).toBe(join(tempDir, 'plugins', 'my-plugin.json'));
     });
+
+    it('should include hash subdirectory when workingDir is provided', () => {
+      const path = getPluginCacheFilePath('test', tempDir, '/Users/test/project');
+      expect(path).toMatch(/plugins\/[0-9a-f]{8}\/test\.json$/);
+    });
+
+    it('should use legacy path when workingDir is undefined', () => {
+      const path = getPluginCacheFilePath('test', tempDir);
+      expect(path).toBe(join(tempDir, 'plugins', 'test.json'));
+    });
+
+    it('should produce consistent paths for same workingDir', () => {
+      const path1 = getPluginCacheFilePath('test', tempDir, '/path/a');
+      const path2 = getPluginCacheFilePath('test', tempDir, '/path/a');
+      expect(path1).toBe(path2);
+    });
+
+    it('should produce different paths for different workingDirs', () => {
+      const path1 = getPluginCacheFilePath('test', tempDir, '/path/a');
+      const path2 = getPluginCacheFilePath('test', tempDir, '/path/b');
+      expect(path1).not.toBe(path2);
+    });
   });
 
   describe('generateSessionId', () => {
@@ -111,6 +133,21 @@ describe('plugin-cache', () => {
       expect(result).toBeNull();
     });
 
+    it('should read from workingDir-specific path when provided', () => {
+      writePluginCache('test', 'dir-value', tempDir, null, undefined, '/my/project');
+
+      const result = readPluginCacheSync('test', tempDir, 60, undefined, '/my/project');
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe('dir-value');
+    });
+
+    it('should return null when workingDir does not match written path', () => {
+      writePluginCache('test', 'dir-value', tempDir, null, undefined, '/project/a');
+
+      const result = readPluginCacheSync('test', tempDir, 60, undefined, '/project/b');
+      expect(result).toBeNull();
+    });
+
     it('should return entry when TTL is 0 and cache exists', () => {
       mkdirSync(pluginCacheDir, { recursive: true });
       const entry: PluginCacheEntry = {
@@ -176,6 +213,26 @@ describe('plugin-cache', () => {
       const filePath = getPluginCacheFilePath('test', tempDir);
       const mode = statSync(filePath).mode & 0o777;
       expect(mode).toBe(0o600);
+    });
+
+    it('should write to workingDir-specific subdirectory when provided', () => {
+      writePluginCache('test', 'project-a-value', tempDir, null, undefined, '/project/a');
+
+      const filePath = getPluginCacheFilePath('test', tempDir, '/project/a');
+      expect(existsSync(filePath)).toBe(true);
+
+      const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+      expect(content.value).toBe('project-a-value');
+    });
+
+    it('should isolate caches between different workingDirs', () => {
+      writePluginCache('test', 'value-a', tempDir, null, undefined, '/project/a');
+      writePluginCache('test', 'value-b', tempDir, null, undefined, '/project/b');
+
+      const pathA = getPluginCacheFilePath('test', tempDir, '/project/a');
+      const pathB = getPluginCacheFilePath('test', tempDir, '/project/b');
+      expect(JSON.parse(readFileSync(pathA, 'utf-8')).value).toBe('value-a');
+      expect(JSON.parse(readFileSync(pathB, 'utf-8')).value).toBe('value-b');
     });
   });
 

@@ -1,7 +1,3 @@
-/**
- * Plugin segment builder for statusline.
- */
-
 import { PLUGIN_DEFAULTS, type PluginConfig } from '../types/plugin.js';
 import { readPluginCacheSync, CURRENT_SESSION_ID } from './plugin-cache.js';
 import type { RenderOptions } from './formatter.js';
@@ -41,12 +37,13 @@ export function formatPluginSegment(
 export function buildPluginSegment(
   config: PluginConfig,
   cacheDir: string,
-  options: RenderOptions
+  options: RenderOptions,
+  projectDir?: string
 ): string {
+  const effectiveWorkingDir = config.workingDir ?? projectDir;
   const sessionId = config.refreshOn === 'session_start' ? CURRENT_SESSION_ID : undefined;
-  const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId);
+  const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId, effectiveWorkingDir);
 
-  // Pass raw value through; formatPluginSegment applies fallbackValue when value is empty
   const value = cached !== null && cached.error === null && typeof cached.value === 'string'
     ? cached.value
     : '';

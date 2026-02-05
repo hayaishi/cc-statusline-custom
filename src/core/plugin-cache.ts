@@ -1,7 +1,3 @@
-/**
- * Plugin cache management for statusline.
- */
-
 import {
   readFileSync,
   writeFileSync,
@@ -14,6 +10,7 @@ import {
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { PLUGIN_CACHE_DIR_NAME, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
+import { shortHash } from '../utils/hash.js';
 
 // Guard against corrupted or externally-written cache files
 const MAX_PLUGIN_CACHE_FILE_SIZE_BYTES = 4096;
@@ -24,12 +21,18 @@ export function generateSessionId(): string {
 
 export const CURRENT_SESSION_ID = generateSessionId();
 
-export function getPluginCacheFilePath(pluginId: string, cacheDir: string): string {
-  return join(cacheDir, PLUGIN_CACHE_DIR_NAME, `${pluginId}.json`);
+export function getPluginCacheFilePath(pluginId: string, cacheDir: string, workingDir?: string): string {
+  const base = join(cacheDir, PLUGIN_CACHE_DIR_NAME);
+  if (workingDir !== undefined) {
+    return join(base, shortHash(workingDir), `${pluginId}.json`);
+  }
+  return join(base, `${pluginId}.json`);
 }
 
-function ensurePluginsCacheDir(cacheDir: string): void {
-  const dir = join(cacheDir, PLUGIN_CACHE_DIR_NAME);
+function ensurePluginsCacheDir(cacheDir: string, workingDir?: string): void {
+  const dir = workingDir !== undefined
+    ? join(cacheDir, PLUGIN_CACHE_DIR_NAME, shortHash(workingDir))
+    : join(cacheDir, PLUGIN_CACHE_DIR_NAME);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
@@ -39,10 +42,11 @@ export function readPluginCacheSync(
   pluginId: string,
   cacheDir: string,
   ttlSeconds: number,
-  sessionId?: string
+  sessionId?: string,
+  workingDir?: string
 ): PluginCacheEntry | null {
   try {
-    const filePath = getPluginCacheFilePath(pluginId, cacheDir);
+    const filePath = getPluginCacheFilePath(pluginId, cacheDir, workingDir);
     if (!existsSync(filePath)) {
       return null;
     }
@@ -87,9 +91,10 @@ export function writePluginCache(
   value: string,
   cacheDir: string,
   error: string | null = null,
-  sessionId?: string
+  sessionId?: string,
+  workingDir?: string
 ): void {
-  ensurePluginsCacheDir(cacheDir);
+  ensurePluginsCacheDir(cacheDir, workingDir);
 
   const entry: PluginCacheEntry = {
     value,
@@ -98,11 +103,9 @@ export function writePluginCache(
     ...(sessionId !== undefined && { sessionId }),
   };
 
-  const filePath = getPluginCacheFilePath(pluginId, cacheDir);
+  const filePath = getPluginCacheFilePath(pluginId, cacheDir, workingDir);
   const tempPath = filePath + '.tmp.' + String(process.pid);
 
-  // Atomic write: rename is the only POSIX-guaranteed atomic operation,
-  // so we write to a temp file first to avoid partial reads on the hot path.
   try {
     writeFileSync(tempPath, JSON.stringify(entry), { mode: 0o600 });
     renameSync(tempPath, filePath);
@@ -112,15 +115,15 @@ export function writePluginCache(
         unlinkSync(tempPath);
       }
     } catch {
-      // Ignore cleanup errors
+      // best-effort cleanup
     }
     throw writeError;
   }
 }
 
-export function shouldRefreshPlugin(config: PluginConfig, cacheDir: string): boolean {
+export function shouldRefreshPlugin(config: PluginConfig, cacheDir: string, workingDir?: string): boolean {
   try {
-    const filePath = getPluginCacheFilePath(config.id, cacheDir);
+    const filePath = getPluginCacheFilePath(config.id, cacheDir, workingDir);
     if (!existsSync(filePath)) return true;
 
     if (config.ttl > 0) {
@@ -128,12 +131,10 @@ export function shouldRefreshPlugin(config: PluginConfig, cacheDir: string): boo
       if (ageSeconds >= config.ttl) return true;
     }
 
-    // ttl=0 with no refresh strategy means "always execute"
     if (config.ttl === 0 && config.refreshOn === undefined) return true;
 
-    // session_start: refresh when the cached entry belongs to a different session
     if (config.refreshOn === 'session_start') {
-      return readPluginCacheSync(config.id, cacheDir, 0, CURRENT_SESSION_ID) === null;
+      return readPluginCacheSync(config.id, cacheDir, 0, CURRENT_SESSION_ID, workingDir) === null;
     }
 
     return false;

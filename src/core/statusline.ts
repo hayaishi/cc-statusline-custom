@@ -488,7 +488,8 @@ function composeSegments(
   segmentOrder: readonly SegmentId[],
   renderOptions: RenderOptions,
   debug: boolean,
-  pluginConfigs?: PluginConfigMap
+  pluginConfigs?: PluginConfigMap,
+  projectDir?: string
 ): string[] {
   const builders = createSegmentBuilders(debug);
 
@@ -501,7 +502,7 @@ function composeSegments(
       if (pluginId !== null && pluginConfigs !== undefined) {
         const pluginConfig = pluginConfigs.get(pluginId);
         if (pluginConfig !== undefined) {
-          renderedSegment = buildPluginSegment(pluginConfig, cacheDir, renderOptions);
+          renderedSegment = buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
         }
       }
     } else {
@@ -771,7 +772,8 @@ export function generateStatusline(
   segments?: readonly SegmentId[],
   renderOptions?: RenderOptions,
   debug = false,
-  pluginConfigs?: PluginConfigMap
+  pluginConfigs?: PluginConfigMap,
+  projectDir?: string
 ): string {
   try {
     if (input === null) {
@@ -781,7 +783,7 @@ export function generateStatusline(
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
     const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
 
-    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug, pluginConfigs);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug, pluginConfigs, projectDir);
 
     if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;

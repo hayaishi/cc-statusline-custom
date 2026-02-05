@@ -17,7 +17,7 @@ describe('plugin types', () => {
     });
 
     it('should have correct default fallbackValue', () => {
-      expect(PLUGIN_DEFAULTS.fallbackValue).toBe('?');
+      expect(PLUGIN_DEFAULTS.fallbackValue).toBe('…');
     });
 
     it('should have correct default maxLength', () => {

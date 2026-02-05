@@ -1,7 +1,3 @@
-/**
- * Plugin command executor.
- */
-
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
@@ -19,7 +15,6 @@ export interface PluginCommandResult {
   readonly error: string | null;
 }
 
-/** Trims, extracts the first line, and truncates to maxLength. */
 function normalizeOutput(output: string, maxLength: number): string {
   const trimmed = output.trim();
   const firstLine = trimmed.includes('\n') ? trimmed.substring(0, trimmed.indexOf('\n')).trim() : trimmed;
@@ -28,7 +23,6 @@ function normalizeOutput(output: string, maxLength: number): string {
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    // Node reports timeouts via killed flag or message text depending on platform/version
     if ('killed' in error && error.killed === true) {
       return 'Command timeout';
     }
@@ -50,10 +44,8 @@ export async function executePluginCommand(
   try {
     const { stdout } = await execAsync(config.command, {
       timeout,
-      // Explicit workingDir wins; fall back to the project root from stdin
       cwd: config.workingDir ?? projectDir,
       shell: '/bin/sh',
-      // Must buffer full output before we can extract the first line
       maxBuffer: 1024 * 1024,
     });
 
@@ -77,6 +69,7 @@ export async function updatePluginCaches(
 
   for (const { config, result } of results) {
     const sessionId = config.refreshOn === 'session_start' ? CURRENT_SESSION_ID : undefined;
-    writePluginCache(config.id, result.value, cacheDir, result.error, sessionId);
+    const effectiveWorkingDir = config.workingDir ?? projectDir;
+    writePluginCache(config.id, result.value, cacheDir, result.error, sessionId, effectiveWorkingDir);
   }
 }

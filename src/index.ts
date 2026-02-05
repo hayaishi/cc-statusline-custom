@@ -156,7 +156,7 @@ function trySpawnBackgroundUpdate(
 
 async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDir?: string): Promise<void> {
   const cacheDir = getCacheDir();
-  const stale = plugins.filter(p => shouldRefreshPlugin(p, cacheDir));
+  const stale = plugins.filter(plugin => shouldRefreshPlugin(plugin, cacheDir, plugin.workingDir ?? projectDir));
   if (stale.length > 0) {
     await updatePluginCaches(stale, cacheDir, projectDir);
   }
@@ -184,13 +184,14 @@ function handleStatusline(args: string[]): void {
     const plugins = loadPlugins(configPath);
     const pluginConfigMap = createPluginConfigMap(plugins);
 
-    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap);
+    const projectDir = input?.workspace?.project_dir;
+    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
 
     // Defense in depth: extract first line even if generateStatusline misbehaves
     console.log(ensureVisibleFirstLine(line));
 
     // Spawn after printing to keep the hot path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, input?.workspace?.project_dir);
+    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, projectDir);
   } catch {
     // Ultimate fallback: guarantee at least one visible line on any error
     console.log(FALLBACK_OUTPUT);
