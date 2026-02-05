@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg, parseConfigArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg, parseConfigArg, parseProjectDirArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -294,5 +294,32 @@ describe('parseConfigArg', () => {
     it('handles tilde in path', () => {
       expect(parseConfigArg(['--config=~/.config/cc-statusline/plugins.yaml'])).toBe('~/.config/cc-statusline/plugins.yaml');
     });
+  });
+});
+
+describe('parseProjectDirArg', () => {
+  it('returns the path when --project-dir is provided', () => {
+    expect(parseProjectDirArg(['--project-dir', '/path/to/project'])).toBe('/path/to/project');
+  });
+
+  it('returns undefined when not provided', () => {
+    expect(parseProjectDirArg([])).toBeUndefined();
+    expect(parseProjectDirArg(['--update-cache', '--auto'])).toBeUndefined();
+  });
+
+  it('returns undefined when value is missing (flag at end)', () => {
+    expect(parseProjectDirArg(['--project-dir'])).toBeUndefined();
+  });
+
+  it('returns trimmed value', () => {
+    expect(parseProjectDirArg(['--project-dir', '  /path/to/project  '])).toBe('/path/to/project');
+  });
+
+  it('returns undefined for whitespace-only value', () => {
+    expect(parseProjectDirArg(['--project-dir', '   '])).toBeUndefined();
+  });
+
+  it('handles flag among other args', () => {
+    expect(parseProjectDirArg(['--update-cache', '--project-dir', '/my/dir', '--auto'])).toBe('/my/dir');
   });
 });

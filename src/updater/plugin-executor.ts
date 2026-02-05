@@ -9,11 +9,7 @@ import {
   MAX_PLUGIN_TIMEOUT_MS,
   type PluginConfig,
 } from '../types/plugin.js';
-import {
-  writePluginCache,
-  shouldRefreshPlugin,
-  CURRENT_SESSION_ID,
-} from '../core/plugin-cache.js';
+import { writePluginCache, CURRENT_SESSION_ID } from '../core/plugin-cache.js';
 
 const execAsync = promisify(exec);
 
@@ -23,16 +19,11 @@ export interface PluginCommandResult {
   readonly error: string | null;
 }
 
+/** Trims, extracts the first line, and truncates to maxLength. */
 function normalizeOutput(output: string, maxLength: number): string {
-  let result = output.trim();
-  const newlineIndex = result.indexOf('\n');
-  if (newlineIndex !== -1) {
-    result = result.substring(0, newlineIndex).trim();
-  }
-  if (result.length > maxLength) {
-    result = result.substring(0, maxLength);
-  }
-  return result;
+  const trimmed = output.trim();
+  const firstLine = trimmed.includes('\n') ? trimmed.substring(0, trimmed.indexOf('\n')).trim() : trimmed;
+  return firstLine.substring(0, maxLength);
 }
 
 function extractErrorMessage(error: unknown): string {
@@ -50,7 +41,8 @@ function extractErrorMessage(error: unknown): string {
 }
 
 export async function executePluginCommand(
-  config: PluginConfig
+  config: PluginConfig,
+  projectDir?: string
 ): Promise<PluginCommandResult> {
   const timeout = Math.min(config.timeout ?? PLUGIN_DEFAULTS.timeout, MAX_PLUGIN_TIMEOUT_MS);
   const maxLength = config.maxLength ?? PLUGIN_DEFAULTS.maxLength;
@@ -58,7 +50,8 @@ export async function executePluginCommand(
   try {
     const { stdout } = await execAsync(config.command, {
       timeout,
-      cwd: config.workingDir,
+      // Explicit workingDir wins; fall back to the project root from stdin
+      cwd: config.workingDir ?? projectDir,
       shell: '/bin/sh',
       // Must buffer full output before we can extract the first line
       maxBuffer: 1024 * 1024,
@@ -72,13 +65,12 @@ export async function executePluginCommand(
 
 export async function updatePluginCaches(
   configs: readonly PluginConfig[],
-  cacheDir: string
+  cacheDir: string,
+  projectDir?: string
 ): Promise<void> {
-  const pluginsToRefresh = configs.filter((config) => shouldRefreshPlugin(config, cacheDir));
-
   const results = await Promise.all(
-    pluginsToRefresh.map(async (config) => {
-      const result = await executePluginCommand(config);
+    configs.map(async (config) => {
+      const result = await executePluginCommand(config, projectDir);
       return { config, result };
     })
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { executePluginCommand, updatePluginCaches } from './plugin-executor.js';
@@ -83,10 +83,26 @@ describe('plugin-executor', () => {
       expect(result.success).toBe(false);
       expect(result.error).not.toBeNull();
     });
+
+    it('should use projectDir as cwd when workingDir is not set', async () => {
+      const projectDir = realpathSync(tempDir);
+      const result = await executePluginCommand(makeConfig({ command: 'pwd', maxLength: 256 }), projectDir);
+
+      expect(result.success).toBe(true);
+      expect(result.value).toBe(projectDir);
+    });
+
+    it('should prefer config.workingDir over projectDir', async () => {
+      const projectDir = realpathSync(tempDir);
+      const result = await executePluginCommand(makeConfig({ command: 'pwd', workingDir: tempDir, maxLength: 256 }), '/should/be/ignored');
+
+      expect(result.success).toBe(true);
+      expect(result.value).toBe(projectDir);
+    });
   });
 
   describe('updatePluginCaches', () => {
-    it('should update cache for plugins that need refresh', async () => {
+    it('should execute commands and write cache for all provided plugins', async () => {
       const configs = [
         makeConfig({ id: 'plugin1', command: 'echo value1' }),
         makeConfig({ id: 'plugin2', command: 'echo value2' }),
@@ -110,20 +126,6 @@ describe('plugin-executor', () => {
 
       const cached = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
       expect(cached.sessionId).toBe(CURRENT_SESSION_ID);
-    });
-
-    it('should skip plugins that do not need refresh', async () => {
-      mkdirSync(pluginCacheDir, { recursive: true });
-      writeFileSync(
-        join(pluginCacheDir, 'plugin1.json'),
-        JSON.stringify({ value: 'cached', updatedAt: new Date().toISOString(), error: null })
-      );
-
-      // TTL of 1 hour — cache is fresh, so the command should not re-execute
-      await updatePluginCaches([makeConfig({ id: 'plugin1', command: 'echo new-value', ttl: 3600 })], tempDir);
-
-      const cached = JSON.parse(readFileSync(join(pluginCacheDir, 'plugin1.json'), 'utf-8'));
-      expect(cached.value).toBe('cached');
     });
 
     it('should handle errors gracefully and continue with other plugins', async () => {

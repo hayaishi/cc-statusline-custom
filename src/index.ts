@@ -28,6 +28,7 @@ import {
   parseAutoArg,
   parseDebugArg,
   parseConfigArg,
+  parseProjectDirArg,
 } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
 import {
@@ -83,13 +84,14 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     const isAuto = parseAutoArg(args);
     const isDebug = parseDebugArg(args);
     const configPath = parseConfigArg(args);
+    const projectDir = parseProjectDirArg(args);
 
     const { updateCache } = await import('./updater/update-cache.js');
     const result = await updateCache(undefined, { mode: isAuto ? 'auto' : 'force', debug: isDebug });
 
     const plugins = loadPlugins(configPath);
     if (plugins !== null) {
-      await tryUpdatePluginCaches(plugins);
+      await tryUpdatePluginCaches(plugins, projectDir);
     }
 
     const output = result.success ? result.message : `Error: ${result.message}`;
@@ -111,7 +113,8 @@ function trySpawnBackgroundUpdate(
   segments: readonly SegmentId[],
   isBgUpdateDisabled: boolean,
   debug: boolean,
-  configPath?: string
+  configPath?: string,
+  projectDir?: string
 ): void {
   try {
     if (isBgUpdateDisabled) return;
@@ -129,8 +132,11 @@ function trySpawnBackgroundUpdate(
     if (debug) {
       args.push('--debug');
     }
-    if (configPath !== undefined && configPath !== '') {
+    if (configPath) {
       args.push('--config', configPath);
+    }
+    if (projectDir) {
+      args.push('--project-dir', projectDir);
     }
 
     const child = spawn(
@@ -148,13 +154,11 @@ function trySpawnBackgroundUpdate(
   }
 }
 
-async function tryUpdatePluginCaches(plugins: readonly PluginConfig[] | null): Promise<void> {
-  if (!plugins || plugins.length === 0) return;
-
+async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDir?: string): Promise<void> {
   const cacheDir = getCacheDir();
-  const pluginsNeedingRefresh = plugins.filter(p => shouldRefreshPlugin(p, cacheDir));
-  if (pluginsNeedingRefresh.length > 0) {
-    await updatePluginCaches(pluginsNeedingRefresh, cacheDir);
+  const stale = plugins.filter(p => shouldRefreshPlugin(p, cacheDir));
+  if (stale.length > 0) {
+    await updatePluginCaches(stale, cacheDir, projectDir);
   }
 }
 
@@ -186,7 +190,7 @@ function handleStatusline(args: string[]): void {
     console.log(ensureVisibleFirstLine(line));
 
     // Spawn after printing to keep the hot path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath);
+    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, input?.workspace?.project_dir);
   } catch {
     // Ultimate fallback: guarantee at least one visible line on any error
     console.log(FALLBACK_OUTPUT);
