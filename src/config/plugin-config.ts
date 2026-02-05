@@ -72,10 +72,13 @@ export function validatePluginConfig(config: PluginConfig): PluginValidationResu
     if (typeof config.timeout !== 'number' || config.timeout <= 0) {
       errors.push('timeout must be a positive number');
     } else if (config.timeout > MAX_PLUGIN_TIMEOUT_MS) {
-      errors.push(`timeout must not exceed ${MAX_PLUGIN_TIMEOUT_MS}ms`);
+      errors.push(`timeout must not exceed ${String(MAX_PLUGIN_TIMEOUT_MS)}ms`);
     }
   }
 
+  // refreshOn is typed as 'session_start' | undefined, but at runtime the value
+  // originates from YAML parsing and may be an arbitrary string.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (config.refreshOn !== undefined && config.refreshOn !== 'session_start') {
     errors.push('refreshOn must be "session_start" if specified');
   }
@@ -94,11 +97,17 @@ export function parsePluginsFile(data: PluginsFile): PluginsFileParseResult {
   const validPlugins: PluginConfig[] = [];
   const seenIds = new Set<string>();
 
-  for (const plugin of data.plugins) {
-    if (typeof plugin !== 'object' || plugin === null) {
-      errors.push(`Invalid plugin entry: expected object, got ${plugin === null ? 'null' : typeof plugin}`);
+  // Cast to unknown[] because data originates from YAML parsing via type assertion;
+  // each entry may be null, a primitive, or a malformed object at runtime.
+  const rawPlugins = data.plugins as unknown as unknown[];
+
+  for (const entry of rawPlugins) {
+    if (typeof entry !== 'object' || entry === null) {
+      errors.push(`Invalid plugin entry: expected object, got ${entry === null ? 'null' : typeof entry}`);
       continue;
     }
+
+    const plugin = entry as PluginConfig;
 
     const validation = validatePluginConfig(plugin);
     if (!validation.valid) {

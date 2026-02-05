@@ -50,8 +50,8 @@ const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
 
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
   // CLI > ENV > (no default: plugin config is opt-in)
-  const effectivePath = configPath || getPluginConfigPath();
-  if (!effectivePath) return null;
+  const effectivePath = configPath ?? getPluginConfigPath();
+  if (effectivePath === undefined) return null;
 
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
@@ -132,10 +132,10 @@ function trySpawnBackgroundUpdate(
     if (debug) {
       args.push('--debug');
     }
-    if (configPath) {
+    if (configPath !== undefined) {
       args.push('--config', configPath);
     }
-    if (projectDir) {
+    if (projectDir !== undefined) {
       args.push('--project-dir', projectDir);
     }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -248,7 +248,7 @@ plugins:
   });
 
   describe('--update-cache with plugins', () => {
-    it('should update plugin caches when --config is provided', async () => {
+    it('should update plugin caches when --config is provided', () => {
       writeFileSync(
         configPath,
         `

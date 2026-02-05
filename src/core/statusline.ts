@@ -246,7 +246,7 @@ export function getCacheTargetsForSegments(segments: readonly SegmentId[]): Cach
     if (isPluginSegmentId(seg)) {
       return [];
     }
-    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId] ?? [];
+    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId];
   });
   return [...new Set(allTargets)];
 }
@@ -516,9 +516,7 @@ function composeSegments(
         return segments;
       }
 
-      if (builder !== undefined) {
-        renderedSegment = builder(input, cacheDir, renderOptions);
-      }
+      renderedSegment = builder(input, cacheDir, renderOptions);
     }
 
     const hasContent = renderedSegment !== '';

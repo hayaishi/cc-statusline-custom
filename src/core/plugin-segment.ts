@@ -29,9 +29,9 @@ export function formatPluginSegment(
     : value;
 
   let prefix = '';
-  if (options.showEmojis && config.emoji) {
+  if (options.showEmojis && config.emoji !== undefined) {
     prefix = `${config.emoji} `;
-  } else if (!options.showEmojis && config.fallbackText) {
+  } else if (!options.showEmojis && config.fallbackText !== undefined) {
     prefix = `${config.fallbackText}: `;
   }
 
