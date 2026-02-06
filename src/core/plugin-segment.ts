@@ -42,8 +42,10 @@ export function buildPluginSegment(
 ): string {
   const effectiveWorkingDir = config.workingDir ?? projectDir;
 
-  // Use stale-while-revalidate: display cached value even if expired.
-  // Background refresh is handled separately by shouldRefreshPlugin().
+  // Stale-while-revalidate with max-age safety limit:
+  // - Fresh (< TTL): display cache, no refresh
+  // - Stale (TTL to max-age): display cache, trigger refresh
+  // - Expired (> max-age): display fallback, trigger refresh
   const cached = readPluginCacheForDisplay(config.id, cacheDir, effectiveWorkingDir);
 
   const value = cached !== null && cached.error === null && typeof cached.value === 'string'

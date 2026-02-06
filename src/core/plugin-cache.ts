@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { PLUGIN_CACHE_DIR_NAME, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
+import { PLUGIN_CACHE_DIR_NAME, MAX_PLUGIN_CACHE_AGE_SECONDS, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
 import { shortHash } from '../utils/hash.js';
 
 // Guard against corrupted or externally-written cache files
@@ -36,6 +36,23 @@ function ensurePluginsCacheDir(cacheDir: string, workingDir?: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+}
+
+/**
+ * Calculates age of cache entry in seconds from its updatedAt timestamp.
+ * Returns null if updatedAt is invalid.
+ */
+function getCacheAgeSeconds(entry: PluginCacheEntry): number | null {
+  if (typeof entry.updatedAt !== 'string' || entry.updatedAt === '') {
+    return null;
+  }
+
+  const updatedAtTime = new Date(entry.updatedAt).getTime();
+  if (Number.isNaN(updatedAtTime)) {
+    return null;
+  }
+
+  return (Date.now() - updatedAtTime) / 1000;
 }
 
 /**
@@ -109,21 +126,33 @@ export function readPluginCacheSync(
  * Unlike readPluginCacheSync, this function:
  * - Does NOT check TTL expiry
  * - Does NOT check session ID
- * - Only returns null if the cache file is missing, corrupted, or exceeds size limits
+ * - DOES check maximum age (10 minutes from updatedAt)
+ * - Only returns null if the cache file is missing, corrupted, exceeds size limits, or is too old
  *
  * Use shouldRefreshPlugin() separately to determine if background refresh is needed.
  *
  * @param pluginId - Plugin identifier
  * @param cacheDir - Base cache directory
  * @param workingDir - Optional working directory for cache isolation
- * @returns Cache entry if readable, null otherwise
+ * @returns Cache entry if readable and not too old, null otherwise
  */
 export function readPluginCacheForDisplay(
   pluginId: string,
   cacheDir: string,
   workingDir?: string
 ): PluginCacheEntry | null {
-  return readCacheFileBase(pluginId, cacheDir, workingDir);
+  const entry = readCacheFileBase(pluginId, cacheDir, workingDir);
+  if (entry === null) {
+    return null;
+  }
+
+  // Check maximum age limit (absolute staleness threshold)
+  const ageSeconds = getCacheAgeSeconds(entry);
+  if (ageSeconds === null || ageSeconds > MAX_PLUGIN_CACHE_AGE_SECONDS) {
+    return null;
+  }
+
+  return entry;
 }
 
 export function writePluginCache(

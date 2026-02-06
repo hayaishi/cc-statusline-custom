@@ -12,6 +12,7 @@ import {
   CURRENT_SESSION_ID,
 } from './plugin-cache.js';
 import type { PluginConfig, PluginCacheEntry } from '../types/plugin.js';
+import { shortHash } from '../utils/hash.js';
 
 describe('plugin-cache', () => {
   let tempDir: string;
@@ -257,6 +258,108 @@ describe('plugin-cache', () => {
       const result = readPluginCacheForDisplay('test', tempDir, '/my/project');
       expect(result).not.toBeNull();
       expect(result?.value).toBe('dir-value');
+    });
+
+    describe('max-age validation', () => {
+      it('should return null when cache exceeds maximum age (10 minutes)', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry: PluginCacheEntry = {
+          value: 'very-old-value',
+          updatedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(), // 11 minutes ago
+          error: null,
+        };
+        writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).toBeNull();
+      });
+
+      it('should return cache when within maximum age but beyond TTL (stale-while-revalidate)', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry: PluginCacheEntry = {
+          value: 'stale-value',
+          updatedAt: new Date(Date.now() - 9 * 60 * 1000).toISOString(), // 9 minutes ago
+          error: null,
+        };
+        const filePath = join(pluginCacheDir, 'test.json');
+        writeFileSync(filePath, JSON.stringify(entry));
+
+        // Backdate mtime so TTL would be expired
+        const pastTime = new Date(Date.now() - 9 * 60 * 1000);
+        utimesSync(filePath, pastTime, pastTime);
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).not.toBeNull();
+        expect(result?.value).toBe('stale-value');
+      });
+
+      it('should return cache when just under maximum age boundary', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry: PluginCacheEntry = {
+          value: 'boundary-value',
+          updatedAt: new Date(Date.now() - 9 * 60 * 1000 - 59 * 1000).toISOString(), // 9 minutes 59 seconds ago
+          error: null,
+        };
+        writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).not.toBeNull();
+        expect(result?.value).toBe('boundary-value');
+      });
+
+      it('should return null when updatedAt is invalid date string', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry = {
+          value: 'corrupted-date',
+          updatedAt: 'not-a-valid-date',
+          error: null,
+        };
+        writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).toBeNull();
+      });
+
+      it('should return null when updatedAt is missing', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        // Manually construct malformed cache entry without updatedAt
+        const malformed = { value: 'no-timestamp', error: null };
+        writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(malformed));
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).toBeNull();
+      });
+
+      it('should apply max-age to cache with error field', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry: PluginCacheEntry = {
+          value: '',
+          updatedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+          error: 'Old error message',
+        };
+        writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+        const result = readPluginCacheForDisplay('test', tempDir);
+        expect(result).toBeNull();
+      });
+
+      it('should apply max-age to workingDir-specific cache paths', () => {
+        mkdirSync(pluginCacheDir, { recursive: true });
+        const entry: PluginCacheEntry = {
+          value: 'old-dir-value',
+          updatedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+          error: null,
+        };
+
+        // Write cache with old timestamp
+        const hash = shortHash('/my/project');
+        const dirPath = join(pluginCacheDir, hash);
+        mkdirSync(dirPath, { recursive: true });
+        writeFileSync(join(dirPath, 'test.json'), JSON.stringify(entry));
+
+        const result = readPluginCacheForDisplay('test', tempDir, '/my/project');
+        expect(result).toBeNull();
+      });
     });
   });
 
