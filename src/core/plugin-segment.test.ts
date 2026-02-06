@@ -208,7 +208,7 @@ describe('plugin-segment', () => {
       expect(result).toBe('🌿 from-explicit');
     });
 
-    it('should return fallback when cache is expired', () => {
+    it('should return stale cached value when cache is expired (stale-while-revalidate)', () => {
       mkdirSync(pluginCacheDir, { recursive: true });
       const entry: PluginCacheEntry = {
         value: 'old-value',
@@ -230,7 +230,7 @@ describe('plugin-segment', () => {
         fallbackValue: 'expired',
       };
       const result = buildPluginSegment(config, tempDir, defaultOptions);
-      expect(result).toBe('🔧 expired');
+      expect(result).toBe('🔧 old-value');
     });
   });
 });

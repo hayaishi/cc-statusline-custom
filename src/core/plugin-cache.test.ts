@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   readPluginCacheSync,
+  readPluginCacheForDisplay,
   writePluginCache,
   shouldRefreshPlugin,
   getPluginCacheFilePath,
@@ -161,6 +162,101 @@ describe('plugin-cache', () => {
       // TTL 0 means no TTL check, just use cache if sessionId matches
       const result = readPluginCacheSync('git_branch', tempDir, 0, CURRENT_SESSION_ID);
       expect(result).not.toBeNull();
+    });
+  });
+
+  describe('readPluginCacheForDisplay', () => {
+    it('should return cached entry when valid and within TTL', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: 'fresh-value',
+        updatedAt: new Date().toISOString(),
+        error: null,
+      };
+      writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+      const result = readPluginCacheForDisplay('test', tempDir);
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe('fresh-value');
+    });
+
+    it('should return cached entry even when TTL is expired', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: 'stale-value',
+        updatedAt: new Date(Date.now() - 120000).toISOString(),
+        error: null,
+      };
+      const filePath = join(pluginCacheDir, 'test.json');
+      writeFileSync(filePath, JSON.stringify(entry));
+
+      // Backdate mtime so TTL check would fail in readPluginCacheSync
+      const pastTime = new Date(Date.now() - 120000);
+      utimesSync(filePath, pastTime, pastTime);
+
+      const result = readPluginCacheForDisplay('test', tempDir, undefined);
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe('stale-value');
+    });
+
+    it('should return cached entry even when session ID differs', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: 'old-session-value',
+        updatedAt: new Date().toISOString(),
+        error: null,
+        sessionId: 'old-session-id',
+      };
+      writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+      const result = readPluginCacheForDisplay('test', tempDir);
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe('old-session-value');
+      expect(result?.sessionId).toBe('old-session-id');
+    });
+
+    it('should return null when cache file does not exist', () => {
+      const result = readPluginCacheForDisplay('nonexistent', tempDir);
+      expect(result).toBeNull();
+    });
+
+    it('should return null for invalid JSON', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      writeFileSync(join(pluginCacheDir, 'broken.json'), 'not valid json');
+
+      const result = readPluginCacheForDisplay('broken', tempDir);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when file exceeds size limit', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const largeContent = JSON.stringify({ value: 'x'.repeat(5000), updatedAt: new Date().toISOString(), error: null });
+      writeFileSync(join(pluginCacheDir, 'large.json'), largeContent);
+
+      const result = readPluginCacheForDisplay('large', tempDir);
+      expect(result).toBeNull();
+    });
+
+    it('should return entry with error field intact', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: '',
+        updatedAt: new Date().toISOString(),
+        error: 'Command failed',
+      };
+      writeFileSync(join(pluginCacheDir, 'error.json'), JSON.stringify(entry));
+
+      const result = readPluginCacheForDisplay('error', tempDir);
+      expect(result).not.toBeNull();
+      expect(result?.error).toBe('Command failed');
+    });
+
+    it('should read from workingDir-specific path when provided', () => {
+      writePluginCache('test', 'dir-value', tempDir, null, undefined, '/my/project');
+
+      const result = readPluginCacheForDisplay('test', tempDir, '/my/project');
+      expect(result).not.toBeNull();
+      expect(result?.value).toBe('dir-value');
     });
   });
 

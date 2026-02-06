@@ -1,5 +1,5 @@
 import { PLUGIN_DEFAULTS, type PluginConfig } from '../types/plugin.js';
-import { readPluginCacheSync, CURRENT_SESSION_ID } from './plugin-cache.js';
+import { readPluginCacheForDisplay } from './plugin-cache.js';
 import type { RenderOptions } from './formatter.js';
 
 export const PLUGIN_SEGMENT_PREFIX = 'plugin:';
@@ -41,8 +41,10 @@ export function buildPluginSegment(
   projectDir?: string
 ): string {
   const effectiveWorkingDir = config.workingDir ?? projectDir;
-  const sessionId = config.refreshOn === 'session_start' ? CURRENT_SESSION_ID : undefined;
-  const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId, effectiveWorkingDir);
+
+  // Use stale-while-revalidate: display cached value even if expired.
+  // Background refresh is handled separately by shouldRefreshPlugin().
+  const cached = readPluginCacheForDisplay(config.id, cacheDir, effectiveWorkingDir);
 
   const value = cached !== null && cached.error === null && typeof cached.value === 'string'
     ? cached.value

@@ -38,11 +38,13 @@ function ensurePluginsCacheDir(cacheDir: string, workingDir?: string): void {
   }
 }
 
-export function readPluginCacheSync(
+/**
+ * Internal function to read and validate cache file structure.
+ * Returns null if file doesn't exist, is corrupted, or exceeds size limits.
+ */
+function readCacheFileBase(
   pluginId: string,
   cacheDir: string,
-  ttlSeconds: number,
-  sessionId?: string,
   workingDir?: string
 ): PluginCacheEntry | null {
   try {
@@ -56,13 +58,6 @@ export function readPluginCacheSync(
       return null;
     }
 
-    if (ttlSeconds > 0) {
-      const ageSeconds = (Date.now() - stat.mtimeMs) / 1000;
-      if (ageSeconds >= ttlSeconds) {
-        return null;
-      }
-    }
-
     const content = readFileSync(filePath, 'utf-8');
     if (content.trim() === '') {
       return null;
@@ -73,17 +68,62 @@ export function readPluginCacheSync(
       return null;
     }
 
-    const entry = parsed as PluginCacheEntry;
-
-    const isSessionExpired = ttlSeconds === 0 && sessionId !== undefined && entry.sessionId !== sessionId;
-    if (isSessionExpired) {
-      return null;
-    }
-
-    return entry;
+    return parsed as PluginCacheEntry;
   } catch {
     return null;
   }
+}
+
+export function readPluginCacheSync(
+  pluginId: string,
+  cacheDir: string,
+  ttlSeconds: number,
+  sessionId?: string,
+  workingDir?: string
+): PluginCacheEntry | null {
+  const entry = readCacheFileBase(pluginId, cacheDir, workingDir);
+  if (entry === null) {
+    return null;
+  }
+
+  // Apply TTL check if configured
+  if (ttlSeconds > 0) {
+    const filePath = getPluginCacheFilePath(pluginId, cacheDir, workingDir);
+    const ageSeconds = (Date.now() - statSync(filePath).mtimeMs) / 1000;
+    if (ageSeconds >= ttlSeconds) {
+      return null;
+    }
+  }
+
+  // Apply session expiration check
+  const isSessionExpired = ttlSeconds === 0 && sessionId !== undefined && entry.sessionId !== sessionId;
+  if (isSessionExpired) {
+    return null;
+  }
+
+  return entry;
+}
+
+/**
+ * Reads plugin cache for display purposes (stale-while-revalidate pattern).
+ * Unlike readPluginCacheSync, this function:
+ * - Does NOT check TTL expiry
+ * - Does NOT check session ID
+ * - Only returns null if the cache file is missing, corrupted, or exceeds size limits
+ *
+ * Use shouldRefreshPlugin() separately to determine if background refresh is needed.
+ *
+ * @param pluginId - Plugin identifier
+ * @param cacheDir - Base cache directory
+ * @param workingDir - Optional working directory for cache isolation
+ * @returns Cache entry if readable, null otherwise
+ */
+export function readPluginCacheForDisplay(
+  pluginId: string,
+  cacheDir: string,
+  workingDir?: string
+): PluginCacheEntry | null {
+  return readCacheFileBase(pluginId, cacheDir, workingDir);
 }
 
 export function writePluginCache(
