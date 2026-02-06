@@ -208,7 +208,7 @@ describe('plugin-segment', () => {
       expect(result).toBe('🌿 from-explicit');
     });
 
-    it('should return fallback when cache is expired', () => {
+    it('should return stale cached value when cache is expired (stale-while-revalidate)', () => {
       mkdirSync(pluginCacheDir, { recursive: true });
       const entry: PluginCacheEntry = {
         value: 'old-value',
@@ -230,7 +230,51 @@ describe('plugin-segment', () => {
         fallbackValue: 'expired',
       };
       const result = buildPluginSegment(config, tempDir, defaultOptions);
-      expect(result).toBe('🔧 expired');
+      expect(result).toBe('🔧 old-value');
+    });
+
+    it('should return fallback when cache exceeds maximum age (beyond 10 minutes)', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: 'very-old-value',
+        updatedAt: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
+        error: null,
+      };
+      writeFileSync(join(pluginCacheDir, 'test.json'), JSON.stringify(entry));
+
+      const config: PluginConfig = {
+        id: 'test',
+        command: 'test',
+        ttl: 60,
+        emoji: '🔧',
+        fallbackValue: 'max-age-exceeded',
+      };
+      const result = buildPluginSegment(config, tempDir, defaultOptions);
+      expect(result).toBe('🔧 max-age-exceeded');
+    });
+
+    it('should display stale cache when beyond TTL but within max-age', () => {
+      mkdirSync(pluginCacheDir, { recursive: true });
+      const entry: PluginCacheEntry = {
+        value: 'stale-but-valid',
+        updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(), // 5 minutes ago
+        error: null,
+      };
+      const filePath = join(pluginCacheDir, 'test.json');
+      writeFileSync(filePath, JSON.stringify(entry));
+
+      // Backdate mtime so TTL (60 seconds) is expired
+      const pastTime = new Date(Date.now() - 5 * 60 * 1000);
+      utimesSync(filePath, pastTime, pastTime);
+
+      const config: PluginConfig = {
+        id: 'test',
+        command: 'test',
+        ttl: 60,
+        emoji: '🔧',
+      };
+      const result = buildPluginSegment(config, tempDir, defaultOptions);
+      expect(result).toBe('🔧 stale-but-valid');
     });
   });
 });

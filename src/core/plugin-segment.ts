@@ -1,5 +1,5 @@
 import { PLUGIN_DEFAULTS, type PluginConfig } from '../types/plugin.js';
-import { readPluginCacheSync, CURRENT_SESSION_ID } from './plugin-cache.js';
+import { readPluginCacheForDisplay } from './plugin-cache.js';
 import type { RenderOptions } from './formatter.js';
 
 export const PLUGIN_SEGMENT_PREFIX = 'plugin:';
@@ -41,8 +41,12 @@ export function buildPluginSegment(
   projectDir?: string
 ): string {
   const effectiveWorkingDir = config.workingDir ?? projectDir;
-  const sessionId = config.refreshOn === 'session_start' ? CURRENT_SESSION_ID : undefined;
-  const cached = readPluginCacheSync(config.id, cacheDir, config.ttl, sessionId, effectiveWorkingDir);
+
+  // Stale-while-revalidate with max-age safety limit:
+  // - Fresh (< TTL): display cache, no refresh
+  // - Stale (TTL to max-age): display cache, trigger refresh
+  // - Expired (> max-age): display fallback, trigger refresh
+  const cached = readPluginCacheForDisplay(config.id, cacheDir, effectiveWorkingDir);
 
   const value = cached !== null && cached.error === null && typeof cached.value === 'string'
     ? cached.value

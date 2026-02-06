@@ -90,6 +90,12 @@ export const MAX_PLUGIN_TIMEOUT_MS = 30000;
 export const MIN_PLUGIN_TTL_SECONDS = 0;
 
 /**
+ * Maximum age for cached plugin values in seconds (10 minutes).
+ * Beyond this age, cache is considered too stale even for stale-while-revalidate.
+ */
+export const MAX_PLUGIN_CACHE_AGE_SECONDS = 600;
+
+/**
  * Plugin cache directory name (under main cache directory).
  */
 export const PLUGIN_CACHE_DIR_NAME = 'plugins';

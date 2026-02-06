@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { PLUGIN_CACHE_DIR_NAME, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
+import { PLUGIN_CACHE_DIR_NAME, MAX_PLUGIN_CACHE_AGE_SECONDS, type PluginCacheEntry, type PluginConfig } from '../types/plugin.js';
 import { shortHash } from '../utils/hash.js';
 
 // Guard against corrupted or externally-written cache files
@@ -38,11 +38,30 @@ function ensurePluginsCacheDir(cacheDir: string, workingDir?: string): void {
   }
 }
 
-export function readPluginCacheSync(
+/**
+ * Calculates age of cache entry in seconds from its updatedAt timestamp.
+ * Returns null if updatedAt is invalid.
+ */
+function getCacheAgeSeconds(entry: PluginCacheEntry): number | null {
+  if (typeof entry.updatedAt !== 'string' || entry.updatedAt === '') {
+    return null;
+  }
+
+  const updatedAtTime = new Date(entry.updatedAt).getTime();
+  if (Number.isNaN(updatedAtTime)) {
+    return null;
+  }
+
+  return (Date.now() - updatedAtTime) / 1000;
+}
+
+/**
+ * Internal function to read and validate cache file structure.
+ * Returns null if file doesn't exist, is corrupted, or exceeds size limits.
+ */
+function readCacheFileBase(
   pluginId: string,
   cacheDir: string,
-  ttlSeconds: number,
-  sessionId?: string,
   workingDir?: string
 ): PluginCacheEntry | null {
   try {
@@ -56,13 +75,6 @@ export function readPluginCacheSync(
       return null;
     }
 
-    if (ttlSeconds > 0) {
-      const ageSeconds = (Date.now() - stat.mtimeMs) / 1000;
-      if (ageSeconds >= ttlSeconds) {
-        return null;
-      }
-    }
-
     const content = readFileSync(filePath, 'utf-8');
     if (content.trim() === '') {
       return null;
@@ -73,17 +85,74 @@ export function readPluginCacheSync(
       return null;
     }
 
-    const entry = parsed as PluginCacheEntry;
-
-    const isSessionExpired = ttlSeconds === 0 && sessionId !== undefined && entry.sessionId !== sessionId;
-    if (isSessionExpired) {
-      return null;
-    }
-
-    return entry;
+    return parsed as PluginCacheEntry;
   } catch {
     return null;
   }
+}
+
+export function readPluginCacheSync(
+  pluginId: string,
+  cacheDir: string,
+  ttlSeconds: number,
+  sessionId?: string,
+  workingDir?: string
+): PluginCacheEntry | null {
+  const entry = readCacheFileBase(pluginId, cacheDir, workingDir);
+  if (entry === null) {
+    return null;
+  }
+
+  // Apply TTL check if configured
+  if (ttlSeconds > 0) {
+    const filePath = getPluginCacheFilePath(pluginId, cacheDir, workingDir);
+    const ageSeconds = (Date.now() - statSync(filePath).mtimeMs) / 1000;
+    if (ageSeconds >= ttlSeconds) {
+      return null;
+    }
+  }
+
+  // Apply session expiration check
+  const isSessionExpired = ttlSeconds === 0 && sessionId !== undefined && entry.sessionId !== sessionId;
+  if (isSessionExpired) {
+    return null;
+  }
+
+  return entry;
+}
+
+/**
+ * Reads plugin cache for display purposes (stale-while-revalidate pattern).
+ * Unlike readPluginCacheSync, this function:
+ * - Does NOT check TTL expiry
+ * - Does NOT check session ID
+ * - DOES check maximum age (10 minutes from updatedAt)
+ * - Only returns null if the cache file is missing, corrupted, exceeds size limits, or is too old
+ *
+ * Use shouldRefreshPlugin() separately to determine if background refresh is needed.
+ *
+ * @param pluginId - Plugin identifier
+ * @param cacheDir - Base cache directory
+ * @param workingDir - Optional working directory for cache isolation
+ * @returns Cache entry if readable and not too old, null otherwise
+ */
+export function readPluginCacheForDisplay(
+  pluginId: string,
+  cacheDir: string,
+  workingDir?: string
+): PluginCacheEntry | null {
+  const entry = readCacheFileBase(pluginId, cacheDir, workingDir);
+  if (entry === null) {
+    return null;
+  }
+
+  // Check maximum age limit (absolute staleness threshold)
+  const ageSeconds = getCacheAgeSeconds(entry);
+  if (ageSeconds === null || ageSeconds > MAX_PLUGIN_CACHE_AGE_SECONDS) {
+    return null;
+  }
+
+  return entry;
 }
 
 export function writePluginCache(
