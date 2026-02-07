@@ -8,24 +8,36 @@ Support Claude Code users by providing a customizable statusline that reads JSON
 
 ## Statusline Examples
 
-Default (with `subscription_usage_all`):
+### Recommended Configurations
+
+**5-hour limit + weekly limit (both displayed):**
+`--segments=model,cost,usage_all,ctx`
 ```
-🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k [███░░░░░] (42%) | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
-`--no-emojis`:
+**5-hour limit only:**
+`--segments=model,cost,usage,ctx`
 ```
-Opus | $0.23 | ctx: 84.0k/200k [███░░░░░] (42%) | 5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, Feb 1)
-```
-
-`--no-bars`:
-```
-🤖 Opus | 💰 $0.23 | 🧠 84.0k/200k (42%) | ⌛️ 55% (~3:45pm)  🌙 55% (~10:45pm, Feb 1)
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
-`--no-emojis --no-bars`:
+**No emojis:**
+`--segments=model,cost,usage,ctx --no-emojis`
 ```
-Opus | $0.23 | ctx: 84.0k/200k (42%) | 5h: 55% (~3:45pm)  7d: 55% (~10:45pm, Feb 1)
+Opus | $0.23 | 5h: 55% [██░░] (~3:45pm) | ctx: 31,616 [█░░░░░░░] (16%)
+```
+
+**No progress bars:**
+`--segments=model,cost,usage,ctx --no-bars`
+```
+🤖 Opus | 💰 $0.23 | ⌛️ 55% (~3:45pm) | 🧠 31,616 (16%)
+```
+
+**No emojis + no progress bars:**
+`--segments=model,cost,usage,ctx --no-emojis --no-bars`
+```
+Opus | $0.23 | 5h: 55% (~3:45pm) | ctx: 31,616 (16%)
 ```
 
 ## settings.json Example
@@ -34,19 +46,7 @@ Opus | $0.23 | ctx: 84.0k/200k (42%) | 5h: 55% (~3:45pm)  7d: 55% (~10:45pm, Feb
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js",
-    "padding": 0
-  }
-}
-```
-
-If you want `subscription_usage_all` by default:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,context,cost_session,subscription_usage_all",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,usage_all,ctx",
     "padding": 0
   }
 }
@@ -58,7 +58,7 @@ With display options:
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,context,cost_session,subscription_usage_all --no-emojis --no-bars",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,usage,ctx --no-emojis --no-bars",
     "padding": 0
   }
 }

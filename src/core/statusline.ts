@@ -58,8 +58,8 @@ export type SegmentId = BuiltinSegmentId | `plugin:${string}`;
 export const DEFAULT_SEGMENT_ORDER: readonly SegmentId[] = [
   'model',
   'cost_session',
-  'context',
   'subscription_usage',
+  'context',
 ] as const;
 
 /**
