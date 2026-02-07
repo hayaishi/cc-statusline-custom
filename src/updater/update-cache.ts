@@ -4,10 +4,17 @@
  * This module runs out-of-band from the statusline hot path.
  */
 
-import { getCacheDir, getSubscriptionCacheTtl } from '../config/env.js';
+import {
+  getCacheDir,
+  getDebugLogMaxBytes,
+  getDebugLogMaxFiles,
+  getDebugLogPath,
+  getSubscriptionCacheTtl,
+} from '../config/env.js';
 import { writeCacheAtomic, acquireLock, releaseLock } from '../core/cache.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
-import { fetchOAuthUsage, type OAuthUsage } from './oauth.js';
+import type { DebugLogOptions } from '../utils/debug-log.js';
+import { fetchOAuthUsage, type FetchOAuthUsageOptions, type OAuthUsage } from './oauth.js';
 import { getOAuthToken } from './token.js';
 import { readCacheSyncWithMtime } from '../core/cache-reader.js';
 
@@ -29,7 +36,7 @@ export interface UpdateCacheOptions {
 
 interface UpdaterDeps {
   getOAuthToken: () => string | null;
-  fetchOAuthUsage: (token: string) => Promise<OAuthUsage>;
+  fetchOAuthUsage: (token: string, options?: FetchOAuthUsageOptions) => Promise<OAuthUsage>;
 }
 
 const MAX_OAUTH_ERROR_DETAIL_LENGTH = 2000;
@@ -114,6 +121,25 @@ function normalizeOAuthFetchError(error: unknown): string {
   return 'oauth_fetch_failed';
 }
 
+function buildDebugLogOptions(): DebugLogOptions {
+  return {
+    enabled: true,
+    filePath: getDebugLogPath(),
+    maxBytes: getDebugLogMaxBytes(),
+    maxFiles: getDebugLogMaxFiles(),
+  };
+}
+
+function buildFetchOAuthUsageOptions(debug: boolean): FetchOAuthUsageOptions | undefined {
+  if (!debug) {
+    return undefined;
+  }
+
+  return {
+    debugLogOptions: buildDebugLogOptions(),
+  };
+}
+
 async function buildSubscriptionUsageEntry(debug: boolean): Promise<SubscriptionUsageEntry> {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
@@ -131,7 +157,7 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
 
   let usage: OAuthUsage;
   try {
-    usage = await fetchUsage(token);
+    usage = await fetchUsage(token, buildFetchOAuthUsageOptions(debug));
   } catch (error) {
     const detail = debug ? extractOAuthErrorDetail(error) : null;
     const normalizedError = normalizeOAuthFetchError(error);

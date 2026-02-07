@@ -5,20 +5,29 @@
  * Invalid values fall back to safe defaults.
  */
 
+import { join } from 'node:path';
+
 import { DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS } from '../types/cache.js';
 import { DEFAULT_CONTEXT_THRESHOLDS } from '../types/metrics.js';
 
-function parseTtlSeconds(value: string | undefined, defaultSeconds: number): number {
+const DEFAULT_DEBUG_LOG_MAX_BYTES = 1024 * 1024;
+const DEFAULT_DEBUG_LOG_MAX_FILES = 5;
+
+function parsePositiveInt(value: string | undefined, defaultValue: number): number {
   if (value === undefined) {
-    return defaultSeconds;
+    return defaultValue;
   }
 
   const parsed = Math.floor(Number(value));
   if (Number.isNaN(parsed) || parsed <= 0) {
-    return defaultSeconds;
+    return defaultValue;
   }
 
   return parsed;
+}
+
+function parseTtlSeconds(value: string | undefined, defaultSeconds: number): number {
+  return parsePositiveInt(value, defaultSeconds);
 }
 
 /**
@@ -91,6 +100,37 @@ export function getContextMediumThreshold(): number {
 export function getDebugEnabled(): boolean {
   const value = process.env.CCSTATUSLINE_DEBUG?.toLowerCase();
   return value === 'true' || value === '1';
+}
+
+/**
+ * Gets the debug log file path.
+ *
+ * @returns Debug log file path
+ */
+export function getDebugLogPath(): string {
+  const value = process.env.CCSTATUSLINE_DEBUG_LOG_PATH?.trim();
+  if (value === undefined || value === '') {
+    return join(getCacheDir(), 'debug', 'statusline-debug.log');
+  }
+  return value;
+}
+
+/**
+ * Gets the maximum debug log file size in bytes.
+ *
+ * @returns Maximum debug log file size (default: 1 MiB)
+ */
+export function getDebugLogMaxBytes(): number {
+  return parsePositiveInt(process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES, DEFAULT_DEBUG_LOG_MAX_BYTES);
+}
+
+/**
+ * Gets the number of rotated debug log files to retain.
+ *
+ * @returns Maximum rotated debug log files (default: 5)
+ */
+export function getDebugLogMaxFiles(): number {
+  return parsePositiveInt(process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES, DEFAULT_DEBUG_LOG_MAX_FILES);
 }
 
 /**

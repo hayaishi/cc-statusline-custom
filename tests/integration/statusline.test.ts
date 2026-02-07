@@ -1444,4 +1444,69 @@ describe('CLI Integration Tests', () => {
       expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% (~3:45pm) 🌙 75% (~10:45pm, Feb 1)');
     });
   });
+
+  describe('debug mode', () => {
+    const testCacheDir = join(tmpdir(), `cc-int-debug-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('writes stdin payload to debug log when CCSTATUSLINE_DEBUG=1', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.23 },
+      });
+
+      const { exitCode } = runCli(input, ['--disable-bg-update'], {
+        env: {
+          CCSTATUSLINE_CACHE_DIR: testCacheDir,
+          CCSTATUSLINE_DEBUG: '1',
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      const debugLogPath = join(testCacheDir, 'debug', 'statusline-debug.log');
+      expect(existsSync(debugLogPath)).toBe(true);
+
+      const lines = readFileSync(debugLogPath, 'utf-8').trim().split('\n');
+      const firstRecord = JSON.parse(lines[0] ?? '{}') as {
+        event?: string;
+        payload?: { body?: string };
+      };
+      expect(firstRecord.event).toBe('statusline.stdin');
+      expect(firstRecord.payload?.body).toContain('"display_name":"Claude Opus 4.5"');
+    });
+
+    it('enables fetch error detail with env debug without --debug flag', () => {
+      mkdirSync(testCacheDir, { recursive: true });
+      writeFileSync(
+        join(testCacheDir, 'subscription-usage.json'),
+        JSON.stringify({
+          lastError: 'oauth_status_401',
+          lastErrorDetail: '{"error":"unauthorized"}',
+          lastAttemptAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+      });
+
+      const { stdout, exitCode } = runCli(input, ['--disable-bg-update'], {
+        env: {
+          CCSTATUSLINE_CACHE_DIR: testCacheDir,
+          CCSTATUSLINE_DEBUG: '1',
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      const cleanOutput = assertSingleLine(stdout);
+      expect(cleanOutput).toContain('oauth_status_401');
+    });
+  });
 });

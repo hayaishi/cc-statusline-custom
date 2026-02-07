@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchOAuthUsage, parseOAuthUsage } from './oauth.js';
 
+const mockWriteDebugLog = vi.hoisted(() => vi.fn());
 const mockRequest = vi.hoisted(() => vi.fn());
 
 vi.mock('node:https', () => ({
   request: mockRequest,
+}));
+
+vi.mock('../utils/debug-log.js', () => ({
+  writeDebugLog: mockWriteDebugLog,
 }));
 
 type MockResponse = EventEmitter & {
@@ -45,6 +50,7 @@ const setupRequest = (statusCode: number): void => {
 
 beforeEach(() => {
   mockRequest.mockReset();
+  mockWriteDebugLog.mockReset();
   lastResponse = null;
   lastRequest = null;
 });
@@ -271,6 +277,40 @@ describe('fetchOAuthUsage', () => {
         }),
       }),
       expect.any(Function)
+    );
+    expect(mockWriteDebugLog).not.toHaveBeenCalled();
+  });
+
+  it('should log response when debug log options are provided', async () => {
+    setupRequest(200);
+
+    const promise = fetchOAuthUsage('token-123', {
+      debugLogOptions: {
+        enabled: true,
+        filePath: '/tmp/debug.log',
+        maxBytes: 1024,
+        maxFiles: 3,
+      },
+    });
+    lastResponse?.emit('data', '{"five_hour":{"utilization":0.42,"resets_at":"2026-01-20T12:00:00Z"}}');
+    lastResponse?.emit('end');
+
+    await expect(promise).resolves.toEqual({
+      fiveHours: {
+        utilization: 0.42,
+        resetsAt: '2026-01-20T12:00:00Z',
+      },
+    });
+    expect(mockWriteDebugLog).toHaveBeenCalledTimes(1);
+    expect(mockWriteDebugLog).toHaveBeenCalledWith(
+      'oauth.usage.response',
+      expect.objectContaining({
+        statusCode: 200,
+      }),
+      expect.objectContaining({
+        enabled: true,
+        filePath: '/tmp/debug.log',
+      })
     );
   });
 

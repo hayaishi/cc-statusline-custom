@@ -1,5 +1,8 @@
 import { request } from 'node:https';
 
+import type { DebugLogOptions } from '../utils/debug-log.js';
+import { writeDebugLog } from '../utils/debug-log.js';
+
 const OAUTH_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const USER_AGENT = 'claude-code/2.1.5';
 
@@ -11,6 +14,26 @@ export interface UsageWindow {
 export interface OAuthUsage {
   fiveHours?: UsageWindow;
   sevenDays?: UsageWindow;
+}
+
+export interface FetchOAuthUsageOptions {
+  debugLogOptions?: DebugLogOptions;
+}
+
+function logOAuthUsageResponse(
+  statusCode: number,
+  responseBody: string,
+  options?: FetchOAuthUsageOptions
+): void {
+  const debugLogOptions = options?.debugLogOptions;
+  if (debugLogOptions === undefined) {
+    return;
+  }
+
+  writeDebugLog('oauth.usage.response', {
+    statusCode,
+    body: responseBody,
+  }, debugLogOptions);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -120,7 +143,7 @@ export function parseOAuthUsage(body: string): OAuthUsage {
   return result;
 }
 
-export function fetchOAuthUsage(token: string): Promise<OAuthUsage> {
+export function fetchOAuthUsage(token: string, options?: FetchOAuthUsageOptions): Promise<OAuthUsage> {
   return new Promise((resolve, reject) => {
     const req = request(
       OAUTH_USAGE_URL,
@@ -134,25 +157,27 @@ export function fetchOAuthUsage(token: string): Promise<OAuthUsage> {
         },
       },
       (res) => {
-        let data = '';
+        let responseBody = '';
         res.setEncoding('utf-8');
         res.on('data', (chunk) => {
-          data += String(chunk);
+          responseBody += String(chunk);
         });
         res.on('end', () => {
           const statusCode = res.statusCode ?? 0;
+          logOAuthUsageResponse(statusCode, responseBody, options);
+
           if (statusCode < 200 || statusCode >= 300) {
             const error = new Error(`oauth_status_${String(statusCode)}`);
-            (error as { responseBody?: string }).responseBody = data;
+            (error as { responseBody?: string }).responseBody = responseBody;
             reject(error);
             return;
           }
 
           try {
-            resolve(parseOAuthUsage(data));
+            resolve(parseOAuthUsage(responseBody));
           } catch (error) {
             const normalizedError = error instanceof Error ? error : new Error(String(error));
-            (normalizedError as { responseBody?: string }).responseBody = data;
+            (normalizedError as { responseBody?: string }).responseBody = responseBody;
             reject(normalizedError);
           }
         });
