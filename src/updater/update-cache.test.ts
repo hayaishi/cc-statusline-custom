@@ -580,4 +580,111 @@ describe('update-cache', () => {
       expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('extra_usage handling', () => {
+    it('should write extraUsage to cache when API returns extra_usage', async () => {
+      mockFetchOAuthUsage.mockResolvedValue({
+        fiveHours: {
+          utilization: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+        },
+        extraUsage: {
+          isEnabled: true,
+          monthlyLimit: 5000,
+          usedCredits: 428.0,
+          utilization: 8.56,
+        },
+      });
+
+      await updateCache(testDir);
+
+      const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+      const parsed = JSON.parse(content) as {
+        extraUsage?: {
+          isEnabled: boolean;
+          usedCredits: number;
+          utilizationPercent: number;
+        };
+      };
+      expect(parsed.extraUsage).toEqual({
+        isEnabled: true,
+        usedCredits: 428.0,
+        utilizationPercent: 8.56,
+      });
+    });
+
+    it('should store extraUsage utilization as float (not integer)', async () => {
+      mockFetchOAuthUsage.mockResolvedValue({
+        fiveHours: {
+          utilization: 100,
+          resetsAt: '2026-01-20T15:45:00Z',
+        },
+        extraUsage: {
+          isEnabled: true,
+          monthlyLimit: 5000,
+          usedCredits: 428.0,
+          utilization: 8.56,
+        },
+      });
+
+      await updateCache(testDir);
+
+      const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+      const parsed = JSON.parse(content) as {
+        extraUsage?: {
+          utilizationPercent: number;
+        };
+      };
+      // Should preserve decimal precision, not round to integer
+      expect(parsed.extraUsage?.utilizationPercent).toBe(8.56);
+    });
+
+    it('should omit extraUsage from cache when not present in API response', async () => {
+      mockFetchOAuthUsage.mockResolvedValue({
+        fiveHours: {
+          utilization: 55,
+          resetsAt: '2026-01-20T15:45:00Z',
+        },
+      });
+
+      await updateCache(testDir);
+
+      const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+      const parsed = JSON.parse(content) as {
+        extraUsage?: unknown;
+      };
+      expect(parsed.extraUsage).toBeUndefined();
+    });
+
+    it('should write extraUsage even when is_enabled is false', async () => {
+      mockFetchOAuthUsage.mockResolvedValue({
+        fiveHours: {
+          utilization: 50,
+          resetsAt: '2026-01-20T15:45:00Z',
+        },
+        extraUsage: {
+          isEnabled: false,
+          monthlyLimit: 5000,
+          usedCredits: 0.0,
+          utilization: 0.0,
+        },
+      });
+
+      await updateCache(testDir);
+
+      const content = readFileSync(join(testDir, 'subscription-usage.json'), 'utf-8');
+      const parsed = JSON.parse(content) as {
+        extraUsage?: {
+          isEnabled: boolean;
+          usedCredits: number;
+          utilizationPercent: number;
+        };
+      };
+      expect(parsed.extraUsage).toEqual({
+        isEnabled: false,
+        usedCredits: 0.0,
+        utilizationPercent: 0.0,
+      });
+    });
+  });
 });

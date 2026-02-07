@@ -243,6 +243,128 @@ describe('parseOAuthUsage', () => {
       expect(result.fiveHours.utilization).toBe(0.5);
     }
   });
+
+  it('should parse extra_usage when present alongside five_hour', () => {
+    const json = JSON.stringify({
+      five_hour: {
+        utilization: 55.0,
+        resets_at: '2026-02-08T15:45:00Z',
+      },
+      extra_usage: {
+        is_enabled: true,
+        monthly_limit: 5000,
+        used_credits: 428.0,
+        utilization: 8.56,
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHours).toBeDefined();
+    expect(result.extraUsage).toEqual({
+      isEnabled: true,
+      monthlyLimit: 5000,
+      usedCredits: 428.0,
+      utilization: 8.56,
+    });
+  });
+
+  it('should parse extra_usage when is_enabled is false', () => {
+    const json = JSON.stringify({
+      five_hour: {
+        utilization: 50.0,
+        resets_at: '2026-02-08T15:45:00Z',
+      },
+      extra_usage: {
+        is_enabled: false,
+        monthly_limit: 5000,
+        used_credits: 0.0,
+        utilization: 0.0,
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.extraUsage).toEqual({
+      isEnabled: false,
+      monthlyLimit: 5000,
+      usedCredits: 0.0,
+      utilization: 0.0,
+    });
+  });
+
+  it('should ignore extra_usage when fields are missing', () => {
+    const json = JSON.stringify({
+      five_hour: {
+        utilization: 50.0,
+        resets_at: '2026-02-08T15:45:00Z',
+      },
+      extra_usage: {
+        is_enabled: true,
+        // missing monthly_limit, used_credits, utilization
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHours).toBeDefined();
+    expect(result.extraUsage).toBeUndefined();
+  });
+
+  it('should parse response with five_hour, seven_day, and extra_usage', () => {
+    const json = JSON.stringify({
+      five_hour: {
+        utilization: 100.0,
+        resets_at: '2026-02-08T15:45:00Z',
+      },
+      seven_day: {
+        utilization: 85.0,
+        resets_at: '2026-02-08T14:00:00Z',
+      },
+      extra_usage: {
+        is_enabled: true,
+        monthly_limit: 5000,
+        used_credits: 428.0,
+        utilization: 8.56,
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHours).toBeDefined();
+    expect(result.sevenDays).toBeDefined();
+    expect(result.extraUsage).toEqual({
+      isEnabled: true,
+      monthlyLimit: 5000,
+      usedCredits: 428.0,
+      utilization: 8.56,
+    });
+  });
+
+  it('should parse camelCase extraUsage when present', () => {
+    const json = JSON.stringify({
+      fiveHour: {
+        utilization: 50.0,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        monthlyLimit: 5000,
+        usedCredits: 428.0,
+        utilization: 8.56,
+      },
+    });
+
+    const result = parseOAuthUsage(json);
+
+    expect(result.fiveHours).toBeDefined();
+    expect(result.extraUsage).toEqual({
+      isEnabled: true,
+      monthlyLimit: 5000,
+      usedCredits: 428.0,
+      utilization: 8.56,
+    });
+  });
 });
 
 describe('fetchOAuthUsage', () => {

@@ -40,6 +40,7 @@ const EMOJI_COST = '💰';
 const EMOJI_CONTEXT = '🧠';
 const EMOJI_SUB_5HR = '⌛️';
 const EMOJI_SUB_7DAY = '🌙';
+const EMOJI_EXTRA = '✨';
 
 /**
  * Model family patterns for extraction from display names or IDs.
@@ -263,23 +264,20 @@ export function formatContextSegment(
   const coloredBar = bar !== '' ? colorByThreshold(bar, percentage, lowThreshold, mediumThreshold) : '';
   const coloredPct = colorByThreshold(pctText, percentage, lowThreshold, mediumThreshold);
 
-  // Build token string
-  const tokens = currentFormatted;
-
   // Build the context segment with conditional spacing
-  if (tokens !== '') {
-    if (coloredBar !== '') {
-      return `${prefix}${tokens} ${coloredBar} ${coloredPct}`;
-    } else {
-      return `${prefix}${tokens} ${coloredPct}`;
-    }
-  } else {
-    if (coloredBar !== '') {
-      return `${prefix}${coloredBar} ${coloredPct}`;
-    } else {
-      return `${prefix}${coloredPct}`;
-    }
+  const parts: string[] = [];
+
+  if (currentFormatted !== '') {
+    parts.push(currentFormatted);
   }
+
+  if (coloredBar !== '') {
+    parts.push(coloredBar);
+  }
+
+  parts.push(coloredPct);
+
+  return `${prefix}${parts.join(' ')}`;
 }
 
 /**
@@ -307,7 +305,48 @@ export function formatSubscriptionUsagePrefix(
  * SUB_ALL_BAR_WIDTH is half of the normal subscription_usage bar width.
  */
 export const NORMAL_SUB_BAR_WIDTH = 8; // Same as formatProgressBar default
-const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));
+export const SUB_ALL_BAR_WIDTH = Math.max(1, Math.floor(NORMAL_SUB_BAR_WIDTH / 2));
+
+/**
+ * Extra usage data for display.
+ */
+export interface ExtraUsageData {
+  readonly usedUsd: number;
+  readonly utilizationPercent: number;
+}
+
+/**
+ * Formats the extra usage window with currency and utilization.
+ * Output: "✨ $4.28 [█░░░] (8.6%)"
+ *
+ * @param data - Extra usage data
+ * @param options - Render options for emojis and bars
+ * @param barWidth - Progress bar width (default: SUB_ALL_BAR_WIDTH)
+ * @returns Formatted extra usage window or empty string
+ */
+export function formatExtraUsageWindow(
+  data: ExtraUsageData | null,
+  options: RenderOptions = DEFAULT_RENDER_OPTIONS,
+  barWidth: number = SUB_ALL_BAR_WIDTH
+): string {
+  if (data === null) {
+    return '';
+  }
+
+  const prefix = options.showEmojis ? `${EMOJI_EXTRA} ` : 'extra: ';
+  const currency = formatCurrency(data.usedUsd);
+  if (currency === '') {
+    return '';
+  }
+
+  const pctText = `(${data.utilizationPercent.toFixed(1)}%)`;
+
+  if (options.showBars) {
+    const bar = formatProgressBar(data.utilizationPercent, barWidth);
+    return `${prefix}${currency} ${bar} ${pctText}`;
+  }
+  return `${prefix}${currency} ${pctText}`;
+}
 
 /**
  * Formats the subscription usage segment showing both five_hours and seven_days windows.
@@ -355,28 +394,27 @@ export function formatSubscriptionUsageAllSegment(
   const isValidWindow = (data: WindowData | null): data is WindowData =>
     data !== null && Number.isFinite(data.percent) && data.reset.trim() !== '';
 
-  const fiveHoursValid = isValidWindow(fiveHours) ? fiveHours : null;
-  const sevenDaysValid = isValidWindow(sevenDays) ? sevenDays : null;
+  const fiveHoursValid = isValidWindow(fiveHours);
+  const sevenDaysValid = isValidWindow(sevenDays);
 
-  if (fiveHoursValid === null && sevenDaysValid === null) {
+  // No valid windows
+  if (!fiveHoursValid && !sevenDaysValid) {
     return '';
   }
 
-  if (fiveHoursValid !== null && sevenDaysValid === null) {
-    return formatWindow(fiveHoursValid, primaryWindowType);
+  // Only five_hours valid
+  if (fiveHoursValid && !sevenDaysValid) {
+    return formatWindow(fiveHours!, primaryWindowType);
   }
 
-  if (fiveHoursValid === null && sevenDaysValid !== null) {
-    return formatWindow(sevenDaysValid, 'seven_days');
+  // Only seven_days valid
+  if (!fiveHoursValid && sevenDaysValid) {
+    return formatWindow(sevenDays!, 'seven_days');
   }
 
-  if (fiveHoursValid === null || sevenDaysValid === null) {
-    return '';
-  }
+  // Both valid - show both windows
+  const fiveHoursStr = formatWindow(fiveHours!, 'five_hours');
+  const sevenDaysStr = formatWindow(sevenDays!, 'seven_days');
 
-  const fiveHoursStr = formatWindow(fiveHoursValid, 'five_hours');
-  const sevenDaysStr = formatWindow(sevenDaysValid, 'seven_days');
-
-  // Join with single space for compact display
   return `${fiveHoursStr} ${sevenDaysStr}`;
 }

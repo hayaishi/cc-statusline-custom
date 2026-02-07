@@ -10,6 +10,7 @@ import {
   formatContextSegment,
   formatSubscriptionUsageAllSegment,
   formatSubscriptionUsagePrefix,
+  formatExtraUsageWindow,
   DEFAULT_RENDER_OPTIONS,
   type WindowData,
 } from './formatter.js';
@@ -497,5 +498,60 @@ describe('formatSubscriptionUsageAllSegment', () => {
       DEFAULT_RENDER_OPTIONS
     );
     expect(result).toBe('⌛️ 25% [█░░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, Feb 1)');
+  });
+});
+
+describe('formatExtraUsageWindow', () => {
+  it('formats extra usage with currency, bar, and utilization percentage', () => {
+    const data = { usedUsd: 4.28, utilizationPercent: 8.56 };
+    const result = formatExtraUsageWindow(data, DEFAULT_RENDER_OPTIONS, 4);
+    expect(result).toBe('✨ $4.28 [░░░░] (8.6%)');
+  });
+
+  it('formats extra usage with emojis enabled', () => {
+    const data = { usedUsd: 4.28, utilizationPercent: 8.56 };
+    const result = formatExtraUsageWindow(data, { showEmojis: true, showBars: true }, 4);
+    expect(result).toBe('✨ $4.28 [░░░░] (8.6%)');
+  });
+
+  it('formats extra usage without emojis', () => {
+    const data = { usedUsd: 4.28, utilizationPercent: 8.56 };
+    const result = formatExtraUsageWindow(data, { showEmojis: false, showBars: true }, 4);
+    expect(result).toBe('extra: $4.28 [░░░░] (8.6%)');
+  });
+
+  it('formats extra usage without bars', () => {
+    const data = { usedUsd: 4.28, utilizationPercent: 8.56 };
+    const result = formatExtraUsageWindow(data, { showEmojis: true, showBars: false }, 4);
+    expect(result).toBe('✨ $4.28 (8.6%)');
+  });
+
+  it('formats extra usage with no emojis and no bars', () => {
+    const data = { usedUsd: 4.28, utilizationPercent: 8.56 };
+    const result = formatExtraUsageWindow(data, { showEmojis: false, showBars: false }, 4);
+    expect(result).toBe('extra: $4.28 (8.6%)');
+  });
+
+  it('returns empty string when data is null', () => {
+    const result = formatExtraUsageWindow(null, DEFAULT_RENDER_OPTIONS, 4);
+    expect(result).toBe('');
+  });
+
+  it('formats with different bar widths', () => {
+    const data = { usedUsd: 25.0, utilizationPercent: 50.0 };
+    const result = formatExtraUsageWindow(data, DEFAULT_RENDER_OPTIONS, 8);
+    expect(result).toBe('✨ $25.00 [████░░░░] (50.0%)');
+  });
+
+  it('formats zero usage', () => {
+    const data = { usedUsd: 0.0, utilizationPercent: 0.0 };
+    const result = formatExtraUsageWindow(data, DEFAULT_RENDER_OPTIONS, 4);
+    expect(result).toBe('✨ $0.00 [░░░░] (0.0%)');
+  });
+
+  it('formats high utilization percentage', () => {
+    const data = { usedUsd: 48.5, utilizationPercent: 97.0 };
+    const result = formatExtraUsageWindow(data, DEFAULT_RENDER_OPTIONS, 4);
+    expect(result).toBe('✨ $48.50 [████] (97.0%)');
   });
 });
