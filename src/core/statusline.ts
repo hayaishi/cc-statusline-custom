@@ -8,6 +8,7 @@
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { CacheEntry } from '../types/cache.js';
 import { DEFAULT_CACHE_DIR } from '../types/cache.js';
+import type { PluginConfig } from '../types/plugin.js';
 import {
   extractModelDisplayName,
   extractSessionCost,
@@ -35,11 +36,22 @@ import {
 } from '../config/env.js';
 import { formatResetTime, normalizeSubscriptionResetTime } from '../utils/time.js';
 import type { RenderOptions } from './formatter.js';
+import {
+  isPluginSegmentId,
+  parsePluginSegmentId,
+  buildPluginSegment,
+} from './plugin-segment.js';
+import { shouldRefreshPlugin } from './plugin-cache.js';
 
 /**
- * Canonical segment identifiers.
+ * Canonical segment identifiers for built-in segments.
  */
-export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+
+/**
+ * Segment identifier - either a built-in segment or a plugin segment (:xxx).
+ */
+export type SegmentId = BuiltinSegmentId | `:${string}`;
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -47,8 +59,8 @@ export type SegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usa
 export const DEFAULT_SEGMENT_ORDER: readonly SegmentId[] = [
   'model',
   'cost_session',
-  'context',
   'subscription_usage',
+  'context',
 ] as const;
 
 /**
@@ -86,16 +98,28 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 /**
  * Normalizes a segment identifier to its canonical form.
  *
- * Example: "ctx" → "context", "sub" → "subscription_usage"
+ * Example: "ctx" → "context", "sub" → "subscription_usage", ":git" → ":git"
  *
  * @param id - User-provided segment identifier
  * @returns Canonical SegmentId or null if unknown/empty
  */
 export function normalizeSegmentId(id: string): SegmentId | null {
-  const normalized = id.trim().toLowerCase();
-  if (normalized === '') {
+  const trimmed = id.trim();
+  if (trimmed === '') {
     return null;
   }
+
+  // Handle plugin segments (:xxx)
+  if (isPluginSegmentId(trimmed)) {
+    const pluginId = parsePluginSegmentId(trimmed);
+    if (pluginId !== null && pluginId !== '') {
+      return trimmed as SegmentId;
+    }
+    return null;
+  }
+
+  // Handle built-in segments
+  const normalized = trimmed.toLowerCase();
   return SEGMENT_ALIASES[normalized] ?? null;
 }
 
@@ -197,9 +221,9 @@ export function resolveRenderOptions(
 export type CacheTargetId = 'subscriptionUsage';
 
 /**
- * Mapping from segment identifiers to required cache targets.
+ * Mapping from built-in segment identifiers to required cache targets.
  */
-const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
+const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly CacheTargetId[]> = {
   model: [],
   cost_session: [],
   context: [],
@@ -212,11 +236,19 @@ const SEGMENT_CACHE_TARGETS: Record<SegmentId, readonly CacheTargetId[]> = {
  *
  * Example: ["model", "subscription_usage"] → ["subscriptionUsage"]
  *
+ * Note: Plugin segments have their own cache system and are not included here.
+ *
  * @param segments - Array of segment identifiers
  * @returns Array of cache target identifiers (deduplicated)
  */
 export function getCacheTargetsForSegments(segments: readonly SegmentId[]): CacheTargetId[] {
-  const allTargets = segments.flatMap(seg => SEGMENT_CACHE_TARGETS[seg]);
+  const allTargets = segments.flatMap(seg => {
+    // Plugin segments have their own cache system
+    if (isPluginSegmentId(seg)) {
+      return [];
+    }
+    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId];
+  });
   return [...new Set(allTargets)];
 }
 
@@ -236,6 +268,8 @@ export function getCacheTargetTtlSeconds(_target: CacheTargetId): number {
 export interface BgUpdateCheckOptions {
   nowMs?: number;
   cooldownSeconds?: number;
+  plugins?: readonly PluginConfig[];
+  projectDir?: string;
 }
 
 /**
@@ -244,7 +278,7 @@ export interface BgUpdateCheckOptions {
  * @param entry - Cache entry (may be null)
  * @param nowMs - Current time in milliseconds
  * @param cooldownMs - Cooldown period in milliseconds
- * @returns true if within cooldown (too soon to retry)
+ * @returns true if still within cooldown (too soon to retry)
  */
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
@@ -252,7 +286,8 @@ function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: n
   const lastAttemptMs = getLastAttemptAt(entry);
   if (lastAttemptMs === null) return false;
 
-  return nowMs - lastAttemptMs < cooldownMs;
+  const elapsedMs = nowMs - lastAttemptMs;
+  return elapsedMs < cooldownMs;
 }
 
 /**
@@ -263,7 +298,8 @@ function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: n
  * @returns true if cache exists, is fresh, and has valid payload
  */
 function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
-  if (entry === null || !isFresh) return false;
+  if (entry === null) return false;
+  if (!isFresh) return false;
 
   // NOTE: validation must be target-specific when more targets are added.
   const valid = getValidSubscriptionUsage(entry);
@@ -274,9 +310,9 @@ function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
  * Determines whether a background cache update should be requested.
  *
  * Returns true when ALL conditions are met:
- * - At least one segment requires a cache target
+ * - At least one segment requires a cache target OR plugin cache is stale
  * - Update lock is NOT held (no concurrent update in progress)
- * - At least one cache target needs refresh due to:
+ * - At least one cache target OR plugin needs refresh due to:
  *   - Missing cache file
  *   - Expired cache (beyond TTL)
  *   - Invalid/corrupt cache payload
@@ -284,7 +320,7 @@ function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
  *
  * @param cacheDir - Cache directory path
  * @param segments - Array of segment identifiers
- * @param options - Optional check options (nowMs, cooldownSeconds default: 30)
+ * @param options - Optional check options (nowMs, cooldownSeconds default: 30, plugins, projectDir)
  * @returns true if background update should be requested
  */
 export function shouldRequestBgCacheUpdate(
@@ -293,15 +329,27 @@ export function shouldRequestBgCacheUpdate(
   options?: BgUpdateCheckOptions
 ): boolean {
   const targets = getCacheTargetsForSegments(segments);
-  if (targets.length === 0) return false;
+  const projectDir = options?.projectDir;
+
+  // Only consider plugins actually referenced in segments (e.g. `:pluginId`)
+  const allPlugins = options?.plugins ?? [];
+  const referencedPluginIds = new Set(
+    segments
+      .filter(isPluginSegmentId)
+      .map(s => parsePluginSegmentId(s))
+      .filter((id): id is string => id !== null)
+  );
+  const plugins = allPlugins.filter(p => referencedPluginIds.has(p.id));
+
+  if (targets.length === 0 && plugins.length === 0) return false;
 
   if (isLockFileFresh(cacheDir)) return false;
 
   const nowMs = options?.nowMs ?? Date.now();
   const cooldownMs = (options?.cooldownSeconds ?? 30) * 1000;
 
-  // Return true if ANY target needs update
-  return targets.some(target => {
+  // Check subscription cache targets
+  const subscriptionNeedsUpdate = targets.some(target => {
     const ttl = getCacheTargetTtlSeconds(target);
     const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttl);
 
@@ -312,6 +360,14 @@ export function shouldRequestBgCacheUpdate(
 
     // Needs update if cache is invalid (missing, stale, or corrupt)
     return !isCacheValid(entry, isFresh);
+  });
+
+  if (subscriptionNeedsUpdate) return true;
+
+  // Check plugin cache staleness
+  return plugins.some(plugin => {
+    const workingDir = plugin.workingDir ?? projectDir;
+    return shouldRefreshPlugin(plugin, cacheDir, workingDir);
   });
 }
 
@@ -340,20 +396,12 @@ function getValidSubscriptionUsage(
 
   // Validate utilizationPercent: must be integer 0-100
   const percentValue = record.utilizationPercent;
-  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) {
-    return null;
-  }
-  if (percentValue < 0 || percentValue > 100) {
-    return null;
-  }
+  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) return null;
+  if (percentValue < 0 || percentValue > 100) return null;
 
   // Validate resetsAt: must be parseable ISO date string
-  if (typeof record.resetsAt !== 'string') {
-    return null;
-  }
-  if (!Number.isFinite(Date.parse(record.resetsAt))) {
-    return null;
-  }
+  if (typeof record.resetsAt !== 'string') return null;
+  if (!Number.isFinite(Date.parse(record.resetsAt))) return null;
 
   return { utilizationPercent: percentValue, resetsAt: record.resetsAt };
 }
@@ -402,10 +450,10 @@ function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
 type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: RenderOptions) => string;
 
 /**
- * Creates the segment builder registry.
+ * Creates the segment builder registry for built-in segments.
  * Each builder returns an empty string if the segment should be omitted.
  */
-function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder> {
+function createSegmentBuilders(debug: boolean): Record<BuiltinSegmentId, SegmentBuilder> {
   return {
     model: (input, _cacheDir, options): string => {
       const modelName = extractModelDisplayName(input);
@@ -434,6 +482,11 @@ function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder
 }
 
 /**
+ * Plugin configuration map keyed by plugin ID.
+ */
+export type PluginConfigMap = ReadonlyMap<string, PluginConfig>;
+
+/**
  * Composes segments in the specified order, filtering empty results.
  *
  * Special rule: subscription_usage only renders if at least one other segment exists
@@ -443,6 +496,7 @@ function createSegmentBuilders(debug: boolean): Record<SegmentId, SegmentBuilder
  * @param cacheDir - Cache directory
  * @param segmentOrder - Order of segments to render
  * @param renderOptions - Render options for emojis and bars
+ * @param pluginConfigs - Optional plugin configuration map
  * @returns Array of non-empty segment strings
  */
 function composeSegments(
@@ -450,29 +504,63 @@ function composeSegments(
   cacheDir: string,
   segmentOrder: readonly SegmentId[],
   renderOptions: RenderOptions,
-  debug: boolean
+  debug: boolean,
+  pluginConfigs?: PluginConfigMap,
+  projectDir?: string
 ): string[] {
   const builders = createSegmentBuilders(debug);
+  const segments: string[] = [];
 
-  return segmentOrder.reduce<string[]>((segments, segmentId) => {
-    const builder = builders[segmentId];
+  for (const segmentId of segmentOrder) {
+    let rendered = '';
 
-    // Subscription usage segments only show when other context exists (never standalone)
-    const isSubscriptionSegment =
-      segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
-    const hasNoOtherSegments = segments.length === 0;
-    if (isSubscriptionSegment && hasNoOtherSegments) {
-      return segments;
+    if (isPluginSegmentId(segmentId)) {
+      rendered = renderPluginSegment(segmentId, pluginConfigs, cacheDir, renderOptions, projectDir);
+    } else {
+      rendered = renderBuiltinSegment(segmentId, segments.length, input, cacheDir, renderOptions, builders);
     }
 
-    const renderedSegment = builder(input, cacheDir, renderOptions);
-    const hasContent = renderedSegment !== '';
-    if (hasContent) {
-      segments.push(renderedSegment);
+    if (rendered !== '') {
+      segments.push(rendered);
     }
+  }
 
-    return segments;
-  }, []);
+  return segments;
+}
+
+function renderPluginSegment(
+  segmentId: SegmentId,
+  pluginConfigs: PluginConfigMap | undefined,
+  cacheDir: string,
+  renderOptions: RenderOptions,
+  projectDir?: string
+): string {
+  const pluginId = parsePluginSegmentId(segmentId);
+  if (pluginId === null) return '';
+  if (pluginConfigs === undefined) return '';
+
+  const pluginConfig = pluginConfigs.get(pluginId);
+  if (pluginConfig === undefined) return '';
+
+  return buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
+}
+
+function renderBuiltinSegment(
+  segmentId: SegmentId,
+  existingSegmentCount: number,
+  input: ClaudeCodeInput,
+  cacheDir: string,
+  renderOptions: RenderOptions,
+  builders: Record<BuiltinSegmentId, SegmentBuilder>
+): string {
+  // Subscription usage segments only show when other context exists (never standalone)
+  const isSubscriptionSegment =
+    segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
+  if (isSubscriptionSegment && existingSegmentCount === 0) {
+    return '';
+  }
+
+  return builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
 }
 
 /**
@@ -506,26 +594,23 @@ function normalizeFetchErrorDetail(value: string): string {
 }
 
 function formatFetchErrorMessage(entry: CacheEntry | null, debug: boolean): string {
-  if (!debug) {
-    return 'Fetch Error...';
-  }
+  const fallback = 'Fetch Error...';
 
-  if (entry === null) {
-    return 'Fetch Error...';
+  if (!debug || entry === null) {
+    return fallback;
   }
 
   const record = entry as { lastError?: unknown };
   if (typeof record.lastError !== 'string') {
-    return 'Fetch Error...';
+    return fallback;
   }
 
   const trimmed = record.lastError.trim();
   if (trimmed === '') {
-    return 'Fetch Error...';
+    return fallback;
   }
 
-  const detail = normalizeFetchErrorDetail(trimmed);
-  return `Fetch Error (${detail})`;
+  return `Fetch Error (${normalizeFetchErrorDetail(trimmed)})`;
 }
 
 /**
@@ -592,15 +677,10 @@ function extractWindowData(
 
   const { utilizationPercent, resetsAt } = window;
 
-  // Validate percent is an integer
-  if (typeof utilizationPercent !== 'number' || !Number.isInteger(utilizationPercent)) {
-    return null;
-  }
-
-  // Validate percent is in range 0-100 (align with getValidSubscriptionUsage)
-  if (utilizationPercent < 0 || utilizationPercent > 100) {
-    return null;
-  }
+  // Validate percent is an integer 0-100
+  if (typeof utilizationPercent !== 'number') return null;
+  if (!Number.isInteger(utilizationPercent)) return null;
+  if (utilizationPercent < 0 || utilizationPercent > 100) return null;
 
   // Validate and format reset timestamp
   if (typeof resetsAt !== 'string') return null;
@@ -678,6 +758,17 @@ function ensureVisibleOutput(text: string): string {
 }
 
 /**
+ * Options for statusline generation.
+ */
+export interface GenerateStatuslineOptions {
+  readonly cacheDir?: string;
+  readonly segments?: readonly SegmentId[];
+  readonly renderOptions?: RenderOptions;
+  readonly debug?: boolean;
+  readonly pluginConfigs?: PluginConfigMap;
+}
+
+/**
  * Generates a statusline string from Claude Code input.
  *
  * This is the main entry point for statusline generation.
@@ -697,6 +788,8 @@ function ensureVisibleOutput(text: string): string {
  * @param cacheDir - Cache directory (defaults to ~/.cache/cc-statusline-custom)
  * @param segments - Segment order (defaults to DEFAULT_SEGMENT_ORDER)
  * @param renderOptions - Render options for emojis and bars (defaults to DEFAULT_RENDER_OPTIONS)
+ * @param debug - Enable debug mode
+ * @param pluginConfigs - Optional plugin configuration map
  * @returns A non-empty, single-line string
  */
 export function generateStatusline(
@@ -704,7 +797,9 @@ export function generateStatusline(
   cacheDir: string = DEFAULT_CACHE_DIR,
   segments?: readonly SegmentId[],
   renderOptions?: RenderOptions,
-  debug = false
+  debug = false,
+  pluginConfigs?: PluginConfigMap,
+  projectDir?: string
 ): string {
   try {
     if (input === null) {
@@ -714,7 +809,7 @@ export function generateStatusline(
     const segmentOrder = segments ?? DEFAULT_SEGMENT_ORDER;
     const options = renderOptions ?? DEFAULT_RENDER_OPTIONS;
 
-    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug);
+    const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug, pluginConfigs, projectDir);
 
     if (composedSegments.length === 0) {
       return FALLBACK_OUTPUT;

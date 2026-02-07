@@ -59,6 +59,7 @@
     "vitest": "^3.0.4"
   },
   "dependencies": {
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "yaml": "^2.8.2"
   }
 }

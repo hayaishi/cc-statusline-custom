@@ -20,15 +20,50 @@
 
 import { spawn } from 'node:child_process';
 import { readStdinSync } from './utils/stdin.js';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg } from './utils/cli-args.js';
+import {
+  parseSegmentsArg,
+  parseNoEmojisArg,
+  parseNoBarsArg,
+  parseDisableBgUpdateArg,
+  parseAutoArg,
+  parseDebugArg,
+  parseConfigArg,
+  parseProjectDirArg,
+} from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
-import { generateStatusline, FALLBACK_OUTPUT, resolveSegmentOrder, resolveRenderOptions, shouldRequestBgCacheUpdate, type SegmentId } from './core/statusline.js';
-import { getCacheDir } from './config/env.js';
+import {
+  generateStatusline,
+  FALLBACK_OUTPUT,
+  resolveSegmentOrder,
+  resolveRenderOptions,
+  shouldRequestBgCacheUpdate,
+  type SegmentId,
+  type PluginConfigMap,
+} from './core/statusline.js';
+import { getCacheDir, getPluginConfigPath } from './config/env.js';
+import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
+import { shouldRefreshPlugin } from './core/plugin-cache.js';
+import { updatePluginCaches } from './updater/plugin-executor.js';
+import type { PluginConfig } from './types/plugin.js';
 
-/**
- * Fallback output for cache update operations.
- */
 const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
+
+function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
+  const effectivePath = configPath ?? getPluginConfigPath();
+  if (effectivePath === undefined) return null;
+
+  const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
+  const pluginsFile = loadPluginConfig(expandedPath);
+  if (pluginsFile === null) return null;
+
+  const parsed = parsePluginsFile(pluginsFile);
+  return parsed.plugins.length > 0 ? parsed.plugins : null;
+}
+
+function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
+  if (plugins === null || plugins.length === 0) return undefined;
+  return new Map(plugins.map(p => [p.id, p]));
+}
 
 /**
  * Ensures output is a single visible line.
@@ -36,24 +71,27 @@ const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
  */
 function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
   const firstLine = text.split('\n')[0] ?? '';
-  // If first line is empty or whitespace-only, use fallback
-  if (firstLine.trim() === '') {
-    return fallback;
-  }
+  const trimmed = firstLine.trim();
+  if (trimmed === '') return fallback;
   return firstLine;
 }
 
-/**
- * Handles the --update-cache subcommand.
- * Updates subscription usage cache and outputs result.
- */
+/** Handles the --update-cache subcommand. */
 async function handleUpdateCache(args: string[]): Promise<void> {
   try {
     const isAuto = parseAutoArg(args);
     const isDebug = parseDebugArg(args);
+    const configPath = parseConfigArg(args);
+    const projectDir = parseProjectDirArg(args);
+
     const { updateCache } = await import('./updater/update-cache.js');
     const result = await updateCache(undefined, { mode: isAuto ? 'auto' : 'force', debug: isDebug });
-    // Always output a visible single line
+
+    const plugins = loadPlugins(configPath);
+    if (plugins !== null) {
+      await tryUpdatePluginCaches(plugins, projectDir);
+    }
+
     const output = result.success ? result.message : `Error: ${result.message}`;
     console.log(ensureVisibleFirstLine(output, CACHE_FALLBACK_OUTPUT));
   } catch {
@@ -66,25 +104,31 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  * Never throws and never blocks the statusline output.
  *
  * @param segments - Array of segment identifiers
- * @param disabled - Whether background update is disabled via CLI flag
+ * @param isBgUpdateDisabled - Whether background update is disabled via CLI flag
+ * @param configPath - Path to plugin config file for passing to subprocess
+ * @param plugins - Loaded plugin configurations
+ * @param projectDir - Project directory for scoped plugin caches
  */
 function trySpawnBackgroundUpdate(
   segments: readonly SegmentId[],
-  disabled: boolean,
-  debug: boolean
+  isBgUpdateDisabled: boolean,
+  debug: boolean,
+  configPath?: string,
+  plugins?: readonly PluginConfig[],
+  projectDir?: string
 ): void {
   try {
-    // Skip if disabled by flag
-    if (disabled) return;
+    if (isBgUpdateDisabled) return;
 
-    // Skip if already in background update context (recursion guard)
+    // Prevent recursive spawning: child sets this env var before re-entering
     if (process.env.CCSTATUSLINE_BG_UPDATE === '1') return;
 
-    // Check if update is needed based on segments and cache state
     const cacheDir = getCacheDir();
-    if (!shouldRequestBgCacheUpdate(cacheDir, segments)) return;
+    const options: Parameters<typeof shouldRequestBgCacheUpdate>[2] = {};
+    if (plugins !== undefined) options.plugins = plugins;
+    if (projectDir !== undefined) options.projectDir = projectDir;
+    if (!shouldRequestBgCacheUpdate(cacheDir, segments, options)) return;
 
-    // Get the script path (process.argv[1] is always defined for Node.js scripts)
     const scriptPath = process.argv[1];
     if (scriptPath === undefined || scriptPath === '') return;
 
@@ -92,8 +136,13 @@ function trySpawnBackgroundUpdate(
     if (debug) {
       args.push('--debug');
     }
+    if (configPath !== undefined) {
+      args.push('--config', configPath);
+    }
+    if (projectDir !== undefined) {
+      args.push('--project-dir', projectDir);
+    }
 
-    // Spawn detached background process
     const child = spawn(
       process.execPath,
       args,
@@ -103,55 +152,61 @@ function trySpawnBackgroundUpdate(
         env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
       }
     );
+    child.on('error', () => {
+      // Swallow async spawn errors (EAGAIN, EMFILE, etc.)
+      // to prevent unhandled 'error' events from crashing the process.
+    });
     child.unref();
   } catch {
-    // Never throw - background update is best-effort
+    // best-effort: background update must never crash the statusline
+  }
+}
+
+async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDir?: string): Promise<void> {
+  const cacheDir = getCacheDir();
+  const stale = plugins.filter(plugin => shouldRefreshPlugin(plugin, cacheDir, plugin.workingDir ?? projectDir));
+  if (stale.length > 0) {
+    await updatePluginCaches(stale, cacheDir, projectDir);
   }
 }
 
 /**
  * Handles the statusline generation (default mode).
- * Reads JSON from stdin, generates statusline, outputs to stdout.
- *
- * Always reads from cache when available for subscription usage.
- *
- * @param args - CLI arguments
+ * Always reads from cache — never blocks on network or subprocess.
  */
 function handleStatusline(args: string[]): void {
   try {
     const raw = readStdinSync();
     const input = parseInput(raw);
 
-    // Parse CLI flags
     const segmentsArg = parseSegmentsArg(args);
     const noEmojisCli = parseNoEmojisArg(args);
     const noBarsCli = parseNoBarsArg(args);
-    const disableBgUpdate = parseDisableBgUpdateArg(args);
+    const isBgUpdateDisabled = parseDisableBgUpdateArg(args);
     const debug = parseDebugArg(args);
+    const configPath = parseConfigArg(args);
 
-    // Resolve configuration
     const segmentOrder = resolveSegmentOrder(segmentsArg);
     const renderOptions = resolveRenderOptions(noEmojisCli, noBarsCli);
 
-    // Generate statusline (reads cache for subscription usage)
-    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug);
+    const plugins = loadPlugins(configPath);
+    const pluginConfigMap = createPluginConfigMap(plugins);
 
-    // Print ONLY the first visible line (defense in depth)
+    const projectDir = input?.workspace?.project_dir;
+    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
+
+    // Defense in depth: extract first line even if generateStatusline misbehaves
     console.log(ensureVisibleFirstLine(line));
 
-    // Attempt background update if needed (never throws, never blocks)
-    // Spawn after printing to keep the statusline output path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, disableBgUpdate, debug);
+    // Spawn after printing to keep the hot path as short as possible
+    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, plugins ?? undefined, projectDir);
   } catch {
-    // Ultimate fallback: print visible fallback on any unexpected error
+    // Ultimate fallback: guarantee at least one visible line on any error
     console.log(FALLBACK_OUTPUT);
   }
 }
 
-/**
- * Main entry point.
- * Parses arguments and dispatches to appropriate handler.
- */
+/** Main entry point. */
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 

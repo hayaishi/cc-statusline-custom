@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg, parseConfigArg, parseProjectDirArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -212,5 +212,114 @@ describe('parseDebugArg', () => {
 
   it('handles multiple occurrences (always true if any present)', () => {
     expect(parseDebugArg(['--debug', '--debug'])).toBe(true);
+  });
+});
+
+describe('parseConfigArg', () => {
+  describe('flag not present', () => {
+    it('returns undefined when no flags provided', () => {
+      expect(parseConfigArg([])).toBeUndefined();
+    });
+
+    it('returns undefined when only other flags provided', () => {
+      expect(parseConfigArg(['--update-cache'])).toBeUndefined();
+      expect(parseConfigArg(['--segments=model'])).toBeUndefined();
+    });
+  });
+
+  describe('--config=value format', () => {
+    it('parses --config=value correctly', () => {
+      expect(parseConfigArg(['--config=/path/to/plugins.yaml'])).toBe('/path/to/plugins.yaml');
+    });
+
+    it('returns empty string for --config= (empty value)', () => {
+      expect(parseConfigArg(['--config='])).toBe('');
+    });
+
+    it('handles --config=value with other args', () => {
+      expect(parseConfigArg(['--foo', '--config=/path/file.yaml', '--bar'])).toBe('/path/file.yaml');
+    });
+  });
+
+  describe('--config value format (space separator)', () => {
+    it('parses --config value correctly', () => {
+      expect(parseConfigArg(['--config', '/path/to/plugins.yaml'])).toBe('/path/to/plugins.yaml');
+    });
+
+    it('returns empty string when --config is at end', () => {
+      expect(parseConfigArg(['--config'])).toBe('');
+    });
+
+    it('returns empty string when --config is followed by another flag', () => {
+      expect(parseConfigArg(['--config', '--foo'])).toBe('');
+      expect(parseConfigArg(['--config', '-f'])).toBe('');
+    });
+  });
+
+  describe('-c value format (short flag)', () => {
+    it('parses -c value correctly', () => {
+      expect(parseConfigArg(['-c', '/path/to/plugins.yaml'])).toBe('/path/to/plugins.yaml');
+    });
+
+    it('returns empty string when -c is at end', () => {
+      expect(parseConfigArg(['-c'])).toBe('');
+    });
+
+    it('returns empty string when -c is followed by another flag', () => {
+      expect(parseConfigArg(['-c', '--foo'])).toBe('');
+      expect(parseConfigArg(['-c', '-f'])).toBe('');
+    });
+  });
+
+  describe('last-wins semantics', () => {
+    it('uses last --config=value when multiple provided', () => {
+      expect(parseConfigArg(['--config=/first.yaml', '--config=/last.yaml'])).toBe('/last.yaml');
+    });
+
+    it('uses last -c value when multiple provided', () => {
+      expect(parseConfigArg(['-c', '/first.yaml', '-c', '/last.yaml'])).toBe('/last.yaml');
+    });
+
+    it('uses last value when mixing --config and -c', () => {
+      expect(parseConfigArg(['--config=/first.yaml', '-c', '/last.yaml'])).toBe('/last.yaml');
+      expect(parseConfigArg(['-c', '/first.yaml', '--config=/last.yaml'])).toBe('/last.yaml');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('handles paths with spaces when quoted', () => {
+      expect(parseConfigArg(['--config=/path/with spaces/file.yaml'])).toBe('/path/with spaces/file.yaml');
+    });
+
+    it('handles tilde in path', () => {
+      expect(parseConfigArg(['--config=~/.config/cc-statusline/plugins.yaml'])).toBe('~/.config/cc-statusline/plugins.yaml');
+    });
+  });
+});
+
+describe('parseProjectDirArg', () => {
+  it('returns the path when --project-dir is provided', () => {
+    expect(parseProjectDirArg(['--project-dir', '/path/to/project'])).toBe('/path/to/project');
+  });
+
+  it('returns undefined when not provided', () => {
+    expect(parseProjectDirArg([])).toBeUndefined();
+    expect(parseProjectDirArg(['--update-cache', '--auto'])).toBeUndefined();
+  });
+
+  it('returns undefined when value is missing (flag at end)', () => {
+    expect(parseProjectDirArg(['--project-dir'])).toBeUndefined();
+  });
+
+  it('returns trimmed value', () => {
+    expect(parseProjectDirArg(['--project-dir', '  /path/to/project  '])).toBe('/path/to/project');
+  });
+
+  it('returns undefined for whitespace-only value', () => {
+    expect(parseProjectDirArg(['--project-dir', '   '])).toBeUndefined();
+  });
+
+  it('handles flag among other args', () => {
+    expect(parseProjectDirArg(['--update-cache', '--project-dir', '/my/dir', '--auto'])).toBe('/my/dir');
   });
 });

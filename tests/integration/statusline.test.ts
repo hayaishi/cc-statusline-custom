@@ -233,7 +233,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%) | ⌛️ Loading...'
+        '🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)'
       );
     });
 
@@ -245,7 +245,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Sonnet | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Sonnet | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('formats partial schema (model + cost)', () => {
@@ -257,7 +257,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('formats backward-compatible flat schema', () => {
@@ -275,7 +275,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Sonnet | 💰 $0.15 | 🧠 50,000 [██░░░░░░] (25%) | ⌛️ Loading...'
+        '🤖 Sonnet | 💰 $0.15 | ⌛️ Loading... | 🧠 50,000 [██░░░░░░] (25%)'
       );
     });
 
@@ -292,7 +292,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('rounds percentage with .5 up to 43', () => {
@@ -330,7 +330,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // cost + context placeholder
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('💰 $0.50 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('💰 $0.50 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('handles invalid cost gracefully', () => {
@@ -343,7 +343,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // model + context placeholder (cost is invalid, skipped)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('handles missing context_window gracefully', () => {
@@ -355,7 +355,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
   });
 
@@ -444,7 +444,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 | 🧠 25,000 [█░░░░░░░] (12%) | ⌛️ 55% [████░░░░] (~3:45pm)'
+        '🤖 Opus | 💰 $0.23 | ⌛️ 55% [████░░░░] (~3:45pm) | 🧠 25,000 [█░░░░░░░] (12%)'
       );
     });
 
@@ -470,7 +470,7 @@ describe('CLI Integration Tests', () => {
       // Should still produce output without cache data
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%) | ⌛️ Loading...'
+        '🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)'
       );
     });
   });
@@ -646,7 +646,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order: model, cost_session, context, subscription_usage
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('maintains single-line output invariant', () => {
@@ -739,7 +739,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('falls back to default when -s is at end without value', () => {
@@ -752,7 +752,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used when no value provided
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('does not consume another flag as segment value', () => {
@@ -767,7 +767,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used since -s has no valid value (--some-other-flag starts with -)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     // CLI precedence tests: CLI present but invalid should NOT fall back to env
@@ -789,7 +789,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order: model, cost_session, context, subscription_usage
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when CLI --segments is at end without value even if env is valid', () => {
@@ -809,7 +809,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's context,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when CLI --segments= has empty value even if env is valid', () => {
@@ -829,7 +829,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when -s is at end without value even if env is valid', () => {
@@ -849,7 +849,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when -s followed by flag even if env is valid', () => {
@@ -869,7 +869,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's model only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
       });
     });
   });
@@ -1261,7 +1261,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1296,7 +1296,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1325,7 +1325,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1363,7 +1363,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1399,7 +1399,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1435,7 +1435,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
