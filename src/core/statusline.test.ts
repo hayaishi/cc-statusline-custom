@@ -17,6 +17,7 @@ import {
 } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { SubscriptionUsageEntry } from '../types/cache.js';
+import type { PluginConfig } from '../types/plugin.js';
 import { stripAnsi } from '../utils/colors.js';
 
 const CANONICAL_FULL_LINE =
@@ -59,9 +60,7 @@ describe('generateStatusline', () => {
     });
 
     it('returns non-empty string for partial input', () => {
-      const input: ClaudeCodeInput = {
-        model: 'Claude Opus 4.5',
-      };
+      const input: ClaudeCodeInput = { model: 'Claude Opus 4.5' };
       const result = generateStatusline(input, testCacheDir);
       expect(result.trim().length).toBeGreaterThan(0);
     });
@@ -163,20 +162,17 @@ describe('generateStatusline', () => {
     });
 
     it('omits missing metrics gracefully', () => {
-      // Only model
       const modelOnly: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
       };
       expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
 
-      // Model + cost
       const modelAndCost: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
       expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
 
-      // Model + context
       const modelAndContext: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         context_window: {
@@ -185,11 +181,10 @@ describe('generateStatusline', () => {
           current_usage: { input_tokens: 10000 },
         },
       };
-    expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | ⌛️ Loading... | 🧠 10,000 [░░░░░░░░] (5%)');
+      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | ⌛️ Loading... | 🧠 10,000 [░░░░░░░░] (5%)');
     });
 
     it('returns context placeholder for empty object', () => {
-      // Empty object now shows context placeholder instead of fallback
       expect(stripAnsi(generateStatusline({}, testCacheDir))).toBe('🧠 0 [░░░░░░░░] (0%)');
     });
 
@@ -772,79 +767,75 @@ describe('segment configuration', () => {
   });
 
   describe('resolveSegmentOrder', () => {
-    it('returns CLI value when provided', () => {
+    it('should use CLI value when provided', () => {
       delete process.env.CCSTATUSLINE_SEGMENTS;
       const result = resolveSegmentOrder('model,context');
       expect(result).toEqual(['model', 'context']);
     });
 
-    it('returns env value when CLI is undefined', () => {
+    it('should use env value when CLI is undefined', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
       const result = resolveSegmentOrder(undefined);
       expect(result).toEqual(['context', 'model']);
     });
 
-    it('CLI overrides env', () => {
+    it('should use CLI when both CLI and env are set', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
       const result = resolveSegmentOrder('model,cost_session');
       expect(result).toEqual(['model', 'cost_session']);
     });
 
-    it('returns default when both CLI and env are absent', () => {
+    it('should use default when both CLI and env are absent', () => {
       delete process.env.CCSTATUSLINE_SEGMENTS;
       const result = resolveSegmentOrder(undefined);
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when CLI is empty string', () => {
+    it('should use default when CLI is empty string', () => {
       delete process.env.CCSTATUSLINE_SEGMENTS;
       const result = resolveSegmentOrder('');
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when env is empty string', () => {
+    it('should use default when env is empty string', () => {
       process.env.CCSTATUSLINE_SEGMENTS = '';
       const result = resolveSegmentOrder(undefined);
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when CLI resolves to empty (all unknown)', () => {
+    it('should use default when CLI has all unknown identifiers', () => {
       delete process.env.CCSTATUSLINE_SEGMENTS;
       const result = resolveSegmentOrder('unknown,invalid');
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when env resolves to empty (all unknown)', () => {
+    it('should use default when env has all unknown identifiers', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'unknown,invalid';
       const result = resolveSegmentOrder(undefined);
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('accepts explicit env parameter instead of reading from process.env', () => {
+    it('should accept explicit env parameter', () => {
       delete process.env.CCSTATUSLINE_SEGMENTS;
       const result = resolveSegmentOrder(undefined, 'context,model');
       expect(result).toEqual(['context', 'model']);
     });
 
-    // New tests for CLI precedence: CLI present but invalid should NOT fall back to env
-    it('returns default when CLI is empty string even if env is set (no env fallback)', () => {
+    it('should not fall back to env when CLI is empty string', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
       const result = resolveSegmentOrder('');
-      // CLI flag present but empty => DEFAULT, not env
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when CLI has all unknown tokens even if env is valid (no env fallback)', () => {
+    it('should not fall back to env when CLI has all unknown identifiers', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
       const result = resolveSegmentOrder('unknown,invalid');
-      // CLI flag present but all unknown => DEFAULT, not env
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
 
-    it('returns default when CLI is whitespace-only even if env is valid (no env fallback)', () => {
+    it('should not fall back to env when CLI is whitespace-only', () => {
       process.env.CCSTATUSLINE_SEGMENTS = 'context,model';
       const result = resolveSegmentOrder('   ');
-      // CLI flag present but whitespace => DEFAULT, not env
       expect(result).toEqual(DEFAULT_SEGMENT_ORDER);
     });
   });
@@ -1046,6 +1037,154 @@ describe('segment configuration', () => {
 
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
       expect(result).toBe(false);
+    });
+
+    it('returns true when only plugin segments are present and plugin cache is stale', () => {
+      const plugins: PluginConfig[] = [
+        {
+          id: 'test-plugin',
+          command: 'echo "test"',
+          ttl: 60,
+        },
+      ];
+
+      // No plugin cache exists, so it's stale
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':test-plugin'], {
+        plugins,
+      });
+      expect(result).toBe(true);
+    });
+
+    it('returns true when subscription cache is fresh but plugin cache is stale', () => {
+      // Write fresh subscription cache
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const freshEntry: SubscriptionUsageEntry = {
+        utilizationPercent: 50,
+        resetsAt: '2026-01-20T15:45:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(Date.now() - 10 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(freshEntry));
+
+      const plugins: PluginConfig[] = [
+        {
+          id: 'test-plugin',
+          command: 'echo "test"',
+          ttl: 60,
+        },
+      ];
+
+      // Plugin cache is missing (stale), subscription cache is fresh
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage', ':test-plugin'], {
+        plugins,
+      });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when plugin cache is fresh (no projectDir)', () => {
+      const plugins: PluginConfig[] = [
+        {
+          id: 'test-plugin',
+          command: 'echo "test"',
+          ttl: 60,
+        },
+      ];
+
+      // Create plugin cache directory without project scope
+      const pluginsCacheDir = join(testCacheDir, 'plugins');
+      mkdirSync(pluginsCacheDir, { recursive: true });
+
+      // Write fresh plugin cache
+      const pluginCacheFile = join(pluginsCacheDir, 'test-plugin.json');
+      writeFileSync(pluginCacheFile, JSON.stringify({
+        value: 'test output',
+        updatedAt: new Date().toISOString(),
+        error: null,
+      }));
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':test-plugin'], {
+        plugins,
+      });
+      expect(result).toBe(false);
+    });
+
+    it('returns false when all plugin caches are fresh', () => {
+      const plugins: PluginConfig[] = [
+        {
+          id: 'plugin1',
+          command: 'echo "1"',
+          ttl: 60,
+        },
+        {
+          id: 'plugin2',
+          command: 'echo "2"',
+          ttl: 60,
+        },
+      ];
+
+      // Create plugin cache directory
+      const pluginsCacheDir = join(testCacheDir, 'plugins');
+      mkdirSync(pluginsCacheDir, { recursive: true });
+
+      // Write fresh plugin caches
+      writeFileSync(join(pluginsCacheDir, 'plugin1.json'), JSON.stringify({
+        value: 'output1',
+        updatedAt: new Date().toISOString(),
+        error: null,
+      }));
+      writeFileSync(join(pluginsCacheDir, 'plugin2.json'), JSON.stringify({
+        value: 'output2',
+        updatedAt: new Date().toISOString(),
+        error: null,
+      }));
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':plugin1', ':plugin2'], {
+        plugins,
+      });
+      expect(result).toBe(false);
+    });
+
+    it('returns true when some plugin cache is stale among multiple plugins', () => {
+      const plugins: PluginConfig[] = [
+        {
+          id: 'fresh-plugin',
+          command: 'echo "fresh"',
+          ttl: 60,
+        },
+        {
+          id: 'stale-plugin',
+          command: 'echo "stale"',
+          ttl: 60,
+        },
+      ];
+
+      // Create plugin cache directory
+      const pluginsCacheDir = join(testCacheDir, 'plugins');
+      mkdirSync(pluginsCacheDir, { recursive: true });
+
+      // Write fresh cache for plugin1
+      writeFileSync(join(pluginsCacheDir, 'fresh-plugin.json'), JSON.stringify({
+        value: 'output1',
+        updatedAt: new Date().toISOString(),
+        error: null,
+      }));
+
+      // Write stale cache for plugin2 (old mtime)
+      const staleCacheFile = join(pluginsCacheDir, 'stale-plugin.json');
+      writeFileSync(staleCacheFile, JSON.stringify({
+        value: 'output2',
+        updatedAt: new Date(Date.now() - 120 * 1000).toISOString(),
+        error: null,
+      }));
+      const oldTime = Date.now() / 1000 - 120;
+      utimesSync(staleCacheFile, oldTime, oldTime);
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':fresh-plugin', ':stale-plugin'], {
+        plugins,
+      });
+      expect(result).toBe(true);
     });
   });
 });

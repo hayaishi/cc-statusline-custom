@@ -41,6 +41,7 @@ import {
   parsePluginSegmentId,
   buildPluginSegment,
 } from './plugin-segment.js';
+import { shouldRefreshPlugin } from './plugin-cache.js';
 
 /**
  * Canonical segment identifiers for built-in segments.
@@ -267,6 +268,8 @@ export function getCacheTargetTtlSeconds(_target: CacheTargetId): number {
 export interface BgUpdateCheckOptions {
   nowMs?: number;
   cooldownSeconds?: number;
+  plugins?: readonly PluginConfig[];
+  projectDir?: string;
 }
 
 /**
@@ -275,7 +278,7 @@ export interface BgUpdateCheckOptions {
  * @param entry - Cache entry (may be null)
  * @param nowMs - Current time in milliseconds
  * @param cooldownMs - Cooldown period in milliseconds
- * @returns true if within cooldown (too soon to retry)
+ * @returns true if still within cooldown (too soon to retry)
  */
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
@@ -283,7 +286,8 @@ function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: n
   const lastAttemptMs = getLastAttemptAt(entry);
   if (lastAttemptMs === null) return false;
 
-  return nowMs - lastAttemptMs < cooldownMs;
+  const elapsedMs = nowMs - lastAttemptMs;
+  return elapsedMs < cooldownMs;
 }
 
 /**
@@ -294,7 +298,8 @@ function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: n
  * @returns true if cache exists, is fresh, and has valid payload
  */
 function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
-  if (entry === null || !isFresh) return false;
+  if (entry === null) return false;
+  if (!isFresh) return false;
 
   // NOTE: validation must be target-specific when more targets are added.
   const valid = getValidSubscriptionUsage(entry);
@@ -305,9 +310,9 @@ function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
  * Determines whether a background cache update should be requested.
  *
  * Returns true when ALL conditions are met:
- * - At least one segment requires a cache target
+ * - At least one segment requires a cache target OR plugin cache is stale
  * - Update lock is NOT held (no concurrent update in progress)
- * - At least one cache target needs refresh due to:
+ * - At least one cache target OR plugin needs refresh due to:
  *   - Missing cache file
  *   - Expired cache (beyond TTL)
  *   - Invalid/corrupt cache payload
@@ -315,7 +320,7 @@ function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
  *
  * @param cacheDir - Cache directory path
  * @param segments - Array of segment identifiers
- * @param options - Optional check options (nowMs, cooldownSeconds default: 30)
+ * @param options - Optional check options (nowMs, cooldownSeconds default: 30, plugins, projectDir)
  * @returns true if background update should be requested
  */
 export function shouldRequestBgCacheUpdate(
@@ -324,15 +329,19 @@ export function shouldRequestBgCacheUpdate(
   options?: BgUpdateCheckOptions
 ): boolean {
   const targets = getCacheTargetsForSegments(segments);
-  if (targets.length === 0) return false;
+  const plugins = options?.plugins ?? [];
+  const projectDir = options?.projectDir;
+
+  // Check if we have any subscription cache targets OR plugins to check
+  if (targets.length === 0 && plugins.length === 0) return false;
 
   if (isLockFileFresh(cacheDir)) return false;
 
   const nowMs = options?.nowMs ?? Date.now();
   const cooldownMs = (options?.cooldownSeconds ?? 30) * 1000;
 
-  // Return true if ANY target needs update
-  return targets.some(target => {
+  // Check subscription cache targets
+  const subscriptionNeedsUpdate = targets.some(target => {
     const ttl = getCacheTargetTtlSeconds(target);
     const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttl);
 
@@ -344,6 +353,16 @@ export function shouldRequestBgCacheUpdate(
     // Needs update if cache is invalid (missing, stale, or corrupt)
     return !isCacheValid(entry, isFresh);
   });
+
+  if (subscriptionNeedsUpdate) return true;
+
+  // Check plugin cache staleness
+  const pluginNeedsUpdate = plugins.some(plugin => {
+    const workingDir = plugin.workingDir ?? projectDir;
+    return shouldRefreshPlugin(plugin, cacheDir, workingDir);
+  });
+
+  return pluginNeedsUpdate;
 }
 
 /**
@@ -371,20 +390,12 @@ function getValidSubscriptionUsage(
 
   // Validate utilizationPercent: must be integer 0-100
   const percentValue = record.utilizationPercent;
-  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) {
-    return null;
-  }
-  if (percentValue < 0 || percentValue > 100) {
-    return null;
-  }
+  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) return null;
+  if (percentValue < 0 || percentValue > 100) return null;
 
   // Validate resetsAt: must be parseable ISO date string
-  if (typeof record.resetsAt !== 'string') {
-    return null;
-  }
-  if (!Number.isFinite(Date.parse(record.resetsAt))) {
-    return null;
-  }
+  if (typeof record.resetsAt !== 'string') return null;
+  if (!Number.isFinite(Date.parse(record.resetsAt))) return null;
 
   return { utilizationPercent: percentValue, resetsAt: record.resetsAt };
 }
@@ -498,22 +509,9 @@ function composeSegments(
     let rendered = '';
 
     if (isPluginSegmentId(segmentId)) {
-      const pluginId = parsePluginSegmentId(segmentId);
-      if (pluginId !== null && pluginConfigs !== undefined) {
-        const pluginConfig = pluginConfigs.get(pluginId);
-        if (pluginConfig !== undefined) {
-          rendered = buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
-        }
-      }
+      rendered = renderPluginSegment(segmentId, pluginConfigs, cacheDir, renderOptions, projectDir);
     } else {
-      // Subscription usage segments only show when other context exists (never standalone)
-      const isSubscriptionSegment =
-        segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
-      if (isSubscriptionSegment && segments.length === 0) {
-        continue;
-      }
-
-      rendered = builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
+      rendered = renderBuiltinSegment(segmentId, segments.length, input, cacheDir, renderOptions, builders);
     }
 
     if (rendered !== '') {
@@ -522,6 +520,41 @@ function composeSegments(
   }
 
   return segments;
+}
+
+function renderPluginSegment(
+  segmentId: SegmentId,
+  pluginConfigs: PluginConfigMap | undefined,
+  cacheDir: string,
+  renderOptions: RenderOptions,
+  projectDir?: string
+): string {
+  const pluginId = parsePluginSegmentId(segmentId);
+  if (pluginId === null) return '';
+  if (pluginConfigs === undefined) return '';
+
+  const pluginConfig = pluginConfigs.get(pluginId);
+  if (pluginConfig === undefined) return '';
+
+  return buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
+}
+
+function renderBuiltinSegment(
+  segmentId: SegmentId,
+  existingSegmentCount: number,
+  input: ClaudeCodeInput,
+  cacheDir: string,
+  renderOptions: RenderOptions,
+  builders: Record<BuiltinSegmentId, SegmentBuilder>
+): string {
+  // Subscription usage segments only show when other context exists (never standalone)
+  const isSubscriptionSegment =
+    segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
+  if (isSubscriptionSegment && existingSegmentCount === 0) {
+    return '';
+  }
+
+  return builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
 }
 
 /**
@@ -638,15 +671,10 @@ function extractWindowData(
 
   const { utilizationPercent, resetsAt } = window;
 
-  // Validate percent is an integer
-  if (typeof utilizationPercent !== 'number' || !Number.isInteger(utilizationPercent)) {
-    return null;
-  }
-
-  // Validate percent is in range 0-100 (align with getValidSubscriptionUsage)
-  if (utilizationPercent < 0 || utilizationPercent > 100) {
-    return null;
-  }
+  // Validate percent is an integer 0-100
+  if (typeof utilizationPercent !== 'number') return null;
+  if (!Number.isInteger(utilizationPercent)) return null;
+  if (utilizationPercent < 0 || utilizationPercent > 100) return null;
 
   // Validate and format reset timestamp
   if (typeof resetsAt !== 'string') return null;

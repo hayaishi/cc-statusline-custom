@@ -49,7 +49,6 @@ import type { PluginConfig } from './types/plugin.js';
 const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
 
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  // CLI > ENV > (no default: plugin config is opt-in)
   const effectivePath = configPath ?? getPluginConfigPath();
   if (effectivePath === undefined) return null;
 
@@ -72,9 +71,8 @@ function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginC
  */
 function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
   const firstLine = text.split('\n')[0] ?? '';
-  if (firstLine.trim() === '') {
-    return fallback;
-  }
+  const trimmed = firstLine.trim();
+  if (trimmed === '') return fallback;
   return firstLine;
 }
 
@@ -108,12 +106,15 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  * @param segments - Array of segment identifiers
  * @param isBgUpdateDisabled - Whether background update is disabled via CLI flag
  * @param configPath - Path to plugin config file for passing to subprocess
+ * @param plugins - Loaded plugin configurations
+ * @param projectDir - Project directory for scoped plugin caches
  */
 function trySpawnBackgroundUpdate(
   segments: readonly SegmentId[],
   isBgUpdateDisabled: boolean,
   debug: boolean,
   configPath?: string,
+  plugins?: readonly PluginConfig[],
   projectDir?: string
 ): void {
   try {
@@ -123,7 +124,10 @@ function trySpawnBackgroundUpdate(
     if (process.env.CCSTATUSLINE_BG_UPDATE === '1') return;
 
     const cacheDir = getCacheDir();
-    if (!shouldRequestBgCacheUpdate(cacheDir, segments)) return;
+    const options: Parameters<typeof shouldRequestBgCacheUpdate>[2] = {};
+    if (plugins !== undefined) options.plugins = plugins;
+    if (projectDir !== undefined) options.projectDir = projectDir;
+    if (!shouldRequestBgCacheUpdate(cacheDir, segments, options)) return;
 
     const scriptPath = process.argv[1];
     if (scriptPath === undefined || scriptPath === '') return;
@@ -195,7 +199,7 @@ function handleStatusline(args: string[]): void {
     console.log(ensureVisibleFirstLine(line));
 
     // Spawn after printing to keep the hot path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, projectDir);
+    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, plugins ?? undefined, projectDir);
   } catch {
     // Ultimate fallback: guarantee at least one visible line on any error
     console.log(FALLBACK_OUTPUT);
