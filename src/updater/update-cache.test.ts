@@ -63,6 +63,25 @@ describe('update-cache', () => {
     expect(mockFetchOAuthUsage).toHaveBeenCalledTimes(1);
   });
 
+  it('should pass debug log options to oauth fetch in debug mode', async () => {
+    await updateCache(testDir, { debug: true });
+
+    expect(mockFetchOAuthUsage).toHaveBeenCalledWith(
+      'test-token',
+      expect.objectContaining({
+        debugLogOptions: expect.objectContaining({
+          enabled: true,
+        }),
+      })
+    );
+  });
+
+  it('should not pass debug log options when debug mode is disabled', async () => {
+    await updateCache(testDir, { debug: false });
+
+    expect(mockFetchOAuthUsage).toHaveBeenCalledWith('test-token', undefined);
+  });
+
   it('should normalize utilization when rounding and clamping', () => {
     expect(normalizeUtilizationPercent(42.5)).toBe(43);
     expect(normalizeUtilizationPercent(42.4)).toBe(42);

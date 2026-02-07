@@ -6,6 +6,9 @@ import {
   getContextLowThreshold,
   getContextMediumThreshold,
   getDebugEnabled,
+  getDebugLogPath,
+  getDebugLogMaxBytes,
+  getDebugLogMaxFiles,
   getSegmentsConfig,
   getEmojisEnabled,
   getBarsEnabled,
@@ -180,6 +183,74 @@ describe('env config', () => {
     it('returns false for other values', () => {
       process.env.CCSTATUSLINE_DEBUG = 'yes';
       expect(getDebugEnabled()).toBe(false);
+    });
+  });
+
+  describe('getDebugLogPath', () => {
+    it('uses cache dir by default', () => {
+      delete process.env.CCSTATUSLINE_DEBUG_LOG_PATH;
+      process.env.CCSTATUSLINE_CACHE_DIR = '/tmp/custom-cache';
+      expect(getDebugLogPath()).toBe('/tmp/custom-cache/debug/statusline-debug.log');
+    });
+
+    it('returns custom path when set', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_PATH = '/tmp/custom-debug.log';
+      expect(getDebugLogPath()).toBe('/tmp/custom-debug.log');
+    });
+
+    it('trims whitespace', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_PATH = '  /tmp/spaced.log  ';
+      expect(getDebugLogPath()).toBe('/tmp/spaced.log');
+    });
+  });
+
+  describe('getDebugLogMaxBytes', () => {
+    it('returns default by default', () => {
+      delete process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES;
+      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+    });
+
+    it('parses valid values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = '4096';
+      expect(getDebugLogMaxBytes()).toBe(4096);
+    });
+
+    it('returns default for invalid values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = 'invalid';
+      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+    });
+
+    it('returns default for zero or negative values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = '0';
+      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = '-10';
+      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+    });
+  });
+
+  describe('getDebugLogMaxFiles', () => {
+    it('returns default by default', () => {
+      delete process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES;
+      expect(getDebugLogMaxFiles()).toBe(5);
+    });
+
+    it('parses valid values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES = '3';
+      expect(getDebugLogMaxFiles()).toBe(3);
+    });
+
+    it('returns default for invalid values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES = 'invalid';
+      expect(getDebugLogMaxFiles()).toBe(5);
+    });
+
+    it('returns default for zero or negative values', () => {
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES = '0';
+      expect(getDebugLogMaxFiles()).toBe(5);
+
+      process.env.CCSTATUSLINE_DEBUG_LOG_MAX_FILES = '-2';
+      expect(getDebugLogMaxFiles()).toBe(5);
     });
   });
 

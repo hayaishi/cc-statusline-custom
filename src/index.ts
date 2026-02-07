@@ -40,13 +40,35 @@ import {
   type SegmentId,
   type PluginConfigMap,
 } from './core/statusline.js';
-import { getCacheDir, getPluginConfigPath } from './config/env.js';
+import {
+  getCacheDir,
+  getDebugEnabled,
+  getDebugLogMaxBytes,
+  getDebugLogMaxFiles,
+  getDebugLogPath,
+  getPluginConfigPath,
+} from './config/env.js';
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
 import { updatePluginCaches } from './updater/plugin-executor.js';
+import { writeDebugLog } from './utils/debug-log.js';
+import type { DebugLogOptions } from './utils/debug-log.js';
 import type { PluginConfig } from './types/plugin.js';
 
 const CACHE_FALLBACK_OUTPUT = 'Cache update failed';
+
+function isDebugModeEnabled(args: string[]): boolean {
+  return parseDebugArg(args) || getDebugEnabled();
+}
+
+function createDebugLogOptions(enabled: boolean): DebugLogOptions {
+  return {
+    enabled,
+    filePath: getDebugLogPath(),
+    maxBytes: getDebugLogMaxBytes(),
+    maxFiles: getDebugLogMaxFiles(),
+  };
+}
 
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
   const effectivePath = configPath ?? getPluginConfigPath();
@@ -80,7 +102,7 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
 async function handleUpdateCache(args: string[]): Promise<void> {
   try {
     const isAuto = parseAutoArg(args);
-    const isDebug = parseDebugArg(args);
+    const isDebug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
 
@@ -176,14 +198,18 @@ async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDi
  */
 function handleStatusline(args: string[]): void {
   try {
+    const debug = isDebugModeEnabled(args);
     const raw = readStdinSync();
+    writeDebugLog('statusline.stdin', {
+      body: raw,
+    }, createDebugLogOptions(debug));
+
     const input = parseInput(raw);
 
     const segmentsArg = parseSegmentsArg(args);
     const noEmojisCli = parseNoEmojisArg(args);
     const noBarsCli = parseNoBarsArg(args);
     const isBgUpdateDisabled = parseDisableBgUpdateArg(args);
-    const debug = parseDebugArg(args);
     const configPath = parseConfigArg(args);
 
     const segmentOrder = resolveSegmentOrder(segmentsArg);
