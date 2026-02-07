@@ -1261,7 +1261,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1296,7 +1296,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1325,7 +1325,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1363,7 +1363,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1399,7 +1399,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 
@@ -1435,7 +1435,7 @@ describe('CLI Integration Tests', () => {
         model: { display_name: 'Claude Opus 4.5' },
       });
 
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars'], {
+      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars', '--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
 

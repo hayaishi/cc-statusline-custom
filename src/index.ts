@@ -148,6 +148,10 @@ function trySpawnBackgroundUpdate(
         env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
       }
     );
+    child.on('error', () => {
+      // Swallow async spawn errors (EAGAIN, EMFILE, etc.)
+      // to prevent unhandled 'error' events from crashing the process.
+    });
     child.unref();
   } catch {
     // best-effort: background update must never crash the statusline
