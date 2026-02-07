@@ -16,9 +16,8 @@ export interface PluginCommandResult {
 }
 
 function normalizeOutput(output: string, maxLength: number): string {
-  const trimmed = output.trim();
-  const firstLine = trimmed.includes('\n') ? trimmed.substring(0, trimmed.indexOf('\n')).trim() : trimmed;
-  return firstLine.substring(0, maxLength);
+  const firstLine = output.trim().split('\n')[0] ?? '';
+  return firstLine.trim().substring(0, maxLength);
 }
 
 function extractErrorMessage(error: unknown): string {

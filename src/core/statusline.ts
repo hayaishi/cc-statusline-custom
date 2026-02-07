@@ -492,41 +492,36 @@ function composeSegments(
   projectDir?: string
 ): string[] {
   const builders = createSegmentBuilders(debug);
+  const segments: string[] = [];
 
-  return segmentOrder.reduce<string[]>((segments, segmentId) => {
-    let renderedSegment = '';
+  for (const segmentId of segmentOrder) {
+    let rendered = '';
 
-    // Handle plugin segments
     if (isPluginSegmentId(segmentId)) {
       const pluginId = parsePluginSegmentId(segmentId);
       if (pluginId !== null && pluginConfigs !== undefined) {
         const pluginConfig = pluginConfigs.get(pluginId);
         if (pluginConfig !== undefined) {
-          renderedSegment = buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
+          rendered = buildPluginSegment(pluginConfig, cacheDir, renderOptions, projectDir);
         }
       }
     } else {
-      // Handle built-in segments
-      const builder = builders[segmentId as BuiltinSegmentId];
-
       // Subscription usage segments only show when other context exists (never standalone)
       const isSubscriptionSegment =
         segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
-      const hasNoOtherSegments = segments.length === 0;
-      if (isSubscriptionSegment && hasNoOtherSegments) {
-        return segments;
+      if (isSubscriptionSegment && segments.length === 0) {
+        continue;
       }
 
-      renderedSegment = builder(input, cacheDir, renderOptions);
+      rendered = builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
     }
 
-    const hasContent = renderedSegment !== '';
-    if (hasContent) {
-      segments.push(renderedSegment);
+    if (rendered !== '') {
+      segments.push(rendered);
     }
+  }
 
-    return segments;
-  }, []);
+  return segments;
 }
 
 /**
@@ -560,26 +555,23 @@ function normalizeFetchErrorDetail(value: string): string {
 }
 
 function formatFetchErrorMessage(entry: CacheEntry | null, debug: boolean): string {
-  if (!debug) {
-    return 'Fetch Error...';
-  }
+  const fallback = 'Fetch Error...';
 
-  if (entry === null) {
-    return 'Fetch Error...';
+  if (!debug || entry === null) {
+    return fallback;
   }
 
   const record = entry as { lastError?: unknown };
   if (typeof record.lastError !== 'string') {
-    return 'Fetch Error...';
+    return fallback;
   }
 
   const trimmed = record.lastError.trim();
   if (trimmed === '') {
-    return 'Fetch Error...';
+    return fallback;
   }
 
-  const detail = normalizeFetchErrorDetail(trimmed);
-  return `Fetch Error (${detail})`;
+  return `Fetch Error (${normalizeFetchErrorDetail(trimmed)})`;
 }
 
 /**

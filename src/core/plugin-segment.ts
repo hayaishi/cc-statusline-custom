@@ -48,8 +48,6 @@ export function buildPluginSegment(
   // - Expired (> max-age): display fallback, trigger refresh
   const cached = readPluginCacheForDisplay(config.id, cacheDir, effectiveWorkingDir);
 
-  const value = cached !== null && cached.error === null && typeof cached.value === 'string'
-    ? cached.value
-    : '';
+  const value = cached !== null && cached.error === null ? cached.value : '';
   return formatPluginSegment(config, value, options);
 }

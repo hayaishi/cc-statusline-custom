@@ -21,18 +21,17 @@ export function generateSessionId(): string {
 
 export const CURRENT_SESSION_ID = generateSessionId();
 
-export function getPluginCacheFilePath(pluginId: string, cacheDir: string, workingDir?: string): string {
+function pluginCacheDirPath(cacheDir: string, workingDir?: string): string {
   const base = join(cacheDir, PLUGIN_CACHE_DIR_NAME);
-  if (workingDir !== undefined) {
-    return join(base, shortHash(workingDir), `${pluginId}.json`);
-  }
-  return join(base, `${pluginId}.json`);
+  return workingDir !== undefined ? join(base, shortHash(workingDir)) : base;
+}
+
+export function getPluginCacheFilePath(pluginId: string, cacheDir: string, workingDir?: string): string {
+  return join(pluginCacheDirPath(cacheDir, workingDir), `${pluginId}.json`);
 }
 
 function ensurePluginsCacheDir(cacheDir: string, workingDir?: string): void {
-  const dir = workingDir !== undefined
-    ? join(cacheDir, PLUGIN_CACHE_DIR_NAME, shortHash(workingDir))
-    : join(cacheDir, PLUGIN_CACHE_DIR_NAME);
+  const dir = pluginCacheDirPath(cacheDir, workingDir);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }

@@ -52,23 +52,26 @@ export function getCacheDir(): string {
   return value;
 }
 
+function parseThresholdPercent(value: string | undefined, defaultPercent: number): number {
+  if (value === undefined) {
+    return defaultPercent;
+  }
+
+  const parsed = Math.floor(Number(value));
+  if (Number.isNaN(parsed)) {
+    return defaultPercent;
+  }
+
+  return Math.max(0, Math.min(100, parsed));
+}
+
 /**
  * Gets the context low threshold (green zone upper bound).
  *
  * @returns Threshold percentage 0-100 (default: 50)
  */
 export function getContextLowThreshold(): number {
-  const value = process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD;
-  if (value === undefined) {
-    return DEFAULT_CONTEXT_THRESHOLDS.low;
-  }
-
-  const parsed = Math.floor(Number(value));
-  if (Number.isNaN(parsed)) {
-    return DEFAULT_CONTEXT_THRESHOLDS.low;
-  }
-
-  return Math.max(0, Math.min(100, parsed));
+  return parseThresholdPercent(process.env.CCSTATUSLINE_CONTEXT_LOW_THRESHOLD, DEFAULT_CONTEXT_THRESHOLDS.low);
 }
 
 /**
@@ -77,17 +80,7 @@ export function getContextLowThreshold(): number {
  * @returns Threshold percentage 0-100 (default: 80)
  */
 export function getContextMediumThreshold(): number {
-  const value = process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD;
-  if (value === undefined) {
-    return DEFAULT_CONTEXT_THRESHOLDS.medium;
-  }
-
-  const parsed = Math.floor(Number(value));
-  if (Number.isNaN(parsed)) {
-    return DEFAULT_CONTEXT_THRESHOLDS.medium;
-  }
-
-  return Math.max(0, Math.min(100, parsed));
+  return parseThresholdPercent(process.env.CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD, DEFAULT_CONTEXT_THRESHOLDS.medium);
 }
 
 /**

@@ -55,14 +55,14 @@ function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | 
 
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
-  if (!pluginsFile) return null;
+  if (pluginsFile === null) return null;
 
   const parsed = parsePluginsFile(pluginsFile);
   return parsed.plugins.length > 0 ? parsed.plugins : null;
 }
 
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  if (!plugins || plugins.length === 0) return undefined;
+  if (plugins === null || plugins.length === 0) return undefined;
   return new Map(plugins.map(p => [p.id, p]));
 }
 
