@@ -48,9 +48,9 @@ import {
 export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
 
 /**
- * Segment identifier - either a built-in segment or a plugin segment (plugin:xxx).
+ * Segment identifier - either a built-in segment or a plugin segment (:xxx).
  */
-export type SegmentId = BuiltinSegmentId | `plugin:${string}`;
+export type SegmentId = BuiltinSegmentId | `:${string}`;
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -97,7 +97,7 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 /**
  * Normalizes a segment identifier to its canonical form.
  *
- * Example: "ctx" → "context", "sub" → "subscription_usage", "plugin:git" → "plugin:git"
+ * Example: "ctx" → "context", "sub" → "subscription_usage", ":git" → ":git"
  *
  * @param id - User-provided segment identifier
  * @returns Canonical SegmentId or null if unknown/empty
@@ -108,7 +108,7 @@ export function normalizeSegmentId(id: string): SegmentId | null {
     return null;
   }
 
-  // Handle plugin segments (plugin:xxx)
+  // Handle plugin segments (:xxx)
   if (isPluginSegmentId(trimmed)) {
     const pluginId = parsePluginSegmentId(trimmed);
     if (pluginId !== null && pluginId !== '') {

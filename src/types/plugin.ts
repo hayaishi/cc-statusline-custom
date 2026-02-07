@@ -15,7 +15,7 @@ export type PluginRefreshOn = 'session_start';
  * Configuration for a single plugin.
  */
 export interface PluginConfig {
-  /** Unique identifier for the plugin (used as segment ID: plugin:<id>) */
+  /** Unique identifier for the plugin (used as segment ID: :<id>) */
   readonly id: string;
 
   /** Shell command to execute */

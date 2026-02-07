@@ -2,7 +2,7 @@ import { PLUGIN_DEFAULTS, type PluginConfig } from '../types/plugin.js';
 import { readPluginCacheForDisplay } from './plugin-cache.js';
 import type { RenderOptions } from './formatter.js';
 
-export const PLUGIN_SEGMENT_PREFIX = 'plugin:';
+export const PLUGIN_SEGMENT_PREFIX = ':';
 
 export function isPluginSegmentId(segmentId: string): boolean {
   return segmentId.startsWith(PLUGIN_SEGMENT_PREFIX);

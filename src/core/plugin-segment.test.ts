@@ -27,15 +27,15 @@ describe('plugin-segment', () => {
   });
 
   describe('PLUGIN_SEGMENT_PREFIX', () => {
-    it('should be "plugin:"', () => {
-      expect(PLUGIN_SEGMENT_PREFIX).toBe('plugin:');
+    it('should be ":"', () => {
+      expect(PLUGIN_SEGMENT_PREFIX).toBe(':');
     });
   });
 
   describe('isPluginSegmentId', () => {
     it('should return true for plugin segment ids', () => {
-      expect(isPluginSegmentId('plugin:git_branch')).toBe(true);
-      expect(isPluginSegmentId('plugin:test')).toBe(true);
+      expect(isPluginSegmentId(':git_branch')).toBe(true);
+      expect(isPluginSegmentId(':test')).toBe(true);
     });
 
     it('should return false for non-plugin segment ids', () => {
@@ -48,8 +48,8 @@ describe('plugin-segment', () => {
 
   describe('parsePluginSegmentId', () => {
     it('should extract plugin id from segment id', () => {
-      expect(parsePluginSegmentId('plugin:git_branch')).toBe('git_branch');
-      expect(parsePluginSegmentId('plugin:my-plugin')).toBe('my-plugin');
+      expect(parsePluginSegmentId(':git_branch')).toBe('git_branch');
+      expect(parsePluginSegmentId(':my-plugin')).toBe('my-plugin');
     });
 
     it('should return null for non-plugin segment ids', () => {

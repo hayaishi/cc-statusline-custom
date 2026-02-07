@@ -64,7 +64,7 @@ plugins:
         [
           SCRIPT_PATH,
           '--config', configPath,
-          '--segments', 'model,plugin:test_echo',
+          '--segments', 'model,:test_echo',
         ],
         {
           input: sampleInput,
@@ -102,7 +102,7 @@ plugins:
         [
           SCRIPT_PATH,
           '--config', configPath,
-          '--segments', 'model,plugin:missing_cache',
+          '--segments', 'model,:missing_cache',
         ],
         {
           input: sampleInput,
@@ -149,7 +149,7 @@ plugins:
         [
           SCRIPT_PATH,
           '--config', configPath,
-          '--segments', 'model,plugin:branch',
+          '--segments', 'model,:branch',
           '--no-emojis',
         ],
         {
@@ -224,7 +224,7 @@ plugins:
         [
           SCRIPT_PATH,
           '--config', configPath,
-          '--segments', 'plugin:first,model,plugin:second',
+          '--segments', ':first,model,:second',
         ],
         {
           input: sampleInput,
@@ -317,7 +317,7 @@ plugins:
         [
           SCRIPT_PATH,
           '--config', configPath,
-          '--segments', 'plugin:cached',
+          '--segments', ':cached',
         ],
         {
           input: sampleInput,

@@ -128,7 +128,7 @@ plugins:
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --config=~/.config/cc-statusline/plugins.yaml --segments=model,plugin:git_branch,cost_session,context",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --config=~/.config/cc-statusline/plugins.yaml --segments=model,:git_branch,cost_session,context",
     "padding": 0
   }
 }
@@ -144,7 +144,7 @@ plugins:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique identifier. Use in segments as `plugin:<id>` |
+| `id` | Yes | Unique identifier. Use in segments as `:<id>` |
 | `command` | Yes | Shell command to execute (`/bin/sh -c`) |
 | `ttl` | Yes | Cache TTL in seconds. `0` = refresh per session |
 | `emoji` | No | Emoji prefix when `--no-emojis` is not set |
