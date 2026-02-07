@@ -1039,24 +1039,31 @@ describe('segment configuration', () => {
       expect(result).toBe(false);
     });
 
-    it('returns true when only plugin segments are present and plugin cache is stale', () => {
-      const plugins: PluginConfig[] = [
-        {
-          id: 'test-plugin',
-          command: 'echo "test"',
-          ttl: 60,
-        },
-      ];
+    /** Creates a minimal PluginConfig for testing. */
+    function makePlugin(id: string, ttl = 60): PluginConfig {
+      return { id, command: `echo "${id}"`, ttl };
+    }
 
+    /** Writes a fresh plugin cache file under <cacheDir>/plugins/<pluginId>.json. */
+    function writeFreshPluginCache(pluginId: string, value = 'output'): void {
+      const pluginsCacheDir = join(testCacheDir, 'plugins');
+      mkdirSync(pluginsCacheDir, { recursive: true });
+      writeFileSync(join(pluginsCacheDir, `${pluginId}.json`), JSON.stringify({
+        value,
+        updatedAt: new Date().toISOString(),
+        error: null,
+      }));
+    }
+
+    it('returns true when only plugin segments are present and plugin cache is stale', () => {
       // No plugin cache exists, so it's stale
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':test-plugin'], {
-        plugins,
+        plugins: [makePlugin('test-plugin')],
       });
       expect(result).toBe(true);
     });
 
     it('returns true when subscription cache is fresh but plugin cache is stale', () => {
-      // Write fresh subscription cache
       const cacheFile = join(testCacheDir, 'subscription-usage.json');
       const freshEntry: SubscriptionUsageEntry = {
         utilizationPercent: 50,
@@ -1067,111 +1074,39 @@ describe('segment configuration', () => {
       };
       writeFileSync(cacheFile, JSON.stringify(freshEntry));
 
-      const plugins: PluginConfig[] = [
-        {
-          id: 'test-plugin',
-          command: 'echo "test"',
-          ttl: 60,
-        },
-      ];
-
       // Plugin cache is missing (stale), subscription cache is fresh
       process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage', ':test-plugin'], {
-        plugins,
+        plugins: [makePlugin('test-plugin')],
       });
       expect(result).toBe(true);
     });
 
     it('returns false when plugin cache is fresh (no projectDir)', () => {
-      const plugins: PluginConfig[] = [
-        {
-          id: 'test-plugin',
-          command: 'echo "test"',
-          ttl: 60,
-        },
-      ];
-
-      // Create plugin cache directory without project scope
-      const pluginsCacheDir = join(testCacheDir, 'plugins');
-      mkdirSync(pluginsCacheDir, { recursive: true });
-
-      // Write fresh plugin cache
-      const pluginCacheFile = join(pluginsCacheDir, 'test-plugin.json');
-      writeFileSync(pluginCacheFile, JSON.stringify({
-        value: 'test output',
-        updatedAt: new Date().toISOString(),
-        error: null,
-      }));
+      writeFreshPluginCache('test-plugin', 'test output');
 
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':test-plugin'], {
-        plugins,
+        plugins: [makePlugin('test-plugin')],
       });
       expect(result).toBe(false);
     });
 
     it('returns false when all plugin caches are fresh', () => {
-      const plugins: PluginConfig[] = [
-        {
-          id: 'plugin1',
-          command: 'echo "1"',
-          ttl: 60,
-        },
-        {
-          id: 'plugin2',
-          command: 'echo "2"',
-          ttl: 60,
-        },
-      ];
-
-      // Create plugin cache directory
-      const pluginsCacheDir = join(testCacheDir, 'plugins');
-      mkdirSync(pluginsCacheDir, { recursive: true });
-
-      // Write fresh plugin caches
-      writeFileSync(join(pluginsCacheDir, 'plugin1.json'), JSON.stringify({
-        value: 'output1',
-        updatedAt: new Date().toISOString(),
-        error: null,
-      }));
-      writeFileSync(join(pluginsCacheDir, 'plugin2.json'), JSON.stringify({
-        value: 'output2',
-        updatedAt: new Date().toISOString(),
-        error: null,
-      }));
+      writeFreshPluginCache('plugin1', 'output1');
+      writeFreshPluginCache('plugin2', 'output2');
 
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':plugin1', ':plugin2'], {
-        plugins,
+        plugins: [makePlugin('plugin1'), makePlugin('plugin2')],
       });
       expect(result).toBe(false);
     });
 
     it('returns true when some plugin cache is stale among multiple plugins', () => {
-      const plugins: PluginConfig[] = [
-        {
-          id: 'fresh-plugin',
-          command: 'echo "fresh"',
-          ttl: 60,
-        },
-        {
-          id: 'stale-plugin',
-          command: 'echo "stale"',
-          ttl: 60,
-        },
-      ];
+      writeFreshPluginCache('fresh-plugin', 'output1');
 
-      // Create plugin cache directory
+      // Write stale cache for stale-plugin (old mtime)
       const pluginsCacheDir = join(testCacheDir, 'plugins');
       mkdirSync(pluginsCacheDir, { recursive: true });
-
-      // Write fresh cache for plugin1
-      writeFileSync(join(pluginsCacheDir, 'fresh-plugin.json'), JSON.stringify({
-        value: 'output1',
-        updatedAt: new Date().toISOString(),
-        error: null,
-      }));
-
-      // Write stale cache for plugin2 (old mtime)
       const staleCacheFile = join(pluginsCacheDir, 'stale-plugin.json');
       writeFileSync(staleCacheFile, JSON.stringify({
         value: 'output2',
@@ -1182,9 +1117,19 @@ describe('segment configuration', () => {
       utimesSync(staleCacheFile, oldTime, oldTime);
 
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':fresh-plugin', ':stale-plugin'], {
-        plugins,
+        plugins: [makePlugin('fresh-plugin'), makePlugin('stale-plugin')],
       });
       expect(result).toBe(true);
+    });
+
+    it('should not trigger update for stale plugin not referenced in segments', () => {
+      writeFreshPluginCache('referenced-plugin');
+
+      // hidden-plugin has NO cache (stale), but is NOT in segments
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['model', ':referenced-plugin'], {
+        plugins: [makePlugin('referenced-plugin'), makePlugin('hidden-plugin')],
+      });
+      expect(result).toBe(false);
     });
   });
 });

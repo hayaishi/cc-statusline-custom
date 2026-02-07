@@ -329,10 +329,18 @@ export function shouldRequestBgCacheUpdate(
   options?: BgUpdateCheckOptions
 ): boolean {
   const targets = getCacheTargetsForSegments(segments);
-  const plugins = options?.plugins ?? [];
   const projectDir = options?.projectDir;
 
-  // Check if we have any subscription cache targets OR plugins to check
+  // Only consider plugins actually referenced in segments (e.g. `:pluginId`)
+  const allPlugins = options?.plugins ?? [];
+  const referencedPluginIds = new Set(
+    segments
+      .filter(isPluginSegmentId)
+      .map(s => parsePluginSegmentId(s))
+      .filter((id): id is string => id !== null)
+  );
+  const plugins = allPlugins.filter(p => referencedPluginIds.has(p.id));
+
   if (targets.length === 0 && plugins.length === 0) return false;
 
   if (isLockFileFresh(cacheDir)) return false;
@@ -357,12 +365,10 @@ export function shouldRequestBgCacheUpdate(
   if (subscriptionNeedsUpdate) return true;
 
   // Check plugin cache staleness
-  const pluginNeedsUpdate = plugins.some(plugin => {
+  return plugins.some(plugin => {
     const workingDir = plugin.workingDir ?? projectDir;
     return shouldRefreshPlugin(plugin, cacheDir, workingDir);
   });
-
-  return pluginNeedsUpdate;
 }
 
 /**
