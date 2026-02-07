@@ -48,6 +48,18 @@ To parse `payload.body` as JSON from the default debug log path:
 jq '.payload.body | fromjson' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
 ```
 
+To output only `oauth.usage.response` records:
+
+```bash
+jq 'select(.event=="oauth.usage.response")' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
+```
+
+To output only `oauth.usage.response` records and parse `payload.body` as JSON:
+
+```bash
+jq 'select(.event=="oauth.usage.response") | .payload |= (. + {body: (.body | fromjson)})' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
+```
+
 ## Example
 
 ```bash
