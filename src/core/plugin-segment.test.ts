@@ -75,20 +75,20 @@ describe('plugin-segment', () => {
       expect(result).toBe('🌿 main');
     });
 
-    it('should format with fallbackText when showEmojis is false', () => {
+    it('should format with alt when showEmojis is false', () => {
       const config: PluginConfig = {
         id: 'git_branch',
         command: 'git branch',
         ttl: 60,
         emoji: '🌿',
-        fallbackText: 'branch',
+        alt: 'branch',
       };
       const options: RenderOptions = { showEmojis: false, showBars: true };
       const result = formatPluginSegment(config, 'main', options);
       expect(result).toBe('branch: main');
     });
 
-    it('should format without prefix when no emoji and no fallbackText', () => {
+    it('should format without prefix when no emoji and no alt', () => {
       const config: PluginConfig = {
         id: 'counter',
         command: 'echo 5',

@@ -52,7 +52,7 @@ plugins:
   - id: git_branch
     command: git branch --show-current
     emoji: "🌿"
-    fallbackText: branch
+    alt: branch
     ttl: 300
     refreshOn: session_start
     timeout: 10000
@@ -66,7 +66,7 @@ plugins:
       const plugin = result?.plugins[0];
       expect(plugin?.id).toBe('git_branch');
       expect(plugin?.emoji).toBe('🌿');
-      expect(plugin?.fallbackText).toBe('branch');
+      expect(plugin?.alt).toBe('branch');
       expect(plugin?.ttl).toBe(300);
       expect(plugin?.refreshOn).toBe('session_start');
       expect(plugin?.timeout).toBe(10000);

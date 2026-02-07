@@ -117,7 +117,7 @@ plugins:
   - id: git_branch
     command: git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '-'
     emoji: "🌿"
-    fallbackText: "branch"
+    alt: "branch"
     fallbackValue: "-"
     ttl: 30
 ```
@@ -148,7 +148,7 @@ plugins:
 | `command` | Yes | Shell command to execute (`/bin/sh -c`) |
 | `ttl` | Yes | Cache TTL in seconds. `0` = refresh per session |
 | `emoji` | No | Emoji prefix when `--no-emojis` is not set |
-| `fallbackText` | No | Text prefix when `--no-emojis` is set |
+| `alt` | No | Text prefix when `--no-emojis` is set |
 | `fallbackValue` | No | Value shown when command fails or cache missing (default: `?`) |
 | `maxLength` | No | Truncate output to N characters (default: 32) |
 | `timeout` | No | Command timeout in ms (default: 5000, max: 30000) |
@@ -176,7 +176,7 @@ plugins:
   - id: node_version
     command: node -v | sed 's/^v//'
     emoji: "📦"
-    fallbackText: "node"
+    alt: "node"
     ttl: 3600
     refreshOn: session_start
 ```
@@ -186,7 +186,7 @@ plugins:
   - id: cpu
     command: top -l 1 | grep "CPU usage" | awk '{print $3}'
     emoji: "💻"
-    fallbackText: "cpu"
+    alt: "cpu"
     ttl: 5
 ```
 

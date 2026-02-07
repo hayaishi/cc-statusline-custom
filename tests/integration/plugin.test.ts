@@ -119,7 +119,7 @@ plugins:
       expect(output).toContain('N/A');
     });
 
-    it('should use fallbackText when --no-emojis is set', () => {
+    it('should use alt when --no-emojis is set', () => {
       writeFileSync(
         configPath,
         `
@@ -127,7 +127,7 @@ plugins:
   - id: branch
     command: echo "main"
     emoji: "🌿"
-    fallbackText: "branch"
+    alt: "branch"
     ttl: 60
 `
       );

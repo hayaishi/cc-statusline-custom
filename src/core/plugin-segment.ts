@@ -27,8 +27,8 @@ export function formatPluginSegment(
   let prefix = '';
   if (options.showEmojis && config.emoji !== undefined) {
     prefix = `${config.emoji} `;
-  } else if (!options.showEmojis && config.fallbackText !== undefined) {
-    prefix = `${config.fallbackText}: `;
+  } else if (!options.showEmojis && config.alt !== undefined) {
+    prefix = `${config.alt}: `;
   }
 
   return `${prefix}${displayValue}`;

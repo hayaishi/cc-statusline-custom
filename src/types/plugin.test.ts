@@ -57,7 +57,7 @@ describe('plugin types', () => {
         command: 'echo hello',
         ttl: 60,
         emoji: '🔧',
-        fallbackText: 'test',
+        alt: 'test',
         refreshOn: 'session_start',
         timeout: 10000,
         workingDir: '/tmp',

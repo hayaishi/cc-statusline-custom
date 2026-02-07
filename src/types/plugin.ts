@@ -25,7 +25,7 @@ export interface PluginConfig {
   readonly emoji?: string;
 
   /** Alternative text when emojis are disabled */
-  readonly fallbackText?: string;
+  readonly alt?: string;
 
   /** Cache TTL in seconds. 0 = no caching (always fetch) */
   readonly ttl: number;
