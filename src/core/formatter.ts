@@ -394,27 +394,28 @@ export function formatSubscriptionUsageAllSegment(
   const isValidWindow = (data: WindowData | null): data is WindowData =>
     data !== null && Number.isFinite(data.percent) && data.reset.trim() !== '';
 
-  const fiveHoursValid = isValidWindow(fiveHours);
-  const sevenDaysValid = isValidWindow(sevenDays);
-
   // No valid windows
-  if (!fiveHoursValid && !sevenDaysValid) {
+  if (!isValidWindow(fiveHours) && !isValidWindow(sevenDays)) {
     return '';
   }
 
   // Only five_hours valid
-  if (fiveHoursValid && !sevenDaysValid) {
-    return formatWindow(fiveHours!, primaryWindowType);
+  if (isValidWindow(fiveHours) && !isValidWindow(sevenDays)) {
+    return formatWindow(fiveHours, primaryWindowType);
   }
 
   // Only seven_days valid
-  if (!fiveHoursValid && sevenDaysValid) {
-    return formatWindow(sevenDays!, 'seven_days');
+  if (!isValidWindow(fiveHours) && isValidWindow(sevenDays)) {
+    return formatWindow(sevenDays, 'seven_days');
   }
 
   // Both valid - show both windows
-  const fiveHoursStr = formatWindow(fiveHours!, 'five_hours');
-  const sevenDaysStr = formatWindow(sevenDays!, 'seven_days');
+  if (isValidWindow(fiveHours) && isValidWindow(sevenDays)) {
+    const fiveHoursStr = formatWindow(fiveHours, 'five_hours');
+    const sevenDaysStr = formatWindow(sevenDays, 'seven_days');
+    return `${fiveHoursStr} ${sevenDaysStr}`;
+  }
 
-  return `${fiveHoursStr} ${sevenDaysStr}`;
+  // Fallback (should never reach here)
+  return '';
 }

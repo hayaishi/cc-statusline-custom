@@ -827,16 +827,14 @@ function buildSubscriptionUsageAllSegment(
 
       if (sevenAt100) {
         // Case 2 (or both at 100%): extra + seven_day (five_hour hidden)
-        if (sevenDaysData !== null) {
-          const sevenFormatted = formatWindow(sevenDaysData, 'seven_days');
-          return `${extraFormatted} ${sevenFormatted}`;
-        }
+        // sevenDaysData is guaranteed non-null by sevenAt100 check
+        const sevenFormatted = formatWindow(sevenDaysData, 'seven_days');
+        return `${extraFormatted} ${sevenFormatted}`;
       } else if (fiveAt100) {
         // Case 1: five_hour at 100%, seven_day < 100%: extra + five_hour
-        if (fiveHoursData !== null) {
-          const fiveFormatted = formatWindow(fiveHoursData, 'five_hours');
-          return `${extraFormatted} ${fiveFormatted}`;
-        }
+        // fiveHoursData is guaranteed non-null by fiveAt100 check
+        const fiveFormatted = formatWindow(fiveHoursData, 'five_hours');
+        return `${extraFormatted} ${fiveFormatted}`;
       }
     }
 
