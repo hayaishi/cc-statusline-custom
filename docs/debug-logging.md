@@ -40,6 +40,14 @@ When the active log would exceed `CCSTATUSLINE_DEBUG_LOG_MAX_BYTES`:
 3. Current active log becomes `.1`
 4. A new active log file is created and appended
 
+## Inspect Logged Input Payload
+
+To parse `payload.body` as JSON from the default debug log path:
+
+```bash
+jq '.payload.body | fromjson' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
+```
+
 ## Example
 
 ```bash
