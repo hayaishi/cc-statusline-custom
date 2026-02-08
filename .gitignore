@@ -64,6 +64,8 @@ temp/
 # ------------------------------------------------------------
 # Runtime / tool artifacts
 # ------------------------------------------------------------
+.claude/.checks_failed
+.claude/last-checks.log
 .DS_Store
 .AppleDouble
 .LSOverride

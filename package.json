@@ -25,6 +25,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "check": "tsx ./tools/dev-check.ts all",
+    "check:lint": "tsx ./tools/dev-check.ts lint",
+    "check:typecheck": "tsx ./tools/dev-check.ts typecheck",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "typecheck": "tsc --noEmit",
@@ -54,6 +57,7 @@
     "@types/node": "^22.10.7",
     "@vitest/coverage-v8": "^3.0.4",
     "eslint": "^9.18.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
     "vitest": "^3.0.4"
