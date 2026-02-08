@@ -106,3 +106,19 @@ export function parseProjectDirArg(args: string[]): string | undefined {
 export function parseConfigArg(args: string[]): string | undefined {
   return parseValuedFlag(args, '--config', '-c');
 }
+
+/**
+ * Parses the --cc-version argument from CLI args.
+ * Internal-only: passed to background update subprocesses to propagate Claude Code version.
+ *
+ * @param args - CLI arguments (process.argv.slice(2))
+ * @returns Claude Code version string, or undefined if flag not present or value is empty
+ */
+export function parseCcVersionArg(args: string[]): string | undefined {
+  const idx = args.indexOf('--cc-version');
+  if (idx === -1 || idx + 1 >= args.length) return undefined;
+  const value = args[idx + 1];
+  if (value === undefined || value.startsWith('-')) return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}

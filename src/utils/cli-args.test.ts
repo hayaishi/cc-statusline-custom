@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg, parseConfigArg, parseProjectDirArg } from './cli-args.js';
+import { parseSegmentsArg, parseNoEmojisArg, parseNoBarsArg, parseDisableBgUpdateArg, parseAutoArg, parseDebugArg, parseConfigArg, parseProjectDirArg, parseCcVersionArg } from './cli-args.js';
 
 describe('parseSegmentsArg', () => {
   describe('flag not present', () => {
@@ -321,5 +321,36 @@ describe('parseProjectDirArg', () => {
 
   it('handles flag among other args', () => {
     expect(parseProjectDirArg(['--update-cache', '--project-dir', '/my/dir', '--auto'])).toBe('/my/dir');
+  });
+});
+
+describe('parseCcVersionArg', () => {
+  it('returns undefined when flag not present', () => {
+    expect(parseCcVersionArg([])).toBeUndefined();
+    expect(parseCcVersionArg(['--update-cache', '--auto'])).toBeUndefined();
+  });
+
+  it('returns undefined when value is missing (flag at end)', () => {
+    expect(parseCcVersionArg(['--cc-version'])).toBeUndefined();
+  });
+
+  it('parses --cc-version with value', () => {
+    expect(parseCcVersionArg(['--cc-version', '2.1.37'])).toBe('2.1.37');
+  });
+
+  it('returns trimmed value', () => {
+    expect(parseCcVersionArg(['--cc-version', '  2.1.37  '])).toBe('2.1.37');
+  });
+
+  it('returns undefined for whitespace-only value', () => {
+    expect(parseCcVersionArg(['--cc-version', '   '])).toBeUndefined();
+  });
+
+  it('handles flag among other args', () => {
+    expect(parseCcVersionArg(['--update-cache', '--cc-version', '2.1.37', '--auto'])).toBe('2.1.37');
+  });
+
+  it('returns undefined when value is another flag', () => {
+    expect(parseCcVersionArg(['--cc-version', '--auto'])).toBeUndefined();
   });
 });

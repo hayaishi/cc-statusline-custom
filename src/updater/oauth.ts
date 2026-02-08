@@ -4,7 +4,11 @@ import type { DebugLogOptions } from '../utils/debug-log.js';
 import { writeDebugLog } from '../utils/debug-log.js';
 
 const OAUTH_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const USER_AGENT = 'claude-code/2.1.5';
+const DEFAULT_USER_AGENT = 'claude-code/2.1.5';
+
+function buildUserAgent(version?: string): string {
+  return version !== undefined ? `claude-code/${version}` : DEFAULT_USER_AGENT;
+}
 
 export interface UsageWindow {
   utilization: number;
@@ -25,6 +29,7 @@ export interface OAuthUsage {
 }
 
 export interface FetchOAuthUsageOptions {
+  version?: string;
   debugLogOptions?: DebugLogOptions;
 }
 
@@ -162,17 +167,11 @@ export function parseOAuthUsage(body: string): OAuthUsage {
   const extraUsageRaw = container.extra_usage ?? container.extraUsage;
   const extraUsage = parseExtraUsage(extraUsageRaw);
 
-  const result: OAuthUsage = {};
-  if (fiveHours) {
-    result.fiveHours = fiveHours;
-  }
-  if (sevenDays) {
-    result.sevenDays = sevenDays;
-  }
-  if (extraUsage) {
-    result.extraUsage = extraUsage;
-  }
-  return result;
+  return {
+    ...(fiveHours && { fiveHours }),
+    ...(sevenDays && { sevenDays }),
+    ...(extraUsage && { extraUsage }),
+  };
 }
 
 export function fetchOAuthUsage(token: string, options?: FetchOAuthUsageOptions): Promise<OAuthUsage> {
@@ -185,7 +184,7 @@ export function fetchOAuthUsage(token: string, options?: FetchOAuthUsageOptions)
           Accept: 'application/json',
           Authorization: `Bearer ${token}`,
           'anthropic-beta': 'oauth-2025-04-20',
-          'User-Agent': USER_AGENT,
+          'User-Agent': buildUserAgent(options?.version),
         },
       },
       (res) => {

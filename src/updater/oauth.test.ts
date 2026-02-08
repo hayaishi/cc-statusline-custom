@@ -483,4 +483,44 @@ describe('fetchOAuthUsage', () => {
 
     await expect(promise).rejects.toThrow('network failure');
   });
+
+  it('should use provided version in User-Agent header', async () => {
+    setupRequest(200);
+
+    const promise = fetchOAuthUsage('token-123', { version: '2.1.37' });
+    lastResponse?.emit('data', '{"five_hour":{"utilization":0.42,"resets_at":"2026-01-20T12:00:00Z"}}');
+    lastResponse?.emit('end');
+
+    await promise;
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'User-Agent': 'claude-code/2.1.37',
+        }),
+      }),
+      expect.any(Function)
+    );
+  });
+
+  it('should use default User-Agent when version not provided', async () => {
+    setupRequest(200);
+
+    const promise = fetchOAuthUsage('token-123');
+    lastResponse?.emit('data', '{"five_hour":{"utilization":0.42,"resets_at":"2026-01-20T12:00:00Z"}}');
+    lastResponse?.emit('end');
+
+    await promise;
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'User-Agent': 'claude-code/2.1.5',
+        }),
+      }),
+      expect.any(Function)
+    );
+  });
 });

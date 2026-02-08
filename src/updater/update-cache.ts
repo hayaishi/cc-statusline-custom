@@ -27,11 +27,13 @@ export interface UpdateCacheResult {
 }
 
 /**
+/**
  * Options for cache update operation.
  */
 export interface UpdateCacheOptions {
   mode?: 'auto' | 'force';
   debug?: boolean;
+  ccVersion?: string;
 }
 
 interface UpdaterDeps {
@@ -83,11 +85,13 @@ function normalizeOAuthErrorDetail(detail: string): string {
 
 function extractOAuthErrorDetail(error: unknown): string | null {
   const record = error as { responseBody?: unknown; body?: unknown };
-  const detail = typeof record.responseBody === 'string'
-    ? record.responseBody
-    : typeof record.body === 'string'
-      ? record.body
-      : null;
+
+  let detail: string | null = null;
+  if (typeof record.responseBody === 'string') {
+    detail = record.responseBody;
+  } else if (typeof record.body === 'string') {
+    detail = record.body;
+  }
 
   if (detail === null || detail.trim() === '') {
     return null;
@@ -124,17 +128,18 @@ function buildDebugLogOptions(): DebugLogOptions {
   };
 }
 
-function buildFetchOAuthUsageOptions(debug: boolean): FetchOAuthUsageOptions | undefined {
-  if (!debug) {
+function buildFetchOAuthUsageOptions(debug: boolean, version?: string): FetchOAuthUsageOptions | undefined {
+  if (!debug && version === undefined) {
     return undefined;
   }
 
   return {
-    debugLogOptions: buildDebugLogOptions(),
+    ...(version !== undefined && { version }),
+    ...(debug && { debugLogOptions: buildDebugLogOptions() }),
   };
 }
 
-async function buildSubscriptionUsageEntry(debug: boolean): Promise<SubscriptionUsageEntry> {
+async function buildSubscriptionUsageEntry(debug: boolean, ccVersion?: string): Promise<SubscriptionUsageEntry> {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
   const base: SubscriptionUsageEntry = {
@@ -151,37 +156,32 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
 
   let usage: OAuthUsage;
   try {
-    usage = await fetchUsage(token, buildFetchOAuthUsageOptions(debug));
+    usage = await fetchUsage(token, buildFetchOAuthUsageOptions(debug, ccVersion));
   } catch (error) {
-    const detail = debug ? extractOAuthErrorDetail(error) : null;
     const normalizedError = normalizeOAuthFetchError(error);
-    return detail !== null
-      ? {
-          ...base,
-          lastError: normalizedError,
-          lastErrorDetail: detail,
-        }
-      : {
-          ...base,
-          lastError: normalizedError,
-        };
+    const detail = debug ? extractOAuthErrorDetail(error) : null;
+
+    return {
+      ...base,
+      lastError: normalizedError,
+      ...(detail !== null && { lastErrorDetail: detail }),
+    };
   }
 
   // Determine which window to use.
   // Note: When seven_day utilization hits 100%, the API can omit five_hour entirely.
-  // In that case we accept seven_day-only responses and skip five_hour rendering.
   // Priority: 7-day window if utilization is 100% or more (when both exist)
   // Otherwise: 5-hour window (default), or 7-day when 5-hour is missing
-  const fiveHours = usage.fiveHours;
-  const sevenDays = usage.sevenDays;
+  const { fiveHours, sevenDays } = usage;
   const hasFiveHours = fiveHours !== undefined;
   const hasSevenDays = sevenDays !== undefined;
-  const fiveHoursData = fiveHours ?? { utilization: Number.NaN, resetsAt: '' };
-  const sevenDaysData = sevenDays ?? { utilization: Number.NaN, resetsAt: '' };
 
   if (!hasFiveHours && !hasSevenDays) {
     return { ...base, lastError: 'oauth_response_invalid' };
   }
+
+  const fiveHoursData = fiveHours ?? { utilization: Number.NaN, resetsAt: '' };
+  const sevenDaysData = sevenDays ?? { utilization: Number.NaN, resetsAt: '' };
 
   let selectedWindow = hasFiveHours ? fiveHoursData : sevenDaysData;
   let windowType: 'five_hours' | 'seven_days' = hasFiveHours ? 'five_hours' : 'seven_days';
@@ -205,24 +205,16 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
 
   // Populate detailed window data
   const fiveHoursPercent = normalizeUtilizationPercent(fiveHoursData.utilization);
-  const fiveHoursEntry =
-    hasFiveHours && fiveHoursPercent !== null
-      ? {
-          utilizationPercent: fiveHoursPercent,
-          resetsAt: fiveHoursData.resetsAt,
-        }
-      : undefined;
+  const fiveHoursEntry = hasFiveHours && fiveHoursPercent !== null
+    ? { utilizationPercent: fiveHoursPercent, resetsAt: fiveHoursData.resetsAt }
+    : undefined;
 
-  let sevenDaysEntry: { utilizationPercent: number; resetsAt: string } | undefined;
-  if (hasSevenDays) {
-    const sevenDaysPercent = normalizeUtilizationPercent(sevenDaysData.utilization);
-    if (sevenDaysPercent !== null) {
-      sevenDaysEntry = {
-        utilizationPercent: sevenDaysPercent,
-        resetsAt: sevenDaysData.resetsAt,
-      };
-    }
-  }
+  const sevenDaysPercent = hasSevenDays
+    ? normalizeUtilizationPercent(sevenDaysData.utilization)
+    : null;
+  const sevenDaysEntry = sevenDaysPercent !== null
+    ? { utilizationPercent: sevenDaysPercent, resetsAt: sevenDaysData.resetsAt }
+    : undefined;
 
   // Populate extra usage data (store float utilization for decimal precision)
   const extraUsageEntry = usage.extraUsage !== undefined
@@ -315,7 +307,7 @@ export async function updateCache(
 
   try {
     // Proceed with network fetch (force mode or auto mode with stale/invalid cache)
-    const subscriptionUsage = await buildSubscriptionUsageEntry(debug);
+    const subscriptionUsage = await buildSubscriptionUsageEntry(debug, options?.ccVersion);
 
     writeCacheAtomic('subscriptionUsage', subscriptionUsage, dir);
 
