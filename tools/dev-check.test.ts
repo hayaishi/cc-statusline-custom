@@ -4,9 +4,17 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveDevCheckContext, runChecks, type ShellRunner } from "./dev-check";
 
+function createTempProjectDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function createSuccessRunner(): ShellRunner {
+  return async (cmd) => ({ code: 0, out: `ok:${cmd}` });
+}
+
 describe("dev-check", () => {
-  it("should write log and clear fail flag when checks pass", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "dev-check-"));
+  it("should write log and clear fail flag when all checks pass", async () => {
+    const projectDir = createTempProjectDir("dev-check-");
     const context = resolveDevCheckContext(
       {
         PROJECT_DIR: projectDir,
@@ -17,11 +25,7 @@ describe("dev-check", () => {
       ["node", "dev-check", "all"]
     );
 
-    const runner: ShellRunner = async (cmd) => {
-      return { code: 0, out: `ok:${cmd}` };
-    };
-
-    const result = await runChecks(context, runner);
+    const result = await runChecks(context, createSuccessRunner());
 
     const logContent = fs.readFileSync(context.logFile, "utf8");
     expect(result).toEqual({ lintRc: 0, typeRc: 0 });
@@ -31,8 +35,8 @@ describe("dev-check", () => {
     expect(fs.existsSync(context.failFlag)).toBe(false);
   });
 
-  it("should set fail flag when a check fails", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "dev-check-"));
+  it("should create fail flag when any check fails", async () => {
+    const projectDir = createTempProjectDir("dev-check-");
     const context = resolveDevCheckContext(
       {
         PROJECT_DIR: projectDir,

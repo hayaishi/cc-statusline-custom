@@ -4,9 +4,19 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolvePreEditOptions, runPreEditGuard } from "./cc-pre-edit-guard";
 
+function createTempProjectDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function createFailFlag(flagPath: string, logPath: string, logContent: string): void {
+  fs.mkdirSync(path.dirname(flagPath), { recursive: true });
+  fs.writeFileSync(flagPath, "", "utf8");
+  fs.writeFileSync(logPath, logContent, "utf8");
+}
+
 describe("cc-pre-edit-guard", () => {
   it("should allow edits when no fail flag exists", () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-edit-"));
+    const projectDir = createTempProjectDir("pre-edit-");
     const options = resolvePreEditOptions({}, projectDir);
 
     const result = runPreEditGuard(options);
@@ -16,11 +26,9 @@ describe("cc-pre-edit-guard", () => {
   });
 
   it("should block edits when fail flag exists", () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-edit-"));
+    const projectDir = createTempProjectDir("pre-edit-");
     const options = resolvePreEditOptions({}, projectDir);
-    fs.mkdirSync(path.dirname(options.failFlag), { recursive: true });
-    fs.writeFileSync(options.failFlag, "", "utf8");
-    fs.writeFileSync(options.logFile, "line1\nline2\n", "utf8");
+    createFailFlag(options.failFlag, options.logFile, "line1\nline2\n");
 
     const result = runPreEditGuard(options);
 

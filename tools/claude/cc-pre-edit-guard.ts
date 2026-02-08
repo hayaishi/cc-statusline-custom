@@ -20,10 +20,10 @@ export function resolvePreEditOptions(
   };
 }
 
-export function readLogTail(logFile: string, lines: number): string {
+export function readLogTail(logFile: string, tailLines: number): string {
   try {
     const content = fs.readFileSync(logFile, "utf8").split(/\r?\n/);
-    return content.slice(-lines).join("\n");
+    return content.slice(-tailLines).join("\n");
   } catch {
     return "";
   }

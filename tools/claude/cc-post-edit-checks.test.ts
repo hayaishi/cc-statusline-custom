@@ -8,12 +8,21 @@ import {
   type CommandRunner,
 } from "./cc-post-edit-checks";
 
+function createTempProjectDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+function setupLogFile(projectDir: string, content: string): string {
+  const logFile = path.join(projectDir, ".claude", "last-checks.log");
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+  fs.writeFileSync(logFile, content, "utf8");
+  return logFile;
+}
+
 describe("cc-post-edit-checks", () => {
-  it("should return block JSON when checks fail", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "post-edit-"));
-    const logFile = path.join(projectDir, ".claude", "last-checks.log");
-    fs.mkdirSync(path.dirname(logFile), { recursive: true });
-    fs.writeFileSync(logFile, "line1\nline2\n", "utf8");
+  it("should return block JSON with log tail when checks fail", async () => {
+    const projectDir = createTempProjectDir("post-edit-");
+    setupLogFile(projectDir, "line1\nline2\n");
 
     const options = resolvePostEditOptions({ CC_CHECK_SCRIPT: "check" }, projectDir);
     const runner: CommandRunner = async () => 1;
@@ -25,13 +34,13 @@ describe("cc-post-edit-checks", () => {
     expect(result.output).toContain("line1");
   });
 
-  it("should fall back to check:all when check fails", async () => {
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "post-edit-"));
+  it("should try fallback script when primary check fails", async () => {
+    const projectDir = createTempProjectDir("post-edit-");
     const options = resolvePostEditOptions({}, projectDir);
 
-    const calls: string[] = [];
+    const executedCommands: string[] = [];
     const runner: CommandRunner = async (cmd) => {
-      calls.push(cmd);
+      executedCommands.push(cmd);
       return cmd.includes("check:all") ? 0 : 1;
     };
 
@@ -39,6 +48,6 @@ describe("cc-post-edit-checks", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.output).toBeUndefined();
-    expect(calls).toEqual(["npm run check", "npm run check:all"]);
+    expect(executedCommands).toEqual(["npm run check", "npm run check:all"]);
   });
 });

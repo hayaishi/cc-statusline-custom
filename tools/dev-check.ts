@@ -21,26 +21,20 @@ export function resolveDevCheckContext(
   cwd: string = process.cwd(),
   args: string[] = process.argv
 ): DevCheckContext {
-  const projectDir =
-    env.PROJECT_DIR ||
-    env.CLAUDE_PROJECT_DIR ||
-    cwd;
-
+  const projectDir = env.PROJECT_DIR || env.CLAUDE_PROJECT_DIR || cwd;
   const lintCmd = env.LINT_CMD || env.CC_LINT_CMD || "npm run lint";
   const typeCmd = env.TYPECHECK_CMD || env.CC_TYPECHECK_CMD || "npm run typecheck";
   const mode = (args[2] ?? "all") as Mode;
 
   const claudeDir = path.join(projectDir, ".claude");
-  const failFlag = path.join(claudeDir, ".checks_failed");
-  const logFile = path.join(claudeDir, "last-checks.log");
 
   return {
     projectDir,
     lintCmd,
     typeCmd,
     mode,
-    logFile,
-    failFlag,
+    logFile: path.join(claudeDir, "last-checks.log"),
+    failFlag: path.join(claudeDir, ".checks_failed"),
   };
 }
 
@@ -82,27 +76,32 @@ export async function runChecks(
   let lintRc = 0;
   let typeRc = 0;
 
-  if (context.mode === "all" || context.mode === "lint") {
+  const shouldRunLint = context.mode === "all" || context.mode === "lint";
+  const shouldRunTypecheck = context.mode === "all" || context.mode === "typecheck";
+
+  if (shouldRunLint) {
     appendLog(context.logFile, `[lint] ${context.lintCmd}\n`);
-    const r = await runner(context.lintCmd);
-    appendLog(context.logFile, r.out + "\n");
-    lintRc = r.code;
+    const result = await runner(context.lintCmd);
+    appendLog(context.logFile, result.out + "\n");
+    lintRc = result.code;
   }
 
-  if (context.mode === "all" || context.mode === "typecheck") {
+  if (shouldRunTypecheck) {
     appendLog(context.logFile, `[typecheck] ${context.typeCmd}\n`);
-    const r = await runner(context.typeCmd);
-    appendLog(context.logFile, r.out + "\n");
-    typeRc = r.code;
+    const result = await runner(context.typeCmd);
+    appendLog(context.logFile, result.out + "\n");
+    typeRc = result.code;
   }
 
-  if (lintRc !== 0 || typeRc !== 0) {
+  // Update fail flag based on check results
+  const hasFailures = lintRc !== 0 || typeRc !== 0;
+  if (hasFailures) {
     fs.writeFileSync(context.failFlag, "", "utf8");
   } else {
     try {
       fs.unlinkSync(context.failFlag);
     } catch {
-      // ignore
+      // Ignore - flag may not exist
     }
   }
 

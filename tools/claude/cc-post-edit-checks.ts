@@ -17,10 +17,7 @@ export function resolvePostEditOptions(
   cwd: string = process.cwd()
 ): PostEditOptions {
   const projectDir = env.CLAUDE_PROJECT_DIR || cwd;
-  const preferCheckScript =
-    env.CC_CHECK_SCRIPT && env.CC_CHECK_SCRIPT.trim().length > 0
-      ? env.CC_CHECK_SCRIPT
-      : "check";
+  const preferCheckScript = env.CC_CHECK_SCRIPT?.trim() || "check";
   const fallbackScript = "check:all";
 
   return {
@@ -39,10 +36,10 @@ export function defaultRunner(projectDir: string): CommandRunner {
     });
 }
 
-export function readLogTail(logFile: string, lines: number): string {
+export function readLogTail(logFile: string, tailLines: number): string {
   try {
     const content = fs.readFileSync(logFile, "utf8").split(/\r?\n/);
-    return content.slice(-lines).join("\n");
+    return content.slice(-tailLines).join("\n");
   } catch (error) {
     return `(failed to read ${logFile}: ${String(error)})`;
   }
@@ -52,12 +49,14 @@ export async function runPostEditChecks(
   options: PostEditOptions,
   runner: CommandRunner = defaultRunner(options.projectDir)
 ): Promise<{ exitCode: 0; output?: string }> {
-  let rc = await runner(`npm run ${options.preferCheckScript}`);
-  if (rc !== 0 && options.preferCheckScript !== options.fallbackScript) {
-    rc = await runner(`npm run ${options.fallbackScript}`);
+  let exitCode = await runner(`npm run ${options.preferCheckScript}`);
+
+  // Try fallback if primary check failed and fallback differs
+  if (exitCode !== 0 && options.preferCheckScript !== options.fallbackScript) {
+    exitCode = await runner(`npm run ${options.fallbackScript}`);
   }
 
-  if (rc !== 0) {
+  if (exitCode !== 0) {
     const tail = readLogTail(options.logFile, 120);
     const output = JSON.stringify({
       decision: "block",
