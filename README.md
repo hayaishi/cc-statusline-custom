@@ -75,6 +75,21 @@ npm install
 npm run build
 ```
 
+## Development Checks
+
+Setup:
+
+```bash
+npm i
+git config core.hooksPath .githooks
+```
+
+What it enforces: `npm run check` (lint + typecheck).
+
+Bypass: `git commit --no-verify` can bypass locally; CI still enforces.
+
+Codex CLI: no Claude-like hook mechanism found in this repository setup; we rely on npm scripts + git hooks + CI for enforcement.
+
 ## Options
 
 All options are flags and can be combined.

@@ -4,17 +4,18 @@ import { resolve } from 'node:path';
 export default defineConfig({
   test: {
     globals: true,
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'tools/**/*.test.ts'],
     // Avoid background update side effects during integration tests.
     env: { CCSTATUSLINE_BG_UPDATE: '1' },
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'tools/**/*.ts'],
       exclude: [
         'src/**/*.test.ts',
         'src/types/**/*.ts',
         'src/index.ts', // CLI entry point - tested via integration tests
         'src/utils/stdin.ts', // stdin utility - tested via integration tests
+        'tools/**/*.test.ts',
       ],
       thresholds: {
         lines: 80,
