@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run check if present; otherwise run check:all
-if npm run -s check --silent >/dev/null 2>&1; then
-  npm run check
-else
-  npm run check:all
-fi
+npm run check

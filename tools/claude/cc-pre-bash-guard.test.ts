@@ -39,6 +39,99 @@ describe("cc-pre-bash-guard", () => {
     expect(isGitBoundaryCommand("git log")).toBe(false);
   });
 
+  it("should detect git boundary commands with global options", () => {
+    // -C option
+    expect(isGitBoundaryCommand("git -C repo push")).toBe(true);
+    expect(isGitBoundaryCommand("git -C /path/to/repo commit -m test")).toBe(true);
+
+    // -c option
+    expect(isGitBoundaryCommand("git -c core.editor=true rebase main")).toBe(true);
+    expect(isGitBoundaryCommand("git -c user.name=test commit -m test")).toBe(true);
+
+    // --git-dir option
+    expect(isGitBoundaryCommand("git --git-dir=.git push")).toBe(true);
+    expect(isGitBoundaryCommand("git --git-dir=/path/.git commit -m test")).toBe(true);
+
+    // --work-tree option
+    expect(isGitBoundaryCommand("git --work-tree=/path push")).toBe(true);
+
+    // Multiple global options
+    expect(isGitBoundaryCommand("git -C repo -c core.editor=vi push origin main")).toBe(true);
+    expect(isGitBoundaryCommand("git --git-dir=.git --work-tree=. commit -m test")).toBe(true);
+
+    // Flags without arguments
+    expect(isGitBoundaryCommand("git --no-pager push")).toBe(true);
+    expect(isGitBoundaryCommand("git --bare push")).toBe(true);
+
+    // Non-boundary commands with options
+    expect(isGitBoundaryCommand("git -C repo status")).toBe(false);
+    expect(isGitBoundaryCommand("git --git-dir=.git log")).toBe(false);
+  });
+
+  it("should detect git boundary commands with common prefixes", () => {
+    // sudo prefix
+    expect(isGitBoundaryCommand("sudo git push")).toBe(true);
+    expect(isGitBoundaryCommand("sudo git commit -m test")).toBe(true);
+
+    // Path prefix
+    expect(isGitBoundaryCommand("/usr/bin/git push")).toBe(true);
+    expect(isGitBoundaryCommand("/usr/local/bin/git commit -m test")).toBe(true);
+
+    // env prefix with variables
+    expect(isGitBoundaryCommand("env GIT_DIR=.git git push")).toBe(true);
+
+    // Combined with git options
+    expect(isGitBoundaryCommand("sudo git -C repo push")).toBe(true);
+
+    // Non-boundary with prefixes
+    expect(isGitBoundaryCommand("sudo git status")).toBe(false);
+    expect(isGitBoundaryCommand("/usr/bin/git log")).toBe(false);
+  });
+
+  it("should not detect git boundary commands in plain text arguments", () => {
+    // echo/printf with git command as text
+    expect(isGitBoundaryCommand("echo git push")).toBe(false);
+    expect(isGitBoundaryCommand("printf git push")).toBe(false);
+    expect(isGitBoundaryCommand("echo git commit -m test")).toBe(false);
+
+    // Other commands with git in arguments
+    expect(isGitBoundaryCommand("grep git push file.txt")).toBe(false);
+    expect(isGitBoundaryCommand("echo 'git push'")).toBe(false);
+
+    // But should still detect real git commands after these
+    expect(isGitBoundaryCommand("echo done && git push")).toBe(true);
+    expect(isGitBoundaryCommand("printf test; git commit -m test")).toBe(true);
+  });
+
+  it("should detect git boundary commands in common command chains", () => {
+    // Common command chains with && separator
+    expect(isGitBoundaryCommand("npm test && git push")).toBe(true);
+    expect(isGitBoundaryCommand("npm test && git commit -m test")).toBe(true);
+
+    // Chains with ; separator
+    expect(isGitBoundaryCommand("cd repo; git commit -m test")).toBe(true);
+    expect(isGitBoundaryCommand("cd repo; git push origin main")).toBe(true);
+
+    // Chains with || separator
+    expect(isGitBoundaryCommand("npm test || git push")).toBe(true);
+
+    // Chains with newline separator
+    expect(isGitBoundaryCommand("npm test\ngit push")).toBe(true);
+    expect(isGitBoundaryCommand("npm test\ngit commit -m test")).toBe(true);
+
+    // Parenthesized commands
+    expect(isGitBoundaryCommand("npm test && (git push)")).toBe(true);
+    expect(isGitBoundaryCommand("(git push)")).toBe(true);
+
+    // Mixed: non-boundary git command followed by boundary command
+    expect(isGitBoundaryCommand("git status && git push")).toBe(true);
+    expect(isGitBoundaryCommand("git log; git commit -m test")).toBe(true);
+
+    // Non-boundary commands only
+    expect(isGitBoundaryCommand("npm test && git status")).toBe(false);
+    expect(isGitBoundaryCommand("git status && git log")).toBe(false);
+  });
+
   it("should parse command from JSON payload", () => {
     const payload = buildPayload("git push");
     expect(parseCommandFromPayload(payload)).toBe("git push");
@@ -56,22 +149,24 @@ describe("cc-pre-bash-guard", () => {
     expect(result.stderr).toContain("previous checks failed");
   });
 
-  it("should try fallback script when primary check fails", async () => {
+  it("should block when checks fail", async () => {
     const projectDir = createTempProjectDir("pre-bash-");
     const options = resolvePreBashOptions({}, projectDir);
+
+    fs.mkdirSync(path.dirname(options.logFile), { recursive: true });
+    fs.writeFileSync(options.logFile, "check error output\n", "utf8");
 
     const executedCommands: string[] = [];
     const runner: CommandRunner = async (cmd) => {
       executedCommands.push(cmd);
-      // Primary check fails, fallback succeeds
-      return cmd.includes("check:all") ? 0 : 1;
+      return 1;
     };
 
     const result = await runPreBashGuard(buildPayload("git push"), options, runner);
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(executedCommands).toEqual(["npm run check", "npm run check:all"]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("pre-git checks failed");
+    expect(executedCommands).toEqual(["npm run check"]);
   });
 
   it("should allow non-git commands without running checks", async () => {
@@ -88,15 +183,14 @@ describe("cc-pre-bash-guard", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("should block when on-the-fly checks fail", async () => {
+  it("should include log tail in error message", async () => {
     const projectDir = createTempProjectDir("pre-bash-");
     const options = resolvePreBashOptions({}, projectDir);
 
-    // Create log file for error message tail
     fs.mkdirSync(path.dirname(options.logFile), { recursive: true });
     fs.writeFileSync(options.logFile, "check error output\n", "utf8");
 
-    const runner: CommandRunner = async () => 1; // Both checks fail
+    const runner: CommandRunner = async () => 1;
 
     const result = await runPreBashGuard(buildPayload("git commit -m test"), options, runner);
 
@@ -110,8 +204,7 @@ describe("cc-pre-bash-guard", () => {
     const options = resolvePreBashOptions({}, "/my/cwd");
 
     expect(options.projectDir).toBe("/my/cwd");
-    expect(options.preferCheckScript).toBe("check");
-    expect(options.fallbackScript).toBe("check:all");
+    expect(options.checkScript).toBe("check");
     expect(options.failFlag).toBe("/my/cwd/.claude/.checks_failed");
     expect(options.logFile).toBe("/my/cwd/.claude/last-checks.log");
   });
