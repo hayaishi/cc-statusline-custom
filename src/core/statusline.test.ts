@@ -1624,3 +1624,267 @@ describe('subscription segments never standalone rule', () => {
     expect(result).toContain('55%');
   });
 });
+
+describe('extra_usage display', () => {
+  const testCacheDir = join(tmpdir(), `cc-extra-test-${String(process.pid)}`);
+  const originalTz = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = 'UTC';
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows extra usage and five_hour when five_hour is 100% and extra_usage enabled with credits', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 85,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        usedCredits: 428.0,
+        utilizationPercent: 8.56,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show extra usage first, then five_hour
+    expect(result).toContain('✨');
+    expect(result).toContain('$4.28');
+    expect(result).toContain('(8.6%)');
+    expect(result).toContain('100%');
+    expect(result).toContain('(~3:45pm)');
+    // Extra should appear before five_hour
+    const extraIndex = result.indexOf('✨');
+    const fiveIndex = result.indexOf('⌛️');
+    expect(extraIndex).toBeLessThan(fiveIndex);
+  });
+
+  it('shows extra usage and seven_day when seven_day is 100% (hides five_hour)', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T14:00:00Z',
+      window: 'seven_days',
+      fiveHours: {
+        utilizationPercent: 50,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        usedCredits: 428.0,
+        utilizationPercent: 8.56,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show extra usage and seven_day, NOT five_hour
+    expect(result).toContain('✨');
+    expect(result).toContain('$4.28');
+    expect(result).toContain('🌙');
+    expect(result).toContain('(~2pm, Feb 8)');
+    // Should NOT show five_hour emoji
+    expect(result).not.toContain('⌛️');
+  });
+
+  it('does not show extra usage when is_enabled is false', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 85,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      extraUsage: {
+        isEnabled: false,
+        usedCredits: 0.0,
+        utilizationPercent: 0.0,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show normal display without extra usage
+    expect(result).not.toContain('✨');
+    expect(result).toContain('⌛️');
+    expect(result).toContain('🌙');
+  });
+
+  it('does not show extra usage when used_credits is zero', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 85,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        usedCredits: 0.0,
+        utilizationPercent: 0.0,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show normal display without extra usage
+    expect(result).not.toContain('✨');
+    expect(result).toContain('⌛️');
+    expect(result).toContain('🌙');
+  });
+
+  it('does not show extra usage when no window is at 100%', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 85,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 85,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 90,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        usedCredits: 428.0,
+        utilizationPercent: 8.56,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show normal display without extra usage
+    expect(result).not.toContain('✨');
+    expect(result).toContain('⌛️');
+    expect(result).toContain('🌙');
+  });
+
+  it('shows normal display when extra_usage is absent from cache', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      sevenDays: {
+        utilizationPercent: 85,
+        resetsAt: '2026-02-08T14:00:00Z',
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage_all']));
+
+    // Should show normal display
+    expect(result).not.toContain('✨');
+    expect(result).toContain('⌛️');
+    expect(result).toContain('🌙');
+  });
+
+  it('works for subscription_usage segment with extra usage', () => {
+    const cacheData: SubscriptionUsageEntry = {
+      utilizationPercent: 100,
+      resetsAt: '2026-02-08T15:45:00Z',
+      window: 'five_hours',
+      fiveHours: {
+        utilizationPercent: 100,
+        resetsAt: '2026-02-08T15:45:00Z',
+      },
+      extraUsage: {
+        isEnabled: true,
+        usedCredits: 428.0,
+        utilizationPercent: 8.56,
+      },
+      lastError: null,
+    };
+
+    writeFileSync(
+      join(testCacheDir, 'subscription-usage.json'),
+      JSON.stringify(cacheData)
+    );
+
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus' } };
+    const result = stripAnsi(generateStatuslineWithExtended(input, testCacheDir, ['model', 'subscription_usage']));
+
+    // Should show extra usage
+    expect(result).toContain('✨');
+    expect(result).toContain('$4.28');
+    expect(result).toContain('100%');
+  });
+});

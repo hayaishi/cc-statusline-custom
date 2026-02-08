@@ -18,10 +18,10 @@ export const DEFAULT_CACHE_DIR = join(homedir(), '.cache', 'cc-statusline-custom
 export const DEFAULT_CACHE_TTL_SECONDS = 60;
 
 /**
- * Maximum cache file size in bytes (1KB).
+ * Maximum cache file size in bytes (2KB).
  * Files larger than this are treated as invalid.
  */
-export const MAX_CACHE_FILE_SIZE_BYTES = 1024;
+export const MAX_CACHE_FILE_SIZE_BYTES = 2048;
 
 /**
  * Lock file stale threshold in seconds.
@@ -66,6 +66,11 @@ export interface SubscriptionUsageEntry {
   readonly sevenDays?: {
     readonly utilizationPercent: number;
     readonly resetsAt: string;
+  };
+  readonly extraUsage?: {
+    readonly isEnabled: boolean;
+    readonly usedCredits: number;
+    readonly utilizationPercent: number;
   };
 }
 

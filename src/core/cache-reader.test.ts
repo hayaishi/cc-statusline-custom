@@ -54,8 +54,8 @@ describe('cache-reader', () => {
 
     it('returns null for file exceeding max size', () => {
       const filePath = join(testDir, 'subscription-usage.json');
-      // Create a file larger than 1KB
-      const largeContent = JSON.stringify({ data: 'x'.repeat(2000) });
+      // Create a file larger than 2KB
+      const largeContent = JSON.stringify({ data: 'x'.repeat(4000) });
       writeFileSync(filePath, largeContent);
       const result = readCacheSync('subscriptionUsage', testDir);
       expect(result).toBeNull();
@@ -229,7 +229,7 @@ describe('cache-reader', () => {
 
     it('returns null when file exceeds max size', () => {
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const largeContent = JSON.stringify({ data: 'x'.repeat(2000) });
+      const largeContent = JSON.stringify({ data: 'x'.repeat(4000) });
       writeFileSync(cacheFile, largeContent);
 
       const result = readCacheSyncWithMtime('subscriptionUsage', testDir, 60);

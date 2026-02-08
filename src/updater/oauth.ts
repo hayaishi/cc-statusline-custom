@@ -11,9 +11,17 @@ export interface UsageWindow {
   resetsAt: string;
 }
 
+export interface ExtraUsage {
+  isEnabled: boolean;
+  monthlyLimit: number;
+  usedCredits: number;
+  utilization: number;
+}
+
 export interface OAuthUsage {
   fiveHours?: UsageWindow;
   sevenDays?: UsageWindow;
+  extraUsage?: ExtraUsage;
 }
 
 export interface FetchOAuthUsageOptions {
@@ -81,15 +89,33 @@ function parseUsageWindow(data: unknown): UsageWindow | undefined {
     'resetAt',
   ]);
 
-  if (utilization === undefined) {
-    return undefined;
-  }
-
-  if (resetsAt === undefined) {
+  if (utilization === undefined || resetsAt === undefined) {
     return undefined;
   }
 
   return { utilization, resetsAt };
+}
+
+function parseExtraUsage(data: unknown): ExtraUsage | undefined {
+  const record = asRecord(data);
+  if (record === null) {
+    return undefined;
+  }
+
+  const isEnabled = record.is_enabled ?? record.isEnabled;
+  if (typeof isEnabled !== 'boolean') {
+    return undefined;
+  }
+
+  const monthlyLimit = getNumberField(record, ['monthly_limit', 'monthlyLimit']);
+  const usedCredits = getNumberField(record, ['used_credits', 'usedCredits']);
+  const utilization = getNumberField(record, ['utilization']);
+
+  if (monthlyLimit === undefined || usedCredits === undefined || utilization === undefined) {
+    return undefined;
+  }
+
+  return { isEnabled, monthlyLimit, usedCredits, utilization };
 }
 
 function resolveUsageContainer(root: Record<string, unknown>): Record<string, unknown> {
@@ -133,12 +159,18 @@ export function parseOAuthUsage(body: string): OAuthUsage {
     throw new Error('oauth_response_invalid');
   }
 
+  const extraUsageRaw = container.extra_usage ?? container.extraUsage;
+  const extraUsage = parseExtraUsage(extraUsageRaw);
+
   const result: OAuthUsage = {};
   if (fiveHours) {
     result.fiveHours = fiveHours;
   }
   if (sevenDays) {
     result.sevenDays = sevenDays;
+  }
+  if (extraUsage) {
+    result.extraUsage = extraUsage;
   }
   return result;
 }

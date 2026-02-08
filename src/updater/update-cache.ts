@@ -76,10 +76,9 @@ function resolveUpdaterDeps(): UpdaterDeps {
 
 function normalizeOAuthErrorDetail(detail: string): string {
   const trimmed = detail.trim();
-  if (trimmed.length <= MAX_OAUTH_ERROR_DETAIL_LENGTH) {
-    return trimmed;
-  }
-  return trimmed.slice(0, MAX_OAUTH_ERROR_DETAIL_LENGTH);
+  return trimmed.length <= MAX_OAUTH_ERROR_DETAIL_LENGTH
+    ? trimmed
+    : trimmed.slice(0, MAX_OAUTH_ERROR_DETAIL_LENGTH);
 }
 
 function extractOAuthErrorDetail(error: unknown): string | null {
@@ -90,16 +89,11 @@ function extractOAuthErrorDetail(error: unknown): string | null {
       ? record.body
       : null;
 
-  if (detail === null) {
+  if (detail === null || detail.trim() === '') {
     return null;
   }
 
-  const trimmed = detail.trim();
-  if (trimmed === '') {
-    return null;
-  }
-
-  return normalizeOAuthErrorDetail(trimmed);
+  return normalizeOAuthErrorDetail(detail.trim());
 }
 
 function normalizeOAuthFetchError(error: unknown): string {
@@ -230,6 +224,15 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
     }
   }
 
+  // Populate extra usage data (store float utilization for decimal precision)
+  const extraUsageEntry = usage.extraUsage !== undefined
+    ? {
+        isEnabled: usage.extraUsage.isEnabled,
+        usedCredits: usage.extraUsage.usedCredits,
+        utilizationPercent: usage.extraUsage.utilization,
+      }
+    : undefined;
+
   return {
     ...base,
     utilizationPercent: normalized,
@@ -238,6 +241,7 @@ async function buildSubscriptionUsageEntry(debug: boolean): Promise<Subscription
     window: windowType,
     ...(fiveHoursEntry ? { fiveHours: fiveHoursEntry } : {}),
     ...(sevenDaysEntry ? { sevenDays: sevenDaysEntry } : {}),
+    ...(extraUsageEntry ? { extraUsage: extraUsageEntry } : {}),
   };
 }
 
@@ -260,18 +264,15 @@ function isValidSubscriptionUsage(entry: SubscriptionUsageEntry): boolean {
   }
 
   // Must have utilizationPercent in valid range
-  if (typeof entry.utilizationPercent !== 'number') {
-    return false;
-  }
-  if (entry.utilizationPercent < 0 || entry.utilizationPercent > 100) {
+  if (typeof entry.utilizationPercent !== 'number' ||
+      entry.utilizationPercent < 0 ||
+      entry.utilizationPercent > 100) {
     return false;
   }
 
   // Must have parseable resetsAt
-  if (typeof entry.resetsAt !== 'string') {
-    return false;
-  }
-  if (!Number.isFinite(Date.parse(entry.resetsAt))) {
+  if (typeof entry.resetsAt !== 'string' ||
+      !Number.isFinite(Date.parse(entry.resetsAt))) {
     return false;
   }
 

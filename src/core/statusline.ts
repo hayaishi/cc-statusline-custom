@@ -20,7 +20,9 @@ import {
   formatContextSegment,
   formatSubscriptionUsageAllSegment,
   formatSubscriptionUsagePrefix,
+  formatExtraUsageWindow,
   NORMAL_SUB_BAR_WIDTH,
+  SUB_ALL_BAR_WIDTH,
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
   type WindowData,
@@ -35,6 +37,7 @@ import {
   getBarsEnabled,
 } from '../config/env.js';
 import { formatResetTime, normalizeSubscriptionResetTime } from '../utils/time.js';
+import { formatProgressBar } from '../utils/format.js';
 import type { RenderOptions } from './formatter.js';
 import {
   isPluginSegmentId,
@@ -394,14 +397,20 @@ function getValidSubscriptionUsage(
     resetsAt?: unknown;
   };
 
-  // Validate utilizationPercent: must be integer 0-100
+  // Validate utilizationPercent: must be integer in range 0-100
   const percentValue = record.utilizationPercent;
-  if (typeof percentValue !== 'number' || !Number.isInteger(percentValue)) return null;
-  if (percentValue < 0 || percentValue > 100) return null;
+  if (typeof percentValue !== 'number' ||
+      !Number.isInteger(percentValue) ||
+      percentValue < 0 ||
+      percentValue > 100) {
+    return null;
+  }
 
   // Validate resetsAt: must be parseable ISO date string
-  if (typeof record.resetsAt !== 'string') return null;
-  if (!Number.isFinite(Date.parse(record.resetsAt))) return null;
+  if (typeof record.resetsAt !== 'string' ||
+      !Number.isFinite(Date.parse(record.resetsAt))) {
+    return null;
+  }
 
   return { utilizationPercent: percentValue, resetsAt: record.resetsAt };
 }
@@ -556,6 +565,7 @@ function renderBuiltinSegment(
   // Subscription usage segments only show when other context exists (never standalone)
   const isSubscriptionSegment =
     segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
+
   if (isSubscriptionSegment && existingSegmentCount === 0) {
     return '';
   }
@@ -646,8 +656,38 @@ function buildSubscriptionUsageSegment(
       const reset = formatResetTime(normalizeSubscriptionResetTime(valid.resetsAt), windowType);
       if (reset !== '') {
         const primaryWindowType = fallbackWindowType;
+        const windowData = { percent: valid.utilizationPercent, reset };
+
+        // Check for extra usage display conditions
+        const extraData = extractExtraUsageData(entry);
+        const shouldShowExtra = extraData !== null
+          && extraData.isEnabled
+          && extraData.usedUsd > 0
+          && valid.utilizationPercent >= 100;
+
+        if (shouldShowExtra) {
+          const extraFormatted = formatExtraUsageWindow(
+            { usedUsd: extraData.usedUsd, utilizationPercent: extraData.utilizationPercent },
+            options,
+            SUB_ALL_BAR_WIDTH
+          );
+
+          // Format window with SUB_ALL_BAR_WIDTH for dual-item display
+          const windowPrefix = formatSubscriptionUsagePrefix(primaryWindowType, options);
+          let windowFormatted: string;
+          if (options.showBars) {
+            const bar = formatProgressBar(windowData.percent, SUB_ALL_BAR_WIDTH);
+            windowFormatted = `${windowPrefix}${String(windowData.percent)}% ${bar} (${windowData.reset})`;
+          } else {
+            windowFormatted = `${windowPrefix}${String(windowData.percent)}% (${windowData.reset})`;
+          }
+
+          return `${extraFormatted} ${windowFormatted}`;
+        }
+
+        // Normal display (no extra usage or conditions not met)
         return formatSubscriptionUsageAllSegment(
-          { percent: valid.utilizationPercent, reset },
+          windowData,
           null,
           options,
           { primaryWindowType, barWidth: NORMAL_SUB_BAR_WIDTH }
@@ -677,10 +717,13 @@ function extractWindowData(
 
   const { utilizationPercent, resetsAt } = window;
 
-  // Validate percent is an integer 0-100
-  if (typeof utilizationPercent !== 'number') return null;
-  if (!Number.isInteger(utilizationPercent)) return null;
-  if (utilizationPercent < 0 || utilizationPercent > 100) return null;
+  // Validate percent is an integer in range 0-100
+  if (typeof utilizationPercent !== 'number' ||
+      !Number.isInteger(utilizationPercent) ||
+      utilizationPercent < 0 ||
+      utilizationPercent > 100) {
+    return null;
+  }
 
   // Validate and format reset timestamp
   if (typeof resetsAt !== 'string') return null;
@@ -688,6 +731,36 @@ function extractWindowData(
   if (reset === '') return null;
 
   return { percent: utilizationPercent, reset };
+}
+
+/**
+ * Extracts and validates extra usage data from cache entry.
+ * Returns data with isEnabled flag, usedUsd, and utilizationPercent, or null if invalid.
+ */
+function extractExtraUsageData(
+  entry: CacheEntry
+): { usedUsd: number; utilizationPercent: number; isEnabled: boolean } | null {
+  const record = entry as {
+    extraUsage?: {
+      isEnabled?: unknown;
+      usedCredits?: unknown;
+      utilizationPercent?: unknown;
+    };
+  };
+
+  const extra = record.extraUsage;
+  if (!extra ||
+      typeof extra.isEnabled !== 'boolean' ||
+      typeof extra.usedCredits !== 'number' ||
+      typeof extra.utilizationPercent !== 'number') {
+    return null;
+  }
+
+  return {
+    usedUsd: extra.usedCredits / 100,
+    utilizationPercent: extra.utilizationPercent,
+    isEnabled: extra.isEnabled,
+  };
 }
 
 /**
@@ -722,6 +795,50 @@ function buildSubscriptionUsageAllSegment(
     const fiveHoursData = extractWindowData(record.fiveHours, 'five_hours');
     const sevenDaysData = extractWindowData(record.sevenDays, 'seven_days');
 
+    // Check for extra usage display conditions
+    const extraData = extractExtraUsageData(entry);
+    const shouldShowExtra = extraData !== null
+      && extraData.isEnabled
+      && extraData.usedUsd > 0;
+
+    // Determine which windows are at 100%
+    const fiveAt100 = fiveHoursData !== null && fiveHoursData.percent >= 100;
+    const sevenAt100 = sevenDaysData !== null && sevenDaysData.percent >= 100;
+
+    if (shouldShowExtra && (fiveAt100 || sevenAt100)) {
+      const extraFormatted = formatExtraUsageWindow(
+        { usedUsd: extraData.usedUsd, utilizationPercent: extraData.utilizationPercent },
+        options,
+        SUB_ALL_BAR_WIDTH
+      );
+
+      // Helper to format a single window
+      const formatWindow = (
+        data: WindowData,
+        windowType: 'five_hours' | 'seven_days'
+      ): string => {
+        const windowPrefix = formatSubscriptionUsagePrefix(windowType, options);
+        if (options.showBars) {
+          const bar = formatProgressBar(data.percent, SUB_ALL_BAR_WIDTH);
+          return `${windowPrefix}${String(data.percent)}% ${bar} (${data.reset})`;
+        }
+        return `${windowPrefix}${String(data.percent)}% (${data.reset})`;
+      };
+
+      if (sevenAt100) {
+        // Case 2 (or both at 100%): extra + seven_day (five_hour hidden)
+        // sevenDaysData is guaranteed non-null by sevenAt100 check
+        const sevenFormatted = formatWindow(sevenDaysData, 'seven_days');
+        return `${extraFormatted} ${sevenFormatted}`;
+      } else if (fiveAt100) {
+        // Case 1: five_hour at 100%, seven_day < 100%: extra + five_hour
+        // fiveHoursData is guaranteed non-null by fiveAt100 check
+        const fiveFormatted = formatWindow(fiveHoursData, 'five_hours');
+        return `${extraFormatted} ${fiveFormatted}`;
+      }
+    }
+
+    // Normal display (no extra usage or conditions not met)
     const result = formatSubscriptionUsageAllSegment(fiveHoursData, sevenDaysData, options);
     if (result !== '') {
       return result;
