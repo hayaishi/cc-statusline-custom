@@ -687,4 +687,37 @@ describe('update-cache', () => {
       });
     });
   });
+
+  describe('version threading', () => {
+    it('should pass ccVersion to fetchOAuthUsage when provided', async () => {
+      await updateCache(testDir, { ccVersion: '2.1.37' });
+
+      expect(mockFetchOAuthUsage).toHaveBeenCalledWith(
+        'test-token',
+        expect.objectContaining({
+          version: '2.1.37',
+        })
+      );
+    });
+
+    it('should pass both ccVersion and debugLogOptions when both are provided', async () => {
+      await updateCache(testDir, { ccVersion: '2.1.37', debug: true });
+
+      expect(mockFetchOAuthUsage).toHaveBeenCalledWith(
+        'test-token',
+        expect.objectContaining({
+          version: '2.1.37',
+          debugLogOptions: expect.objectContaining({
+            enabled: true,
+          }),
+        })
+      );
+    });
+
+    it('should not pass version when ccVersion is undefined', async () => {
+      await updateCache(testDir, { debug: false });
+
+      expect(mockFetchOAuthUsage).toHaveBeenCalledWith('test-token', undefined);
+    });
+  });
 });

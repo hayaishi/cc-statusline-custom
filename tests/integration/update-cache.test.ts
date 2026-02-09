@@ -35,12 +35,13 @@ describe('--update-cache integration', () => {
   /**
    * Runs the CLI with --update-cache flag.
    */
-  function runUpdateCache(env: Record<string, string> = {}): { stdout: string; exitCode: number } {
+  function runUpdateCache(env: Record<string, string> = {}, extraArgs: string[] = []): { stdout: string; exitCode: number } {
     try {
       const nodeOptions = [process.env.NODE_OPTIONS, `--import ${updaterMocksUrl}`]
         .filter(Boolean)
         .join(' ');
-      const stdout = execSync(`node ${distPath} --update-cache`, {
+      const args = ['--update-cache', ...extraArgs].join(' ');
+      const stdout = execSync(`node ${distPath} ${args}`, {
         encoding: 'utf-8',
         env: {
           ...process.env,
@@ -120,6 +121,13 @@ describe('--update-cache integration', () => {
     const cleanOutput = assertSingleLine(stdout);
     // Should contain error message
     expect(cleanOutput).toContain('lock');
+  });
+
+  it('accepts explicit --cc-version argument', () => {
+    const { exitCode } = runUpdateCache({}, ['--cc-version', '9.9.9']);
+
+    // Should succeed (version is just passed through to OAuth User-Agent)
+    expect(exitCode).toBe(0);
   });
 
   describe('does not affect statusline hot path', () => {

@@ -20,6 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { readStdinSync } from './utils/stdin.js';
+import { detectClaudeCodeVersion } from './utils/cc-version.js';
 import {
   parseSegmentsArg,
   parseNoEmojisArg,
@@ -29,6 +30,7 @@ import {
   parseDebugArg,
   parseConfigArg,
   parseProjectDirArg,
+  parseCcVersionArg,
 } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
 import {
@@ -78,13 +80,15 @@ function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | 
   const pluginsFile = loadPluginConfig(expandedPath);
   if (pluginsFile === null) return null;
 
-  const parsed = parsePluginsFile(pluginsFile);
-  return parsed.plugins.length > 0 ? parsed.plugins : null;
+  const { plugins } = parsePluginsFile(pluginsFile);
+  return plugins.length > 0 ? plugins : null;
 }
 
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  if (plugins === null || plugins.length === 0) return undefined;
-  return new Map(plugins.map(p => [p.id, p]));
+  if (plugins === null || plugins.length === 0) {
+    return undefined;
+  }
+  return new Map(plugins.map(plugin => [plugin.id, plugin]));
 }
 
 /**
@@ -105,9 +109,15 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     const isDebug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
+    const ccVersion = parseCcVersionArg(args) ?? detectClaudeCodeVersion() ?? undefined;
 
     const { updateCache } = await import('./updater/update-cache.js');
-    const result = await updateCache(undefined, { mode: isAuto ? 'auto' : 'force', debug: isDebug });
+    const options: Parameters<typeof updateCache>[1] = {
+      mode: isAuto ? 'auto' : 'force',
+      debug: isDebug,
+      ...(ccVersion !== undefined && { ccVersion }),
+    };
+    const result = await updateCache(undefined, options);
 
     const plugins = loadPlugins(configPath);
     if (plugins !== null) {
@@ -130,6 +140,7 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  * @param configPath - Path to plugin config file for passing to subprocess
  * @param plugins - Loaded plugin configurations
  * @param projectDir - Project directory for scoped plugin caches
+ * @param ccVersion - Claude Code version to pass to subprocess
  */
 function trySpawnBackgroundUpdate(
   segments: readonly SegmentId[],
@@ -137,7 +148,8 @@ function trySpawnBackgroundUpdate(
   debug: boolean,
   configPath?: string,
   plugins?: readonly PluginConfig[],
-  projectDir?: string
+  projectDir?: string,
+  ccVersion?: string
 ): void {
   try {
     if (isBgUpdateDisabled) return;
@@ -146,9 +158,10 @@ function trySpawnBackgroundUpdate(
     if (process.env.CCSTATUSLINE_BG_UPDATE === '1') return;
 
     const cacheDir = getCacheDir();
-    const options: Parameters<typeof shouldRequestBgCacheUpdate>[2] = {};
-    if (plugins !== undefined) options.plugins = plugins;
-    if (projectDir !== undefined) options.projectDir = projectDir;
+    const options: Parameters<typeof shouldRequestBgCacheUpdate>[2] = {
+      ...(plugins !== undefined && { plugins }),
+      ...(projectDir !== undefined && { projectDir }),
+    };
     if (!shouldRequestBgCacheUpdate(cacheDir, segments, options)) return;
 
     const scriptPath = process.argv[1];
@@ -163,6 +176,9 @@ function trySpawnBackgroundUpdate(
     }
     if (projectDir !== undefined) {
       args.push('--project-dir', projectDir);
+    }
+    if (ccVersion !== undefined) {
+      args.push('--cc-version', ccVersion);
     }
 
     const child = spawn(
@@ -219,13 +235,14 @@ function handleStatusline(args: string[]): void {
     const pluginConfigMap = createPluginConfigMap(plugins);
 
     const projectDir = input?.workspace?.project_dir;
+    const ccVersion = input?.version;
     const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
 
     // Defense in depth: extract first line even if generateStatusline misbehaves
     console.log(ensureVisibleFirstLine(line));
 
     // Spawn after printing to keep the hot path as short as possible
-    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, plugins ?? undefined, projectDir);
+    trySpawnBackgroundUpdate(segmentOrder, isBgUpdateDisabled, debug, configPath, plugins ?? undefined, projectDir, ccVersion);
   } catch {
     // Ultimate fallback: guarantee at least one visible line on any error
     console.log(FALLBACK_OUTPUT);
