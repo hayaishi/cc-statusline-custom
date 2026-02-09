@@ -115,10 +115,8 @@ export function parseConfigArg(args: string[]): string | undefined {
  * @returns Claude Code version string, or undefined if flag not present or value is empty
  */
 export function parseCcVersionArg(args: string[]): string | undefined {
-  const idx = args.indexOf('--cc-version');
-  if (idx === -1 || idx + 1 >= args.length) return undefined;
-  const value = args[idx + 1];
-  if (value === undefined || value.startsWith('-')) return undefined;
-  const trimmed = value.trim();
+  const raw = parseValuedFlag(args, '--cc-version', '--cc-version');
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
   return trimmed === '' ? undefined : trimmed;
 }

@@ -27,7 +27,6 @@ export interface UpdateCacheResult {
 }
 
 /**
-/**
  * Options for cache update operation.
  */
 export interface UpdateCacheOptions {

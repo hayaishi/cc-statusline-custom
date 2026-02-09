@@ -20,6 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { readStdinSync } from './utils/stdin.js';
+import { detectClaudeCodeVersion } from './utils/cc-version.js';
 import {
   parseSegmentsArg,
   parseNoEmojisArg,
@@ -108,7 +109,7 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     const isDebug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
-    const ccVersion = parseCcVersionArg(args);
+    const ccVersion = parseCcVersionArg(args) ?? detectClaudeCodeVersion() ?? undefined;
 
     const { updateCache } = await import('./updater/update-cache.js');
     const options: Parameters<typeof updateCache>[1] = {

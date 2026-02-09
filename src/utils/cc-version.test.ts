@@ -21,7 +21,7 @@ describe('detectClaudeCodeVersion', () => {
     const result = detectClaudeCodeVersion();
 
     expect(result).toBe('2.1.37');
-    expect(mockExecSync).toHaveBeenCalledWith('claude --version', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+    expect(mockExecSync).toHaveBeenCalledWith('claude --version', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 5000 });
   });
 
   it('should extract version when output has no trailing text', () => {
@@ -88,5 +88,18 @@ describe('detectClaudeCodeVersion', () => {
     const result = detectClaudeCodeVersion();
 
     expect(result).toBe('2.1.37+build.123');
+  });
+
+  it('should return null when command times out', () => {
+    mockExecSync.mockImplementation(() => {
+      const error: Error & { killed?: boolean; signal?: string } = new Error('Command timed out');
+      error.killed = true;
+      error.signal = 'SIGTERM';
+      throw error;
+    });
+
+    const result = detectClaudeCodeVersion();
+
+    expect(result).toBeNull();
   });
 });

@@ -353,4 +353,25 @@ describe('parseCcVersionArg', () => {
   it('returns undefined when value is another flag', () => {
     expect(parseCcVersionArg(['--cc-version', '--auto'])).toBeUndefined();
   });
+
+  it('parses --cc-version=value correctly', () => {
+    expect(parseCcVersionArg(['--cc-version=2.1.37'])).toBe('2.1.37');
+  });
+
+  it('returns undefined for --cc-version= (empty value)', () => {
+    expect(parseCcVersionArg(['--cc-version='])).toBeUndefined();
+  });
+
+  it('uses last --cc-version when multiple provided', () => {
+    expect(parseCcVersionArg(['--cc-version', '1.0.0', '--cc-version', '2.0.0'])).toBe('2.0.0');
+  });
+
+  it('uses last --cc-version=value when multiple provided', () => {
+    expect(parseCcVersionArg(['--cc-version=1.0.0', '--cc-version=2.0.0'])).toBe('2.0.0');
+  });
+
+  it('uses last value when mixing --cc-version formats', () => {
+    expect(parseCcVersionArg(['--cc-version', '1.0.0', '--cc-version=2.0.0'])).toBe('2.0.0');
+    expect(parseCcVersionArg(['--cc-version=1.0.0', '--cc-version', '2.0.0'])).toBe('2.0.0');
+  });
 });

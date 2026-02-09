@@ -10,6 +10,7 @@ export function detectClaudeCodeVersion(): string | null {
     const output = execSync('claude --version', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000,
     });
 
     const trimmed = output.trim();
