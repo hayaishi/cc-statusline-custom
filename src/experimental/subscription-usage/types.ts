@@ -1,4 +1,4 @@
-export interface SubscriptionUsageEntry {
+export interface SubscriptionUsageEntry extends Record<string, unknown> {
   readonly utilizationPercent?: number;
   readonly resetsAt?: string;
   readonly lastError: string | null;

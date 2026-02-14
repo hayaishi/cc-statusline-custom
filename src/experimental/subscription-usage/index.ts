@@ -9,8 +9,8 @@ import type { RenderOptions } from '../../core/formatter.js';
 
 export function registerSubscriptionSegments(): void {
   registerExternalSegment('subscription_usage', {
-    builder: (_input, cacheDir, options: RenderOptions): string => {
-      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options, false);
+    builder: (_input, cacheDir, options: RenderOptions, debug?: boolean): string => {
+      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options, debug ?? false);
     },
     aliases: ['usage', 'subscription', 'sub_usage', 'sub'],
     cacheTargets: ['subscriptionUsage'],
@@ -18,8 +18,8 @@ export function registerSubscriptionSegments(): void {
   });
 
   registerExternalSegment('subscription_usage_all', {
-    builder: (_input, cacheDir, options: RenderOptions): string => {
-      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options, false);
+    builder: (_input, cacheDir, options: RenderOptions, debug?: boolean): string => {
+      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options, debug ?? false);
     },
     aliases: ['sub_all', 'usage_all'],
     cacheTargets: ['subscriptionUsage'],

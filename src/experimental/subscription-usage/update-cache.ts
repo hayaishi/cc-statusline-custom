@@ -85,11 +85,12 @@ export function normalizeOAuthErrorDetail(detail: string): string {
 export function extractOAuthErrorDetail(error: unknown): string | null {
   const record = error as { responseBody?: unknown; body?: unknown };
 
-  const rawDetail = typeof record.responseBody === 'string'
-    ? record.responseBody
-    : typeof record.body === 'string'
-      ? record.body
-      : null;
+  let rawDetail: string | null = null;
+  if (typeof record.responseBody === 'string') {
+    rawDetail = record.responseBody;
+  } else if (typeof record.body === 'string') {
+    rawDetail = record.body;
+  }
 
   if (rawDetail === null || rawDetail.trim() === '') {
     return null;
@@ -296,7 +297,7 @@ export async function updateSubscriptionCache(
     const ttl = getSubscriptionCacheTtl();
     const existing = readCacheSyncWithMtime('subscriptionUsage', dir, ttl);
     if (existing.isFresh && existing.entry !== null) {
-      if (isValidSubscriptionUsage(existing.entry)) {
+      if (isValidSubscriptionUsage(existing.entry as SubscriptionUsageEntry)) {
         return { success: true, message: 'Cache fresh; skipped' };
       }
     }
