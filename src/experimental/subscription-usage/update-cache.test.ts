@@ -441,7 +441,7 @@ describe('update-cache', () => {
 
     it('auto mode skips when cache is fresh and valid', async () => {
       // Set TTL to ensure cache is considered fresh
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
 
       // Create fresh, valid cache
       const cacheFile = join(testDir, 'subscription-usage.json');

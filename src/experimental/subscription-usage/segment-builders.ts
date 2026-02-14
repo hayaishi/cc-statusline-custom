@@ -1,4 +1,4 @@
-import { getSubscriptionCacheTtl } from '../../config/env.js';
+import { getCacheTtl } from '../../config/env.js';
 import { readCacheSyncWithMtime } from '../../core/cache-reader.js';
 import { formatProgressBar } from '../../utils/format.js';
 import { formatResetTime, normalizeSubscriptionResetTime } from '../../utils/time.js';
@@ -102,7 +102,7 @@ export function buildSubscriptionUsageSegment(
   options: RenderOptions,
   debug: boolean
 ): string {
-  const effectiveTtl = ttlSeconds > 0 ? ttlSeconds : getSubscriptionCacheTtl();
+  const effectiveTtl = ttlSeconds > 0 ? ttlSeconds : getCacheTtl();
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, effectiveTtl);
   const entryWindow = entry !== null
     ? (entry as { window?: 'five_hours' | 'seven_days' }).window
@@ -221,7 +221,7 @@ export function buildSubscriptionUsageAllSegment(
   options: RenderOptions,
   debug: boolean
 ): string {
-  const effectiveTtl = ttlSeconds > 0 ? ttlSeconds : getSubscriptionCacheTtl();
+  const effectiveTtl = ttlSeconds > 0 ? ttlSeconds : getCacheTtl();
   const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, effectiveTtl);
   const prefix = formatSubscriptionUsagePrefix('five_hours', options);
 

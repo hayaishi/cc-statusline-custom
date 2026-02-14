@@ -6,10 +6,10 @@
 
 import {
   getCacheDir,
+  getCacheTtl,
   getDebugLogMaxBytes,
   getDebugLogMaxFiles,
   getDebugLogPath,
-  getSubscriptionCacheTtl,
 } from '../../config/env.js';
 import { writeCacheAtomic, acquireLock, releaseLock } from '../../core/cache.js';
 import { readCacheSyncWithMtime } from '../../core/cache-reader.js';
@@ -294,7 +294,7 @@ export async function updateSubscriptionCache(
   // In auto mode, check if cache is fresh and usable BEFORE acquiring lock
   // (acquireLock creates a lock file that causes readCacheSyncWithMtime to skip)
   if (mode === 'auto') {
-    const ttl = getSubscriptionCacheTtl();
+    const ttl = getCacheTtl();
     const existing = readCacheSyncWithMtime('subscriptionUsage', dir, ttl);
     if (existing.isFresh && existing.entry !== null) {
       if (isValidSubscriptionUsage(existing.entry as SubscriptionUsageEntry)) {

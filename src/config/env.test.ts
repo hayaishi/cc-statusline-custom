@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   getCacheTtl,
-  getSubscriptionCacheTtl,
   getCacheDir,
   getContextLowThreshold,
   getContextMediumThreshold,
@@ -29,65 +28,33 @@ describe('env config', () => {
 
   describe('getCacheTtl', () => {
     it('returns 60 by default', () => {
-      delete process.env.CCSTATUSLINE_CACHE_TTL;
+      delete process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL;
       expect(getCacheTtl()).toBe(60);
     });
 
     it('parses valid integer values', () => {
-      process.env.CCSTATUSLINE_CACHE_TTL = '120';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '120';
       expect(getCacheTtl()).toBe(120);
     });
 
     it('returns default for non-numeric values', () => {
-      process.env.CCSTATUSLINE_CACHE_TTL = 'abc';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = 'abc';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('returns default for negative values', () => {
-      process.env.CCSTATUSLINE_CACHE_TTL = '-10';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '-10';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('returns default for zero', () => {
-      process.env.CCSTATUSLINE_CACHE_TTL = '0';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '0';
       expect(getCacheTtl()).toBe(60);
     });
 
     it('handles float values by flooring', () => {
-      process.env.CCSTATUSLINE_CACHE_TTL = '45.7';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '45.7';
       expect(getCacheTtl()).toBe(45);
-    });
-  });
-
-  describe('getSubscriptionCacheTtl', () => {
-    it('returns 60 by default', () => {
-      delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
-      expect(getSubscriptionCacheTtl()).toBe(60);
-    });
-
-    it('parses valid integer values', () => {
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '120';
-      expect(getSubscriptionCacheTtl()).toBe(120);
-    });
-
-    it('returns default for non-numeric values', () => {
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = 'abc';
-      expect(getSubscriptionCacheTtl()).toBe(60);
-    });
-
-    it('returns default for negative values', () => {
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '-10';
-      expect(getSubscriptionCacheTtl()).toBe(60);
-    });
-
-    it('returns default for zero', () => {
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '0';
-      expect(getSubscriptionCacheTtl()).toBe(60);
-    });
-
-    it('handles float values by flooring', () => {
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '45.7';
-      expect(getSubscriptionCacheTtl()).toBe(45);
     });
   });
 
@@ -259,14 +226,8 @@ describe('env config', () => {
 
     it('ignores legacy cache TTL when new var is unset', () => {
       process.env[`${legacyPrefix}CACHE_TTL`] = '999';
-      delete process.env.CCSTATUSLINE_CACHE_TTL;
+      delete process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL;
       expect(getCacheTtl()).toBe(60);
-    });
-
-    it('ignores legacy subscription cache TTL when new var is unset', () => {
-      process.env[`${legacyPrefix}SUBSCRIPTION_CACHE_TTL`] = '999';
-      delete process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL;
-      expect(getSubscriptionCacheTtl()).toBe(60);
     });
 
     it('ignores legacy debug flag when new var is unset', () => {

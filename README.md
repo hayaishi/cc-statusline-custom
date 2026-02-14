@@ -266,8 +266,7 @@ Environment variable: `CCSTATUSLINE_PLUGIN_CONFIG` (CLI takes precedence)
 | `CCSTATUSLINE_DEBUG` | `true`/`1` enables debug mode (see `docs/debug-logging.md`). | `false` |
 | `CCSTATUSLINE_CACHE_DIR` | Cache directory path. | `~/.cache/cc-statusline-custom` |
 | `CCSTATUSLINE_PLUGIN_CONFIG` | Path to plugin config YAML file. | (none) |
-| `CCSTATUSLINE_CACHE_TTL` | Cache TTL in seconds. | `60` |
-| `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` | Subscription cache TTL in seconds. | `60` |
+| `CCSTATUSLINE_PLUGIN_CACHE_TTL` | Cache TTL in seconds. | `60` |
 | `CCSTATUSLINE_CONTEXT_LOW_THRESHOLD` | Context low threshold percentage. | `50` |
 | `CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD` | Context medium threshold percentage. | `80` |
 

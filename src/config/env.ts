@@ -36,16 +36,7 @@ function parseTtlSeconds(value: string | undefined, defaultSeconds: number): num
  * @returns Cache TTL (default: 60 seconds)
  */
 export function getCacheTtl(): number {
-  return parseTtlSeconds(process.env.CCSTATUSLINE_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
-}
-
-/**
- * Gets the subscription usage cache TTL in seconds.
- *
- * @returns Subscription cache TTL (default: 60 seconds)
- */
-export function getSubscriptionCacheTtl(): number {
-  return parseTtlSeconds(process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
+  return parseTtlSeconds(process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
 }
 
 /**

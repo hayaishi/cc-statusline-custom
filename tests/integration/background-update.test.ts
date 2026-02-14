@@ -116,7 +116,7 @@ describe('Background Cache Update Integration Tests', () => {
             env: {
               ...process.env,
               CCSTATUSLINE_CACHE_DIR: cacheDir,
-              CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL: '60',
+              CCSTATUSLINE_PLUGIN_CACHE_TTL: '60',
             },
           }
         );
@@ -202,7 +202,7 @@ describe('Background Cache Update Integration Tests', () => {
             env: {
               ...process.env,
               CCSTATUSLINE_CACHE_DIR: cacheDir,
-              CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL: '60',
+              CCSTATUSLINE_PLUGIN_CACHE_TTL: '60',
             },
           });
         } catch {
@@ -237,7 +237,7 @@ describe('Background Cache Update Integration Tests', () => {
             env: {
               ...process.env,
               CCSTATUSLINE_CACHE_DIR: cacheDir,
-              CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL: '60',
+              CCSTATUSLINE_PLUGIN_CACHE_TTL: '60',
             },
           }
         );

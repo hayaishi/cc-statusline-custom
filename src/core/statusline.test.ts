@@ -921,7 +921,7 @@ describe('segment configuration', () => {
       utimesSync(cacheFile, oldTime, oldTime);
 
       // Set TTL to 60 seconds, so cache is expired
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
       expect(result).toBe(true);
     });
@@ -970,7 +970,7 @@ describe('segment configuration', () => {
       };
       writeFileSync(cacheFile, JSON.stringify(freshEntry));
 
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
       expect(result).toBe(false);
     });
@@ -1008,7 +1008,7 @@ describe('segment configuration', () => {
       };
       writeFileSync(cacheFile, JSON.stringify(entryWithoutAttempt));
 
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
       // Fresh and valid => should not update
       expect(result).toBe(false);
@@ -1062,7 +1062,7 @@ describe('segment configuration', () => {
       writeFileSync(cacheFile, JSON.stringify(freshEntry));
 
       // Plugin cache is missing (stale), subscription cache is fresh
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '60';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage', ':test-plugin'], {
         plugins: [makePlugin('test-plugin')],
       });
@@ -1123,7 +1123,7 @@ describe('segment configuration', () => {
       const cacheFile = join(testCacheDir, 'subscription-usage.json');
       const nowMs = Date.now();
 
-      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '10';
+      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '10';
 
       clearExternalSegments();
       registerSubscriptionSegments();

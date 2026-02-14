@@ -44,7 +44,7 @@ module.exports = { formatCost };
 | Functions/Variables | camelCase | `getCachedData` |
 | Constants | SCREAMING_SNAKE_CASE | `DEFAULT_TTL_SECONDS` |
 | Types/Interfaces | PascalCase | `ClaudeCodeInput` |
-| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCSTATUSLINE_CACHE_TTL` |
+| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCSTATUSLINE_PLUGIN_CACHE_TTL` |
 
 #### Import Order
 

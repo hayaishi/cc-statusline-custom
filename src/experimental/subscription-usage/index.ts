@@ -1,4 +1,4 @@
-import { getSubscriptionCacheTtl } from '../../config/env.js';
+import { getCacheTtl } from '../../config/env.js';
 import { registerExternalSegment } from '../../core/statusline.js';
 import {
   buildSubscriptionUsageAllSegment,
@@ -8,7 +8,7 @@ import { updateSubscriptionCache } from './update-cache.js';
 import type { RenderOptions } from '../../core/formatter.js';
 
 export function registerSubscriptionSegments(): void {
-  const ttlSeconds = getSubscriptionCacheTtl();
+  const ttlSeconds = getCacheTtl();
 
   registerExternalSegment('subscription_usage', {
     builder: (_input, cacheDir, options: RenderOptions, debug = false): string =>
