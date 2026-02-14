@@ -123,7 +123,32 @@ Resolution order: CLI > ENV > DEFAULT. Unknown tokens are ignored.
 
 **Plugins allow you to extend the statusline with any shell command.** This is powerful for displaying project-specific information like git branch, Docker status, test coverage, or any custom data.
 
-### Quick Start
+### Using Presets (Recommended)
+
+The easiest way to get started is using the included preset configuration:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --config=/path/to/cc-statusline-custom/config.presets.yml --segments=model,:git_branch,cost_session,context",
+    "padding": 0
+  }
+}
+```
+
+**Available presets:**
+
+| Plugin | Description | Example Output |
+|--------|-------------|----------------|
+| `:git_branch` | Current branch with dirty indicator | `🌿 main*` |
+| `:git_commit` | Short commit hash | `📌 a3f7b2c` |
+| `:node_version` | Node.js version | `📦 20.11.0` |
+| `:cpu` | CPU usage (macOS only) | `💻 23.5%` |
+
+You can customize `config.presets.yml` by commenting out unused plugins or adjusting their settings.
+
+### Quick Start (Custom Config)
 
 1. Create a plugin config file (e.g., `~/.config/cc-statusline/plugins.yaml`):
 
@@ -189,7 +214,9 @@ plugins:
 **Node.js version:**
 ```yaml
   - id: node_version
-    command: node -v | sed 's/^v//'
+    command: |
+      v=$(node -v 2>/dev/null)
+      [ -n "$v" ] && printf '%s\n' "${v#v}" || echo "-"
     emoji: "📦"
     alt: "node"
     ttl: 3600
@@ -199,7 +226,10 @@ plugins:
 **CPU load (macOS):**
 ```yaml
   - id: cpu
-    command: top -l 1 | grep "CPU usage" | awk '{print $3}'
+    command: |
+      [ "$(uname -s)" = "Darwin" ] || { echo "-"; exit; }
+      v=$(top -l 1 2>/dev/null | grep "CPU usage" | awk '{print $3}')
+      [ -n "$v" ] && echo "$v" || echo "-"
     emoji: "💻"
     alt: "cpu"
     ttl: 5
@@ -213,14 +243,18 @@ plugins:
 
 Environment variable: `CCSTATUSLINE_PLUGIN_CONFIG` (CLI takes precedence)
 
-Debug logging guide: `docs/debug-logging.md`
-
 ### How Plugins Work
 
 1. **Cache-first rendering** — Commands never block the statusline. Results are read from cache.
 2. **Background refresh** — Stale caches trigger a background update after printing.
 3. **Project-aware** — Commands run in the project root by default (from `workspace.project_dir`).
 4. **Fail-safe** — Command errors show `fallbackValue`; the statusline never crashes.
+
+### Documentation
+
+- **[Plugin Usage Guide](docs/plugin-usage-guide.md)** — How to use and configure plugins, preset details, cache behavior, troubleshooting
+- **[Plugin Development Guide](docs/plugin-development-guide.md)** — Create custom plugins, best practices, TTL design, debugging
+- **[Debug Logging](docs/debug-logging.md)** — Enable debug mode and inspect logs
 
 ## Environment Variables
 

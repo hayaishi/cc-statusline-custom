@@ -1,0 +1,64 @@
+# cc-statusline-custom Plugin Presets
+#
+# This file provides ready-to-use plugin configurations.
+# Usage: --config=config.presets.yml --segments=model,:git_branch,cost_session,context
+#
+# You can customize this file by:
+# - Commenting out plugins you don't need
+# - Adjusting TTL values based on your preferences
+# - Modifying emojis or adding 'alt' labels
+#
+# See docs/plugin-usage-guide.md for detailed documentation
+
+plugins:
+  # Git branch with dirty indicator
+  # Shows current branch name, appends '*' if there are uncommitted changes
+  # Example: main, feature/new-api*, hotfix/bug-123
+  - id: git_branch
+    command: |
+      branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+      [ -z "$branch" ] && echo "-" && exit
+      [ -n "$(git status --porcelain 2>/dev/null)" ] && branch="$branch*"
+      echo "$branch"
+    emoji: "🌿"
+    alt: "branch"
+    fallbackValue: "-"
+    ttl: 10
+
+  # Git commit hash (short)
+  # Shows the first 7 characters of current commit SHA
+  # Example: a3f7b2c
+  - id: git_commit
+    command: git rev-parse --short HEAD 2>/dev/null || echo "-"
+    emoji: "📌"
+    alt: "commit"
+    fallbackValue: "-"
+    ttl: 60
+
+  # Node.js version
+  # Shows Node.js version without 'v' prefix
+  # Example: 20.11.0
+  # Uses session_start refresh - updates once per Claude Code session
+  - id: node_version
+    command: |
+      v=$(node -v 2>/dev/null)
+      [ -n "$v" ] && printf '%s\n' "${v#v}" || echo "-"
+    emoji: "📦"
+    alt: "node"
+    fallbackValue: "-"
+    ttl: 3600
+    refreshOn: session_start
+
+  # CPU usage (macOS)
+  # Shows CPU usage percentage on macOS systems
+  # Example: 23.5%
+  # Note: macOS-specific command - will show fallback on other systems
+  - id: cpu
+    command: |
+      [ "$(uname -s)" = "Darwin" ] || { echo "-"; exit; }
+      v=$(top -l 1 2>/dev/null | grep "CPU usage" | awk '{print $3}')
+      [ -n "$v" ] && echo "$v" || echo "-"
+    emoji: "💻"
+    alt: "cpu"
+    fallbackValue: "-"
+    ttl: 5
