@@ -14,6 +14,7 @@ import {
   resolveRenderOptions,
   DEFAULT_SEGMENT_ORDER,
   getCacheTargetsForSegments,
+  getExternalSegmentConfig,
   shouldRequestBgCacheUpdate,
 } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
@@ -59,24 +60,24 @@ describe('generateStatusline', () => {
   });
 
   describe('NEVER silent - always returns visible output', () => {
-    it('returns non-empty fallback for null input', () => {
+    it('should return non-empty fallback when input is null', () => {
       const result = generateStatusline(null, testCacheDir);
-      expect(result.trim().length).toBeGreaterThan(0);
+      expect(result.trim()).not.toBe('');
       expect(result).toBe(FALLBACK_OUTPUT);
     });
 
-    it('returns non-empty string for empty object', () => {
+    it('should return non-empty string when input is empty object', () => {
       const result = generateStatusline({}, testCacheDir);
-      expect(result.trim().length).toBeGreaterThan(0);
+      expect(result.trim()).not.toBe('');
     });
 
-    it('returns non-empty string for partial input', () => {
+    it('should return non-empty string when input is partial', () => {
       const input: ClaudeCodeInput = { model: 'Claude Opus 4.5' };
       const result = generateStatusline(input, testCacheDir);
-      expect(result.trim().length).toBeGreaterThan(0);
+      expect(result.trim()).not.toBe('');
     });
 
-    it('never returns empty string', () => {
+    it('should never return empty string for various inputs', () => {
       const testCases: (ClaudeCodeInput | null)[] = [
         null,
         {},
@@ -85,16 +86,15 @@ describe('generateStatusline', () => {
         { cost_usd: 0 },
       ];
 
-      for (const input of testCases) {
+      testCases.forEach(input => {
         const result = generateStatusline(input, testCacheDir);
-        expect(result).not.toBe('');
         expect(result.trim()).not.toBe('');
-      }
+      });
     });
   });
 
   describe('output guarantees', () => {
-    it('never returns multi-line output', () => {
+    it('should never return multi-line output', () => {
       const testCases: (ClaudeCodeInput | null)[] = [
         null,
         {},
@@ -107,17 +107,14 @@ describe('generateStatusline', () => {
         },
       ];
 
-      for (const input of testCases) {
+      testCases.forEach(input => {
         const result = generateStatusline(input, testCacheDir);
-        const lineCount = result.split('\n').length;
-        expect(lineCount).toBe(1);
-      }
+        expect(result.split('\n')).toHaveLength(1);
+      });
     });
 
-    it('handles input with newlines gracefully', () => {
-      const input: ClaudeCodeInput = {
-        model: 'test\nmodel',
-      };
+    it('should handle input with newlines gracefully', () => {
+      const input: ClaudeCodeInput = { model: 'test\nmodel' };
       const result = generateStatusline(input, testCacheDir);
       expect(result).not.toContain('\n');
     });
@@ -249,8 +246,8 @@ describe('generateStatusline', () => {
   });
 
   describe('error resilience', () => {
-    it('handles malformed objects gracefully and returns visible output', () => {
-      const weirdInputs = [
+    it('should handle malformed objects gracefully and return visible output', () => {
+      const malformedInputs = [
         { cost_usd: NaN },
         { cost_usd: Infinity },
         { cost_usd: -Infinity },
@@ -258,11 +255,11 @@ describe('generateStatusline', () => {
         { model: '' },
       ];
 
-      for (const input of weirdInputs) {
+      malformedInputs.forEach(input => {
         expect(() => generateStatusline(input as ClaudeCodeInput, testCacheDir)).not.toThrow();
         const result = generateStatusline(input as ClaudeCodeInput, testCacheDir);
-        expect(result.trim().length).toBeGreaterThan(0);
-      }
+        expect(result.trim()).not.toBe('');
+      });
     });
   });
 
@@ -1121,6 +1118,40 @@ describe('segment configuration', () => {
       });
       expect(result).toBe(false);
     });
+
+    it('should use cacheTtlSeconds from external segment config when checking background update staleness', () => {
+      const cacheFile = join(testCacheDir, 'subscription-usage.json');
+      const nowMs = Date.now();
+
+      process.env.CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL = '10';
+
+      clearExternalSegments();
+      registerSubscriptionSegments();
+
+      const config = getExternalSegmentConfig('subscription_usage');
+      expect(config).toBeDefined();
+      expect(config?.cacheTtlSeconds).toBe(10);
+      expect(config?.cacheTargets).toContain('subscriptionUsage');
+
+      const entry: CacheEntry = {
+        utilizationPercent: 10,
+        resetsAt: '2026-03-01T00:00:00Z',
+        lastError: null,
+        lastAttemptAt: new Date(nowMs - 15 * 1000).toISOString(),
+        updatedAt: new Date(nowMs - 15 * 1000).toISOString(),
+      };
+      writeFileSync(cacheFile, JSON.stringify(entry));
+
+      const oldTime = nowMs / 1000 - 15;
+      utimesSync(cacheFile, oldTime, oldTime);
+
+      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
+        nowMs,
+        cooldownSeconds: 5,
+      });
+
+      expect(result).toBe(true);
+    });
   });
 });
 
@@ -1363,4 +1394,3 @@ describe('external segment registry', () => {
     expect(getCacheTargetsForSegments(['external_clear_target'])).toEqual([]);
   });
 });
-

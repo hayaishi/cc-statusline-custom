@@ -59,6 +59,7 @@ export interface ExternalSegmentConfig {
   ) => string;
   readonly aliases?: readonly string[];
   readonly cacheTargets?: readonly string[];
+  readonly cacheTtlSeconds?: number;
   readonly neverStandalone?: boolean;
 }
 
@@ -81,6 +82,14 @@ export function registerExternalSegment(id: string, config: ExternalSegmentConfi
  */
 export function clearExternalSegments(): void {
   externalSegmentRegistry.clear();
+}
+
+/**
+ * @internal
+ * Returns external segment config for tests/internal checks.
+ */
+export function getExternalSegmentConfig(id: string): ExternalSegmentConfig | undefined {
+  return externalSegmentRegistry.get(id);
 }
 
 /**
@@ -144,12 +153,10 @@ export function normalizeSegmentId(id: string): SegmentId | null {
   }
 
   for (const [externalId, config] of externalSegmentRegistry.entries()) {
-    if (externalId.toLowerCase() === normalized) {
-      return externalId as SegmentId;
-    }
+    const idMatches = externalId.toLowerCase() === normalized;
+    const aliasMatches = (config.aliases ?? []).some(alias => alias.toLowerCase() === normalized);
 
-    const aliases = config.aliases ?? [];
-    if (aliases.some(alias => alias.toLowerCase() === normalized)) {
+    if (idMatches || aliasMatches) {
       return externalId as SegmentId;
     }
   }
@@ -306,15 +313,12 @@ export interface BgUpdateCheckOptions {
  */
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
+
   const lastAttemptAt = entry.lastAttemptAt;
-  if (typeof lastAttemptAt !== 'string') {
-    return false;
-  }
+  if (typeof lastAttemptAt !== 'string') return false;
 
   const lastAttemptMs = Date.parse(lastAttemptAt);
-  if (!Number.isFinite(lastAttemptMs)) {
-    return false;
-  }
+  if (!Number.isFinite(lastAttemptMs)) return false;
 
   const elapsedMs = nowMs - lastAttemptMs;
   return elapsedMs < cooldownMs;
@@ -367,7 +371,16 @@ export function shouldRequestBgCacheUpdate(
       return false;
     }
 
-    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, DEFAULT_CACHE_TTL_SECONDS);
+    let ttlSeconds = DEFAULT_CACHE_TTL_SECONDS;
+    for (const [, config] of externalSegmentRegistry.entries()) {
+      const hasTarget = config.cacheTargets?.includes(target) === true;
+      if (hasTarget && config.cacheTtlSeconds !== undefined) {
+        ttlSeconds = config.cacheTtlSeconds;
+        break;
+      }
+    }
+
+    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttlSeconds);
 
     // Skip this target if within cooldown (prevents spawn storms)
     if (isWithinCooldown(entry, nowMs, cooldownMs)) {
@@ -404,14 +417,10 @@ export const FALLBACK_OUTPUT = '🤖 ? | ⏳ Loading...';
  * Currently only extracts session cost; extensible for future cost types.
  */
 function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
-  const data: CostSegmentData = {};
-
   const sessionCost = extractSessionCost(input);
-  if (sessionCost !== undefined) {
-    (data as { sessionCost?: number }).sessionCost = sessionCost;
-  }
+  if (sessionCost === undefined) return {};
 
-  return data;
+  return { sessionCost };
 }
 
 /**
@@ -507,9 +516,10 @@ function renderPluginSegment(
   renderOptions: RenderOptions,
   projectDir?: string
 ): string {
+  if (pluginConfigs === undefined) return '';
+
   const pluginId = parsePluginSegmentId(segmentId);
   if (pluginId === null) return '';
-  if (pluginConfigs === undefined) return '';
 
   const pluginConfig = pluginConfigs.get(pluginId);
   if (pluginConfig === undefined) return '';
@@ -528,16 +538,14 @@ function renderBuiltinSegment(
   externalConfig?: ExternalSegmentConfig
 ): string {
   if (externalConfig !== undefined) {
-    if (externalConfig.neverStandalone === true && existingSegmentCount === 0) {
-      return '';
-    }
+    const isStandaloneDisallowed = externalConfig.neverStandalone === true && existingSegmentCount === 0;
+    if (isStandaloneDisallowed) return '';
+
     return externalConfig.builder(input, cacheDir, renderOptions, debug);
   }
 
   const builder = (builders as Partial<Record<string, SegmentBuilder>>)[segmentId];
-  if (builder === undefined) {
-    return '';
-  }
+  if (builder === undefined) return '';
 
   return builder(input, cacheDir, renderOptions);
 }
