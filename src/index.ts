@@ -253,6 +253,14 @@ function handleStatusline(args: string[]): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
+  // Load experimental subscription-usage module if available
+  try {
+    const { registerSubscriptionSegments } = await import('./experimental/subscription-usage/index.js');
+    registerSubscriptionSegments();
+  } catch {
+    // Module not available - subscription segments won't be registered
+  }
+
   if (args.includes('--update-cache')) {
     await handleUpdateCache(args);
   } else {
