@@ -6,6 +6,8 @@ import {
   generateStatusline,
   FALLBACK_OUTPUT,
   generateStatuslineWithExtended,
+  registerExternalSegment,
+  clearExternalSegments,
   normalizeSegmentId,
   parseSegmentList,
   resolveSegmentOrder,
@@ -1530,6 +1532,79 @@ describe('extractWindowData validation (via buildSubscriptionUsageAllSegment)', 
     expect(result).toContain('75%');
     expect(result).toContain('(~3am)');
     expect(result).toContain('(~11pm, Feb 1)');
+  });
+});
+
+describe('external segment registry', () => {
+  const testCacheDir = join(tmpdir(), `cc-external-segment-test-${String(process.pid)}`);
+
+  beforeEach(() => {
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+    clearExternalSegments();
+  });
+
+  afterEach(() => {
+    clearExternalSegments();
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should register and use an external segment builder', () => {
+    registerExternalSegment('ext_segment', {
+      builder: (): string => 'EXT segment',
+    });
+
+    const result = generateStatusline({}, testCacheDir, ['ext_segment']);
+    expect(result).toBe('EXT segment');
+  });
+
+  it('should resolve aliases for external segments', () => {
+    registerExternalSegment('external_alias_target', {
+      builder: (): string => 'unused',
+      aliases: ['ext_alias'],
+    });
+
+    expect(normalizeSegmentId('ext_alias')).toBe('external_alias_target');
+  });
+
+  it('should include external cache targets in getCacheTargetsForSegments', () => {
+    registerExternalSegment('external_cache_segment', {
+      builder: (): string => 'unused',
+      cacheTargets: ['externalTarget', 'subscriptionUsage'],
+    });
+
+    const targets = getCacheTargetsForSegments([
+      'external_cache_segment',
+      'subscription_usage',
+      'external_cache_segment',
+    ]);
+
+    expect(targets).toEqual(['externalTarget', 'subscriptionUsage']);
+  });
+
+  it('should not render external segment standalone when neverStandalone is true', () => {
+    registerExternalSegment('external_never_standalone', {
+      builder: (): string => 'should-not-render',
+      neverStandalone: true,
+    });
+
+    const result = generateStatusline({}, testCacheDir, ['external_never_standalone']);
+    expect(result).toBe(FALLBACK_OUTPUT);
+  });
+
+  it('should clear external segments with clearExternalSegments', () => {
+    registerExternalSegment('external_clear_target', {
+      builder: (): string => 'cleared',
+      aliases: ['clear_alias'],
+      cacheTargets: ['externalTarget'],
+    });
+    clearExternalSegments();
+
+    expect(normalizeSegmentId('clear_alias')).toBeNull();
+    expect(getCacheTargetsForSegments(['external_clear_target'])).toEqual([]);
   });
 });
 

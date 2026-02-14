@@ -54,7 +54,38 @@ export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscript
 /**
  * Segment identifier - either a built-in segment or a plugin segment (:xxx).
  */
-export type SegmentId = BuiltinSegmentId | `:${string}`;
+export type SegmentId = BuiltinSegmentId | `:${string}` | (string & {});
+
+/**
+ * External segment registration config.
+ */
+export interface ExternalSegmentConfig {
+  readonly builder: (input: ClaudeCodeInput, cacheDir: string, options: RenderOptions) => string;
+  readonly aliases?: readonly string[];
+  readonly cacheTargets?: readonly string[];
+  readonly neverStandalone?: boolean;
+}
+
+const externalSegmentRegistry = new Map<string, ExternalSegmentConfig>();
+
+/**
+ * Registers an external segment.
+ */
+export function registerExternalSegment(id: string, config: ExternalSegmentConfig): void {
+  const trimmed = id.trim();
+  if (trimmed === '') {
+    return;
+  }
+  externalSegmentRegistry.set(trimmed, config);
+}
+
+/**
+ * Clears all external segment registrations.
+ * Intended for tests and controlled re-initialization.
+ */
+export function clearExternalSegments(): void {
+  externalSegmentRegistry.clear();
+}
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -123,7 +154,23 @@ export function normalizeSegmentId(id: string): SegmentId | null {
 
   // Handle built-in segments
   const normalized = trimmed.toLowerCase();
-  return SEGMENT_ALIASES[normalized] ?? null;
+  const builtin = SEGMENT_ALIASES[normalized];
+  if (builtin !== undefined) {
+    return builtin;
+  }
+
+  for (const [externalId, config] of externalSegmentRegistry.entries()) {
+    if (externalId.toLowerCase() === normalized) {
+      return externalId as SegmentId;
+    }
+
+    const aliases = config.aliases ?? [];
+    if (aliases.some(alias => alias.toLowerCase() === normalized)) {
+      return externalId as SegmentId;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -221,7 +268,7 @@ export function resolveRenderOptions(
 /**
  * Cache target identifiers for background update scheduling.
  */
-export type CacheTargetId = 'subscriptionUsage';
+export type CacheTargetId = 'subscriptionUsage' | (string & {});
 
 /**
  * Mapping from built-in segment identifiers to required cache targets.
@@ -250,7 +297,14 @@ export function getCacheTargetsForSegments(segments: readonly SegmentId[]): Cach
     if (isPluginSegmentId(seg)) {
       return [];
     }
-    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId];
+
+    const external = externalSegmentRegistry.get(seg);
+    if (external !== undefined) {
+      return external.cacheTargets ?? [];
+    }
+
+    const targets = (SEGMENT_CACHE_TARGETS as Partial<Record<string, readonly CacheTargetId[]>>)[seg];
+    return targets ?? [];
   });
   return [...new Set(allTargets)];
 }
@@ -261,7 +315,7 @@ export function getCacheTargetsForSegments(segments: readonly SegmentId[]): Cach
  * @param target - Cache target identifier
  * @returns TTL in seconds
  */
-export function getCacheTargetTtlSeconds(_target: CacheTargetId): number {
+export function getCacheTargetTtlSeconds(_target: string): number {
   return getSubscriptionCacheTtl();
 }
 
@@ -353,8 +407,12 @@ export function shouldRequestBgCacheUpdate(
 
   // Check subscription cache targets
   const subscriptionNeedsUpdate = targets.some(target => {
+    if (target !== 'subscriptionUsage') {
+      return false;
+    }
+
     const ttl = getCacheTargetTtlSeconds(target);
-    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttl);
+    const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttl);
 
     // Skip this target if within cooldown (prevents spawn storms)
     if (isWithinCooldown(entry, nowMs, cooldownMs)) {
@@ -526,7 +584,16 @@ function composeSegments(
     if (isPluginSegmentId(segmentId)) {
       rendered = renderPluginSegment(segmentId, pluginConfigs, cacheDir, renderOptions, projectDir);
     } else {
-      rendered = renderBuiltinSegment(segmentId, segments.length, input, cacheDir, renderOptions, builders);
+      const externalConfig = externalSegmentRegistry.get(segmentId);
+      rendered = renderBuiltinSegment(
+        segmentId,
+        segments.length,
+        input,
+        cacheDir,
+        renderOptions,
+        builders,
+        externalConfig
+      );
     }
 
     if (rendered !== '') {
@@ -560,8 +627,16 @@ function renderBuiltinSegment(
   input: ClaudeCodeInput,
   cacheDir: string,
   renderOptions: RenderOptions,
-  builders: Record<BuiltinSegmentId, SegmentBuilder>
+  builders: Record<BuiltinSegmentId, SegmentBuilder>,
+  externalConfig?: ExternalSegmentConfig
 ): string {
+  if (externalConfig !== undefined) {
+    if (externalConfig.neverStandalone === true && existingSegmentCount === 0) {
+      return '';
+    }
+    return externalConfig.builder(input, cacheDir, renderOptions);
+  }
+
   // Subscription usage segments only show when other context exists (never standalone)
   const isSubscriptionSegment =
     segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
@@ -570,7 +645,12 @@ function renderBuiltinSegment(
     return '';
   }
 
-  return builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
+  const builder = (builders as Partial<Record<string, SegmentBuilder>>)[segmentId];
+  if (builder === undefined) {
+    return '';
+  }
+
+  return builder(input, cacheDir, renderOptions);
 }
 
 /**
