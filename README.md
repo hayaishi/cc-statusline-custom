@@ -112,9 +112,24 @@ For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
 `subscription_usage` / `subscription_usage_all` segments are experimental.
 
-- They may change or be removed without notice.
-- They call Claude API endpoints directly.
-- Enable explicitly via `--segments`.
+⚠️ **Strong disclaimer**
+
+- These segments rely on private/undocumented Claude API behavior.
+- They may break at any time, change without notice, or be removed from this project.
+- Stability is not guaranteed; use only if you accept this risk.
+- Enable explicitly via `--segments` (opt-in).
+
+Example output:
+
+```text
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
+```
+
+With both limits:
+
+```text
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 31,616 [█░░░░░░░] (16%)
+```
 
 For debug details, see [Debug Logging](docs/debug-logging.md).
 
