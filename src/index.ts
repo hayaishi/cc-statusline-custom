@@ -44,6 +44,7 @@ import {
   type SegmentId,
   type PluginConfigMap,
 } from './core/statusline.js';
+import { isPluginSegmentId, parsePluginSegmentId } from './core/plugin-segment.js';
 import {
   getCacheDir,
   getDebugEnabled,
@@ -123,7 +124,18 @@ async function handleUpdateCache(args: string[]): Promise<void> {
 
     const plugins = loadPlugins(configPath);
     if (plugins !== null) {
-      await tryUpdatePluginCaches(plugins, projectDir);
+      // Filter plugins to only those referenced in segments
+      const segmentsArg = parseSegmentsArg(args);
+      const segments = resolveSegmentOrder(segmentsArg);
+      const referencedPluginIds = new Set(
+        segments
+          .filter(isPluginSegmentId)
+          .map(parsePluginSegmentId)
+          .filter((id): id is string => id !== null)
+      );
+      const filteredPlugins = plugins.filter(plugin => referencedPluginIds.has(plugin.id));
+
+      await tryUpdatePluginCaches(filteredPlugins, projectDir);
     }
 
     const output = result.success ? result.message : `Error: ${result.message}`;
@@ -170,11 +182,12 @@ function trySpawnBackgroundUpdate(
     const scriptPath = process.argv[1];
     if (scriptPath === undefined || scriptPath === '') return;
 
-    const args = [scriptPath, '--update-cache', '--auto'];
-    if (debug) args.push('--debug');
-    if (configPath !== undefined) args.push('--config', configPath);
-    if (projectDir !== undefined) args.push('--project-dir', projectDir);
-    if (ccVersion !== undefined) args.push('--cc-version', ccVersion);
+    const args = buildBackgroundUpdateArgs(scriptPath, segments, {
+      ...(debug && { debug }),
+      ...(configPath !== undefined && { configPath }),
+      ...(projectDir !== undefined && { projectDir }),
+      ...(ccVersion !== undefined && { ccVersion }),
+    });
 
     const child = spawn(process.execPath, args, {
       detached: true,
@@ -189,6 +202,25 @@ function trySpawnBackgroundUpdate(
   } catch {
     // best-effort: background update must never crash the statusline
   }
+}
+
+export function buildBackgroundUpdateArgs(
+  scriptPath: string,
+  segments: readonly SegmentId[],
+  options: {
+    debug?: boolean;
+    configPath?: string;
+    projectDir?: string;
+    ccVersion?: string;
+  }
+): string[] {
+  const args = [scriptPath, '--update-cache', '--auto'];
+  if (options.debug === true) args.push('--debug');
+  if (options.configPath !== undefined) args.push('--config', options.configPath);
+  if (options.projectDir !== undefined) args.push('--project-dir', options.projectDir);
+  if (options.ccVersion !== undefined) args.push('--cc-version', options.ccVersion);
+  if (segments.length > 0) args.push('--segments', segments.join(','));
+  return args;
 }
 
 async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDir?: string): Promise<void> {
