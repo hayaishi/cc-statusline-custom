@@ -19,6 +19,8 @@
  */
 
 import { spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { readStdinSync } from './utils/stdin.js';
 import { detectClaudeCodeVersion } from './utils/cc-version.js';
 import {
@@ -73,8 +75,15 @@ function createDebugLogOptions(enabled: boolean): DebugLogOptions {
   };
 }
 
-function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  const effectivePath = configPath ?? getPluginConfigPath() ?? getDefaultPresetsPath();
+export function loadPlugins(
+  configPath: string | undefined,
+  context?: 'statusline' | 'update'
+): readonly PluginConfig[] | null {
+  const shouldAutoLoad = context === undefined || context === 'statusline';
+  const effectivePath = configPath ?? (shouldAutoLoad ? getPluginConfigPath() ?? getDefaultPresetsPath() : undefined);
+
+  if (effectivePath === undefined || effectivePath === '') return null;
+
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
   if (pluginsFile === null) return null;
@@ -84,9 +93,8 @@ function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | 
 }
 
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  return (plugins === null || plugins.length === 0)
-    ? undefined
-    : new Map(plugins.map(plugin => [plugin.id, plugin]));
+  if (plugins === null || plugins.length === 0) return undefined;
+  return new Map(plugins.map(plugin => [plugin.id, plugin]));
 }
 
 /**
@@ -102,7 +110,7 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
 async function handleUpdateCache(args: string[]): Promise<void> {
   try {
     const isAuto = parseAutoArg(args);
-    const isDebug = isDebugModeEnabled(args);
+    const debug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
     const ccVersion = parseCcVersionArg(args) ?? detectClaudeCodeVersion() ?? undefined;
@@ -110,12 +118,12 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     const { updateCache } = await import('./updater/update-cache.js');
     const options: Parameters<typeof updateCache>[1] = {
       mode: isAuto ? 'auto' : 'force',
-      debug: isDebug,
+      debug,
       ...(ccVersion !== undefined && { ccVersion }),
     };
     const result = await updateCache(undefined, options);
 
-    const plugins = loadPlugins(configPath);
+    const plugins = loadPlugins(configPath, 'update');
     if (plugins !== null) {
       await tryUpdatePluginCaches(plugins, projectDir);
     }
@@ -133,6 +141,7 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  *
  * @param segments - Array of segment identifiers
  * @param isBgUpdateDisabled - Whether background update is disabled via CLI flag
+ * @param debug - Whether debug mode is enabled
  * @param configPath - Path to plugin config file for passing to subprocess
  * @param plugins - Loaded plugin configurations
  * @param projectDir - Project directory for scoped plugin caches
@@ -169,15 +178,11 @@ function trySpawnBackgroundUpdate(
     if (projectDir !== undefined) args.push('--project-dir', projectDir);
     if (ccVersion !== undefined) args.push('--cc-version', ccVersion);
 
-    const child = spawn(
-      process.execPath,
-      args,
-      {
-        detached: true,
-        stdio: 'ignore' as const,
-        env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
-      }
-    );
+    const child = spawn(process.execPath, args, {
+      detached: true,
+      stdio: 'ignore' as const,
+      env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
+    });
     child.on('error', () => {
       // Swallow async spawn errors (EAGAIN, EMFILE, etc.)
       // to prevent unhandled 'error' events from crashing the process.
@@ -224,7 +229,8 @@ function handleStatusline(args: string[]): void {
 
     const projectDir = input?.workspace?.project_dir;
     const ccVersion = input?.version;
-    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
+    const cacheDir = getCacheDir();
+    const line = generateStatusline(input, cacheDir, segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
 
     // Defense in depth: extract first line even if generateStatusline misbehaves
     console.log(ensureVisibleFirstLine(line));
@@ -256,4 +262,17 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+function isDirectExecution(): boolean {
+  const scriptPath = process.argv[1];
+  if (scriptPath === undefined || scriptPath === '') return false;
+
+  try {
+    return realpathSync(scriptPath) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  void main();
+}
