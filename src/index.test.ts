@@ -34,20 +34,7 @@ describe('loadPlugins', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('should return null when context is update and config path is not provided', () => {
-    const plugins = loadPlugins(undefined, 'update');
-
-    expect(plugins).toBeNull();
-  });
-
-  it('should auto-load plugins when context is statusline and config path is not provided', () => {
-    const plugins = loadPlugins(undefined, 'statusline');
-
-    expect(plugins).not.toBeNull();
-    expect(plugins?.[0]?.id).toBe('from_env');
-  });
-
-  it('should auto-load plugins when context is not provided', () => {
+  it('should auto-load plugins when config path is not provided', () => {
     const plugins = loadPlugins(undefined);
 
     expect(plugins).not.toBeNull();

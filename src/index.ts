@@ -76,13 +76,11 @@ function createDebugLogOptions(enabled: boolean): DebugLogOptions {
 }
 
 export function loadPlugins(
-  configPath: string | undefined,
-  context?: 'statusline' | 'update'
+  configPath: string | undefined
 ): readonly PluginConfig[] | null {
-  const shouldAutoLoad = context === undefined || context === 'statusline';
-  const effectivePath = configPath ?? (shouldAutoLoad ? getPluginConfigPath() ?? getDefaultPresetsPath() : undefined);
+  const effectivePath = configPath ?? getPluginConfigPath() ?? getDefaultPresetsPath();
 
-  if (effectivePath === undefined || effectivePath === '') return null;
+  if (effectivePath === '') return null;
 
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
@@ -123,7 +121,7 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     };
     const result = await updateCache(undefined, options);
 
-    const plugins = loadPlugins(configPath, 'update');
+    const plugins = loadPlugins(configPath);
     if (plugins !== null) {
       await tryUpdatePluginCaches(plugins, projectDir);
     }
