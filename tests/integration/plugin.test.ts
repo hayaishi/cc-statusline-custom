@@ -248,7 +248,7 @@ plugins:
   });
 
   describe('--update-cache with plugins', () => {
-    it('should update plugin caches when --config is provided', () => {
+    it('should update plugin caches when plugin segments are provided', () => {
       writeFileSync(
         configPath,
         `
@@ -265,6 +265,7 @@ plugins:
           SCRIPT_PATH,
           '--update-cache',
           '--config', configPath,
+          '--segments', ':echo_test',
         ],
         {
           encoding: 'utf-8',
@@ -285,6 +286,40 @@ plugins:
       const cached = JSON.parse(readFileSync(pluginCachePath, 'utf-8'));
       expect(cached.value).toBe('updated');
       expect(cached.error).toBeNull();
+    });
+
+    it('should skip plugin cache updates when no plugin segments are provided', () => {
+      writeFileSync(
+        configPath,
+        `
+plugins:
+  - id: echo_test
+    command: echo "updated"
+    ttl: 60
+`
+      );
+
+      const result = spawnSync(
+        process.execPath,
+        [
+          SCRIPT_PATH,
+          '--update-cache',
+          '--config', configPath,
+          '--segments', 'model,context',
+        ],
+        {
+          encoding: 'utf-8',
+          env: {
+            ...process.env,
+            CCSTATUSLINE_CACHE_DIR: cacheDir,
+          },
+          timeout: 10000,
+        }
+      );
+
+      expect(result.status).toBe(0);
+      const pluginCachePath = join(cacheDir, 'plugins', 'echo_test.json');
+      expect(existsSync(pluginCachePath)).toBe(false);
     });
   });
 
