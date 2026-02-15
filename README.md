@@ -112,11 +112,13 @@ For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
 `subscription_usage` / `subscription_usage_all` segments are experimental.
 
-⚠️ **Strong disclaimer**
+⚠️ **Disclaimer**
 
 - These segments rely on private/undocumented Claude API behavior.
 - They may break at any time, change without notice, or be removed from this project.
-- Stability is not guaranteed; use only if you accept this risk.
+- This feature is provided as-is with no warranty or guarantee.
+- You use this feature at your own risk (self-responsibility).
+- We are not liable for issues, data loss, or any other damage caused by this feature.
 - Enable explicitly via `--segments` (opt-in).
 
 Example output:
