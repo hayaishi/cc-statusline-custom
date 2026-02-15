@@ -19,6 +19,8 @@
  */
 
 import { spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { readStdinSync } from './utils/stdin.js';
 import { detectClaudeCodeVersion } from './utils/cc-version.js';
 import {
@@ -42,6 +44,7 @@ import {
   type SegmentId,
   type PluginConfigMap,
 } from './core/statusline.js';
+import { isPluginSegmentId, parsePluginSegmentId } from './core/plugin-segment.js';
 import {
   getCacheDir,
   getDebugEnabled,
@@ -49,6 +52,7 @@ import {
   getDebugLogMaxFiles,
   getDebugLogPath,
   getPluginConfigPath,
+  getDefaultPresetsPath,
 } from './config/env.js';
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
@@ -72,9 +76,12 @@ function createDebugLogOptions(enabled: boolean): DebugLogOptions {
   };
 }
 
-function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  const effectivePath = configPath ?? getPluginConfigPath();
-  if (effectivePath === undefined) return null;
+export function loadPlugins(
+  configPath: string | undefined
+): readonly PluginConfig[] | null {
+  const effectivePath = configPath ?? getPluginConfigPath() ?? getDefaultPresetsPath();
+
+  if (effectivePath === '') return null;
 
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
@@ -85,9 +92,7 @@ function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | 
 }
 
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  if (plugins === null || plugins.length === 0) {
-    return undefined;
-  }
+  if (plugins === null || plugins.length === 0) return undefined;
   return new Map(plugins.map(plugin => [plugin.id, plugin]));
 }
 
@@ -97,16 +102,14 @@ function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginC
  */
 function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
   const firstLine = text.split('\n')[0] ?? '';
-  const trimmed = firstLine.trim();
-  if (trimmed === '') return fallback;
-  return firstLine;
+  return firstLine.trim() === '' ? fallback : firstLine;
 }
 
 /** Handles the --update-cache subcommand. */
 async function handleUpdateCache(args: string[]): Promise<void> {
   try {
     const isAuto = parseAutoArg(args);
-    const isDebug = isDebugModeEnabled(args);
+    const debug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
     const ccVersion = parseCcVersionArg(args) ?? detectClaudeCodeVersion() ?? undefined;
@@ -114,14 +117,25 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     const { updateCache } = await import('./updater/update-cache.js');
     const options: Parameters<typeof updateCache>[1] = {
       mode: isAuto ? 'auto' : 'force',
-      debug: isDebug,
+      debug,
       ...(ccVersion !== undefined && { ccVersion }),
     };
     const result = await updateCache(undefined, options);
 
     const plugins = loadPlugins(configPath);
     if (plugins !== null) {
-      await tryUpdatePluginCaches(plugins, projectDir);
+      // Filter plugins to only those referenced in segments
+      const segmentsArg = parseSegmentsArg(args);
+      const segments = resolveSegmentOrder(segmentsArg);
+      const referencedPluginIds = new Set(
+        segments
+          .filter(isPluginSegmentId)
+          .map(parsePluginSegmentId)
+          .filter((id): id is string => id !== null)
+      );
+      const filteredPlugins = plugins.filter(plugin => referencedPluginIds.has(plugin.id));
+
+      await tryUpdatePluginCaches(filteredPlugins, projectDir);
     }
 
     const output = result.success ? result.message : `Error: ${result.message}`;
@@ -137,6 +151,7 @@ async function handleUpdateCache(args: string[]): Promise<void> {
  *
  * @param segments - Array of segment identifiers
  * @param isBgUpdateDisabled - Whether background update is disabled via CLI flag
+ * @param debug - Whether debug mode is enabled
  * @param configPath - Path to plugin config file for passing to subprocess
  * @param plugins - Loaded plugin configurations
  * @param projectDir - Project directory for scoped plugin caches
@@ -167,29 +182,18 @@ function trySpawnBackgroundUpdate(
     const scriptPath = process.argv[1];
     if (scriptPath === undefined || scriptPath === '') return;
 
-    const args = [scriptPath, '--update-cache', '--auto'];
-    if (debug) {
-      args.push('--debug');
-    }
-    if (configPath !== undefined) {
-      args.push('--config', configPath);
-    }
-    if (projectDir !== undefined) {
-      args.push('--project-dir', projectDir);
-    }
-    if (ccVersion !== undefined) {
-      args.push('--cc-version', ccVersion);
-    }
+    const args = buildBackgroundUpdateArgs(scriptPath, segments, {
+      ...(debug && { debug }),
+      ...(configPath !== undefined && { configPath }),
+      ...(projectDir !== undefined && { projectDir }),
+      ...(ccVersion !== undefined && { ccVersion }),
+    });
 
-    const child = spawn(
-      process.execPath,
-      args,
-      {
-        detached: true,
-        stdio: 'ignore' as const,
-        env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
-      }
-    );
+    const child = spawn(process.execPath, args, {
+      detached: true,
+      stdio: 'ignore' as const,
+      env: { ...process.env, CCSTATUSLINE_BG_UPDATE: '1' },
+    });
     child.on('error', () => {
       // Swallow async spawn errors (EAGAIN, EMFILE, etc.)
       // to prevent unhandled 'error' events from crashing the process.
@@ -198,6 +202,25 @@ function trySpawnBackgroundUpdate(
   } catch {
     // best-effort: background update must never crash the statusline
   }
+}
+
+export function buildBackgroundUpdateArgs(
+  scriptPath: string,
+  segments: readonly SegmentId[],
+  options: {
+    debug?: boolean;
+    configPath?: string;
+    projectDir?: string;
+    ccVersion?: string;
+  }
+): string[] {
+  const args = [scriptPath, '--update-cache', '--auto'];
+  if (options.debug === true) args.push('--debug');
+  if (options.configPath !== undefined) args.push('--config', options.configPath);
+  if (options.projectDir !== undefined) args.push('--project-dir', options.projectDir);
+  if (options.ccVersion !== undefined) args.push('--cc-version', options.ccVersion);
+  if (segments.length > 0) args.push('--segments', segments.join(','));
+  return args;
 }
 
 async function tryUpdatePluginCaches(plugins: readonly PluginConfig[], projectDir?: string): Promise<void> {
@@ -236,7 +259,8 @@ function handleStatusline(args: string[]): void {
 
     const projectDir = input?.workspace?.project_dir;
     const ccVersion = input?.version;
-    const line = generateStatusline(input, getCacheDir(), segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
+    const cacheDir = getCacheDir();
+    const line = generateStatusline(input, cacheDir, segmentOrder, renderOptions, debug, pluginConfigMap, projectDir);
 
     // Defense in depth: extract first line even if generateStatusline misbehaves
     console.log(ensureVisibleFirstLine(line));
@@ -268,4 +292,17 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+function isDirectExecution(): boolean {
+  const scriptPath = process.argv[1];
+  if (scriptPath === undefined || scriptPath === '') return false;
+
+  try {
+    return realpathSync(scriptPath) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  void main();
+}

@@ -49,7 +49,7 @@ describe('Preset Config Integration Tests', () => {
       expect(Array.isArray(loaded.plugins)).toBe(true);
     });
 
-    it('should have all valid plugin IDs and configurations', () => {
+    it('should have all valid plugin configurations', () => {
       const loaded = loadPresets();
       const result = parsePluginsFile(loaded);
       expect(result.valid).toBe(true);
@@ -83,7 +83,7 @@ describe('Preset Config Integration Tests', () => {
   });
 
   describe('preset command fallback behavior', () => {
-    it('should produce deterministic fallback when node is unavailable', () => {
+    it('should produce fallback when command is unavailable', () => {
       const result = spawnSync(
         '/bin/sh',
         ['-c', 'v=$(/nonexistent/node -v 2>/dev/null)\n[ -n "$v" ] && printf \'%s\\n\' "${v#v}" || echo "-"'],
@@ -93,7 +93,7 @@ describe('Preset Config Integration Tests', () => {
       expect(result.stdout.trim()).toBe('-');
     });
 
-    it('should produce deterministic fallback for cpu on non-Darwin platform check', () => {
+    it('should produce fallback for cpu on non-Darwin platform', () => {
       const result = spawnSync(
         '/bin/sh',
         ['-c', '[ "$(uname -s)" = "NonExistentOS" ] || { echo "-"; exit; }\nv=$(top -l 1 2>/dev/null | grep "CPU usage" | awk \'{print $3}\')\n[ -n "$v" ] && echo "$v" || echo "-"'],
@@ -126,6 +126,32 @@ describe('Preset Config Integration Tests', () => {
       const output = result.stdout.trim();
       expect(output.length).toBeGreaterThan(0);
       expect(output).toContain('Opus');
+    });
+
+    it('should auto-load presets and render plugin segments when --config is not provided', () => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          SCRIPT_PATH,
+          '--segments', 'model,:git_branch',
+          '--disable-bg-update',
+        ],
+        {
+          input: sampleInput,
+          encoding: 'utf-8',
+          env: {
+            ...process.env,
+            CCSTATUSLINE_CACHE_DIR: cacheDir,
+            CCSTATUSLINE_PLUGIN_CONFIG: '',
+          },
+        }
+      );
+
+      expect(result.status).toBe(0);
+      const output = result.stdout.trim();
+      expect(output.length).toBeGreaterThan(0);
+      expect(output).toContain('Opus');
+      expect(output).toContain('🌿');
     });
   });
 });

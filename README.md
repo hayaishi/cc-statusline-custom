@@ -96,7 +96,7 @@ All options are flags and can be combined.
 
 | Option | Description |
 | --- | --- |
-| `--update-cache` | Update the subscription usage cache and print the result. |
+| `--update-cache` | Update the subscription usage cache and print the result. Plugin cache updates are limited to plugins referenced in `--segments` (e.g. `:git_branch`). |
 | `--auto` | Internal flag for background updates (usually not needed manually). |
 | `--debug` | Enable debug mode. See `docs/debug-logging.md`. |
 | `--disable-bg-update` | Disable background cache updates. |
@@ -240,6 +240,11 @@ plugins:
 | `--config <path>` / `-c <path>` | Path to plugin config YAML file |
 
 Environment variable: `CCSTATUSLINE_PLUGIN_CONFIG` (CLI takes precedence)
+
+Auto-loading behavior:
+- Statusline mode (`default`) auto-loads plugins from `CCSTATUSLINE_PLUGIN_CONFIG` or bundled `config.presets.yml` when `--config` is omitted.
+- Background/update mode (`--update-cache`) also auto-loads plugins from `CCSTATUSLINE_PLUGIN_CONFIG` or bundled `config.presets.yml` when `--config` is omitted.
+- Plugin caches are updated only for plugins referenced in your segment configuration (`:pluginId` segments).
 
 ### How Plugins Work
 

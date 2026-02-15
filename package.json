@@ -17,7 +17,8 @@
     "@/*": "./dist/*"
   },
   "files": [
-    "dist"
+    "dist",
+    "config.presets.yml"
   ],
   "scripts": {
     "build": "tsc",
