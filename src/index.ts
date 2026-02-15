@@ -49,6 +49,7 @@ import {
   getDebugLogMaxFiles,
   getDebugLogPath,
   getPluginConfigPath,
+  getDefaultPresetsPath,
 } from './config/env.js';
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
@@ -73,9 +74,7 @@ function createDebugLogOptions(enabled: boolean): DebugLogOptions {
 }
 
 function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | null {
-  const effectivePath = configPath ?? getPluginConfigPath();
-  if (effectivePath === undefined) return null;
-
+  const effectivePath = configPath ?? getPluginConfigPath() ?? getDefaultPresetsPath();
   const expandedPath = effectivePath.replace(/^~/, process.env.HOME ?? '');
   const pluginsFile = loadPluginConfig(expandedPath);
   if (pluginsFile === null) return null;
@@ -85,10 +84,9 @@ function loadPlugins(configPath: string | undefined): readonly PluginConfig[] | 
 }
 
 function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginConfigMap | undefined {
-  if (plugins === null || plugins.length === 0) {
-    return undefined;
-  }
-  return new Map(plugins.map(plugin => [plugin.id, plugin]));
+  return (plugins === null || plugins.length === 0)
+    ? undefined
+    : new Map(plugins.map(plugin => [plugin.id, plugin]));
 }
 
 /**
@@ -97,9 +95,7 @@ function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginC
  */
 function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
   const firstLine = text.split('\n')[0] ?? '';
-  const trimmed = firstLine.trim();
-  if (trimmed === '') return fallback;
-  return firstLine;
+  return firstLine.trim() === '' ? fallback : firstLine;
 }
 
 /** Handles the --update-cache subcommand. */
@@ -168,18 +164,10 @@ function trySpawnBackgroundUpdate(
     if (scriptPath === undefined || scriptPath === '') return;
 
     const args = [scriptPath, '--update-cache', '--auto'];
-    if (debug) {
-      args.push('--debug');
-    }
-    if (configPath !== undefined) {
-      args.push('--config', configPath);
-    }
-    if (projectDir !== undefined) {
-      args.push('--project-dir', projectDir);
-    }
-    if (ccVersion !== undefined) {
-      args.push('--cc-version', ccVersion);
-    }
+    if (debug) args.push('--debug');
+    if (configPath !== undefined) args.push('--config', configPath);
+    if (projectDir !== undefined) args.push('--project-dir', projectDir);
+    if (ccVersion !== undefined) args.push('--cc-version', ccVersion);
 
     const child = spawn(
       process.execPath,
