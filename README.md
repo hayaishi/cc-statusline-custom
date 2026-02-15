@@ -57,12 +57,6 @@ For Bun users:
 }
 ```
 
-**Note:** The first run downloads from GitHub (may take a few seconds). To pre-cache:
-
-```bash
-npx --yes github:hayaishi/cc-statusline-custom --help
-```
-
 ### Option C: Local clone (for development or customization)
 
 Clone and build from source:
