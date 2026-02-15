@@ -23,6 +23,7 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "chmod +x dist/index.js",
+    "postinstall": "test -f node_modules/.bin/tsc && npm run build || echo 'Skipping build: TypeScript not available'",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -55,16 +56,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
-    "@types/node": "^22.10.7",
     "@vitest/coverage-v8": "^3.0.4",
     "eslint": "^9.18.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
     "vitest": "^3.0.4"
   },
   "dependencies": {
     "picocolors": "^1.1.1",
     "yaml": "^2.8.2"
+  },
+  "optionalDependencies": {
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.7"
   }
 }

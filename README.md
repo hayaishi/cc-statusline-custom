@@ -5,7 +5,67 @@ It reads JSON from stdin and **always prints one line** with model, cost, contex
 
 ## Quick Start
 
-### 1) Install
+### Option A: Install from GitHub (recommended)
+
+Install directly from GitHub:
+
+```bash
+npm install -g github:hayaishi/cc-statusline-custom
+```
+
+Then add this to your `settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "cc-statusline-custom --segments=model,cost,ctx",
+    "padding": 0
+  }
+}
+```
+
+Example output:
+
+```text
+🤖 Opus | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
+```
+
+### Option B: Use with `npx` / `bunx` (no install required)
+
+Add this to your `settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "npx github:hayaishi/cc-statusline-custom --segments=model,cost,ctx",
+    "padding": 0
+  }
+}
+```
+
+For Bun users:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bunx github:hayaishi/cc-statusline-custom --segments=model,cost,ctx",
+    "padding": 0
+  }
+}
+```
+
+**Note:** The first run downloads from GitHub (may take a few seconds). To pre-cache:
+
+```bash
+npx --yes github:hayaishi/cc-statusline-custom --help
+```
+
+### Option C: Local clone (for development or customization)
+
+Clone and build from source:
 
 ```bash
 git clone https://github.com/hayaishi/cc-statusline-custom.git
@@ -14,9 +74,7 @@ npm install
 npm run build
 ```
 
-### 2) Configure Claude Code
-
-Add this to your `settings.json`:
+Then add this to your `settings.json`:
 
 ```json
 {
@@ -26,14 +84,6 @@ Add this to your `settings.json`:
     "padding": 0
   }
 }
-```
-
-### 3) Confirm output
-
-Example:
-
-```text
-🤖 Opus | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
 ## Common Examples
@@ -89,7 +139,33 @@ Unknown segment tokens are ignored.
 
 Plugins add custom shell-command segments (for example `:git_branch`, `:node_version`, `:cpu`).
 
-Load your plugin file explicitly:
+Load your plugin file explicitly with the `--config` option:
+
+**Global install from GitHub:**
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "cc-statusline-custom --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
+    "padding": 0
+  }
+}
+```
+
+**npx / bunx:**
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "npx github:hayaishi/cc-statusline-custom --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
+    "padding": 0
+  }
+}
+```
+
+**Local clone:**
 
 ```json
 {
@@ -101,7 +177,7 @@ Load your plugin file explicitly:
 }
 ```
 
-Note: bundled presets are loaded by default when `--config` is omitted.
+Note: Bundled presets are loaded by default when `--config` is omitted.
 
 For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
