@@ -120,6 +120,7 @@ For full plugin setup, fields, cache behavior, and troubleshooting, see:
 - You use this feature at your own risk (self-responsibility).
 - We are not liable for issues, data loss, or any other damage caused by this feature.
 - Enable explicitly via `--segments` (opt-in).
+- Quick opt-in example: `--segments=model,usage_all,ctx`
 
 Example output:
 
