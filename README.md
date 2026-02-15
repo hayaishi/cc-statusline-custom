@@ -42,7 +42,7 @@ Example:
 - No emojis: `--segments=model,cost,ctx --no-emojis`
 - No bars: `--segments=model,cost,ctx --no-bars`
 - No emojis + no bars: `--segments=model,cost,ctx --no-emojis --no-bars`
-- With preset plugin: `--config=/path/to/cc-statusline-custom/config.presets.yml --segments=model,:git_branch,cost,ctx`
+- Load your plugin file: `--config=your.plugins.yml --segments=model,:git_branch,cost,ctx`
 
 ## Configuration (CLI options + environment variables)
 
@@ -89,17 +89,19 @@ Unknown segment tokens are ignored.
 
 Plugins let you add custom shell-command segments (for example `:git_branch`, `:node_version`, `:cpu`).
 
-Use presets quickly:
+Load your plugin file explicitly:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --config=/path/to/cc-statusline-custom/config.presets.yml --segments=model,:git_branch,cost_session,context",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
     "padding": 0
   }
 }
 ```
+
+Note: bundled presets are loaded by default when `--config` is omitted.
 
 For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
