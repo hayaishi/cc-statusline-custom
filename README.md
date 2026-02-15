@@ -116,7 +116,7 @@ For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
 - These segments rely on private/undocumented Claude API behavior.
 - They may break at any time, change without notice, or be removed from this project.
-- This feature is provided as-is with no warranty or guarantee.
+- We do not provide any warranty for this feature, including reliability, availability, or fitness for a particular purpose.
 - You use this feature at your own risk (self-responsibility).
 - We are not liable for issues, data loss, or any other damage caused by this feature.
 - Enable explicitly via `--segments` (opt-in).
