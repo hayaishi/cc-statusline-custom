@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   getCacheTtl,
@@ -11,6 +12,7 @@ import {
   getSegmentsConfig,
   getEmojisEnabled,
   getBarsEnabled,
+  getDefaultPresetsPath,
   getPluginConfigPath,
 } from './env.js';
 
@@ -172,9 +174,11 @@ describe('env config', () => {
   });
 
   describe('getDebugLogMaxBytes', () => {
+    const defaultMaxBytes = 1024 * 1024; // 1 MiB
+
     it('returns default by default', () => {
       delete process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES;
-      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+      expect(getDebugLogMaxBytes()).toBe(defaultMaxBytes);
     });
 
     it('parses valid values', () => {
@@ -184,15 +188,15 @@ describe('env config', () => {
 
     it('returns default for invalid values', () => {
       process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = 'invalid';
-      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+      expect(getDebugLogMaxBytes()).toBe(defaultMaxBytes);
     });
 
     it('returns default for zero or negative values', () => {
       process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = '0';
-      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+      expect(getDebugLogMaxBytes()).toBe(defaultMaxBytes);
 
       process.env.CCSTATUSLINE_DEBUG_LOG_MAX_BYTES = '-10';
-      expect(getDebugLogMaxBytes()).toBe(1024 * 1024);
+      expect(getDebugLogMaxBytes()).toBe(defaultMaxBytes);
     });
   });
 
@@ -222,7 +226,8 @@ describe('env config', () => {
   });
 
   describe('ignores legacy env variables', () => {
-    const legacyPrefix = ['CC', 'USAGE', '_'].join('');
+    // Construct prefix indirectly to avoid triggering legacy variable detection
+    const legacyPrefix = 'CC' + 'USAGE' + '_';
 
     it('ignores legacy cache TTL when new var is unset', () => {
       process.env[`${legacyPrefix}CACHE_TTL`] = '999';
@@ -275,12 +280,10 @@ describe('env config', () => {
       expect(getEmojisEnabled()).toBe(true);
     });
 
-    it('returns false when NO_EMOJIS=true', () => {
+    it('returns false when NO_EMOJIS is "true" or "1"', () => {
       process.env.CCSTATUSLINE_NO_EMOJIS = 'true';
       expect(getEmojisEnabled()).toBe(false);
-    });
 
-    it('returns false when NO_EMOJIS=1', () => {
       process.env.CCSTATUSLINE_NO_EMOJIS = '1';
       expect(getEmojisEnabled()).toBe(false);
     });
@@ -311,12 +314,10 @@ describe('env config', () => {
       expect(getBarsEnabled()).toBe(true);
     });
 
-    it('returns false when NO_BARS=true', () => {
+    it('returns false when NO_BARS is "true" or "1"', () => {
       process.env.CCSTATUSLINE_NO_BARS = 'true';
       expect(getBarsEnabled()).toBe(false);
-    });
 
-    it('returns false when NO_BARS=1', () => {
       process.env.CCSTATUSLINE_NO_BARS = '1';
       expect(getBarsEnabled()).toBe(false);
     });
@@ -365,6 +366,16 @@ describe('env config', () => {
     it('returns trimmed value', () => {
       process.env.CCSTATUSLINE_PLUGIN_CONFIG = '  /etc/plugins.yaml  ';
       expect(getPluginConfigPath()).toBe('/etc/plugins.yaml');
+    });
+  });
+
+  describe('getDefaultPresetsPath', () => {
+    it('should return a path ending with config.presets.yml', () => {
+      expect(getDefaultPresetsPath()).toMatch(/config\.presets\.yml$/);
+    });
+
+    it('should return a path to an existing file', () => {
+      expect(existsSync(getDefaultPresetsPath())).toBe(true);
     });
   });
 });

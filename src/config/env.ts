@@ -5,7 +5,8 @@
  * Invalid values fall back to safe defaults.
  */
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS } from '../types/cache.js';
 import { DEFAULT_CONTEXT_THRESHOLDS } from '../types/metrics.js';
@@ -26,17 +27,13 @@ function parsePositiveInt(value: string | undefined, defaultValue: number): numb
   return parsed;
 }
 
-function parseTtlSeconds(value: string | undefined, defaultSeconds: number): number {
-  return parsePositiveInt(value, defaultSeconds);
-}
-
 /**
  * Gets the cache TTL in seconds.
  *
  * @returns Cache TTL (default: 60 seconds)
  */
 export function getCacheTtl(): number {
-  return parseTtlSeconds(process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
+  return parsePositiveInt(process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL, DEFAULT_CACHE_TTL_SECONDS);
 }
 
 /**
@@ -46,10 +43,7 @@ export function getCacheTtl(): number {
  */
 export function getCacheDir(): string {
   const value = process.env.CCSTATUSLINE_CACHE_DIR?.trim();
-  if (value === undefined || value === '') {
-    return DEFAULT_CACHE_DIR;
-  }
-  return value;
+  return (value === undefined || value === '') ? DEFAULT_CACHE_DIR : value;
 }
 
 function parseThresholdPercent(value: string | undefined, defaultPercent: number): number {
@@ -96,14 +90,13 @@ export function getDebugEnabled(): boolean {
 /**
  * Gets the debug log file path.
  *
- * @returns Debug log file path
+ * @returns Debug log file path (default: <cache_dir>/debug/statusline-debug.log)
  */
 export function getDebugLogPath(): string {
   const value = process.env.CCSTATUSLINE_DEBUG_LOG_PATH?.trim();
-  if (value === undefined || value === '') {
-    return join(getCacheDir(), 'debug', 'statusline-debug.log');
-  }
-  return value;
+  return (value === undefined || value === '')
+    ? join(getCacheDir(), 'debug', 'statusline-debug.log')
+    : value;
 }
 
 /**
@@ -132,10 +125,7 @@ export function getDebugLogMaxFiles(): number {
  */
 export function getSegmentsConfig(): string | undefined {
   const value = process.env.CCSTATUSLINE_SEGMENTS?.trim();
-  if (value === undefined || value === '') {
-    return undefined;
-  }
-  return value;
+  return (value === undefined || value === '') ? undefined : value;
 }
 
 /**
@@ -165,8 +155,15 @@ export function getBarsEnabled(): boolean {
  */
 export function getPluginConfigPath(): string | undefined {
   const value = process.env.CCSTATUSLINE_PLUGIN_CONFIG?.trim();
-  if (value === undefined || value === '') {
-    return undefined;
-  }
-  return value;
+  return (value === undefined || value === '') ? undefined : value;
+}
+
+/**
+ * Gets the bundled preset config file path.
+ *
+ * @returns Absolute path to config.presets.yml at package root
+ */
+export function getDefaultPresetsPath(): string {
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+  return join(thisDir, '..', '..', 'config.presets.yml');
 }
