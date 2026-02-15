@@ -285,23 +285,31 @@ The `subscription_usage` and `subscription_usage_all` segments display your Clau
 
 #### Extra Usage Credits
 
-When extra usage credits are enabled on your Claude subscription, the statusline will automatically display an additional segment showing your extra credit usage:
+When extra usage is enabled and credits are being used, the statusline displays exactly 2 usage segments:
+- Extra usage credits (first)
+- ONE usage limit at 100% (either 5-hour OR 7-day)
 
-**With extra usage enabled:**
-`--segments=model,cost,subscription_usage_all,ctx`
+**Display patterns:**
+
+With 5-hour limit at 100%:
 ```
-🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)  ✨ $12.50 (25.0%) | 🧠 31,616 [█░░░░░░░] (16%)
+✨ $12.50 [█░░░] (25.0%) ⌛️ 100% [████] (~3:45pm)
+```
+
+With 7-day limit at 100%:
+```
+✨ $12.50 [█░░░] (25.0%) 🌙 100% [████] (~10:45pm, Feb 1)
 ```
 
 **Without emojis:**
-`--segments=model,cost,subscription_usage_all,ctx --no-emojis`
 ```
-Opus | $0.23 | 5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, Feb 1)  extra: $12.50 (25.0%) | ctx: 31,616 [█░░░░░░░] (16%)
+extra: $12.50 [█░░░] (25.0%) 5h: 100% [████] (~3:45pm)
 ```
 
 The extra usage segment appears automatically when:
 - Extra usage credits are enabled in your Claude subscription settings
 - You have used some extra credits in the current billing period
+- One of your usage limits (5-hour or 7-day) has reached 100%
 
 #### How to Enable
 
