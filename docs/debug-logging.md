@@ -67,3 +67,23 @@ CCSTATUSLINE_DEBUG=1 \
 CCSTATUSLINE_DEBUG_LOG_MAX_BYTES=262144 \
 node ./dist/index.js --disable-bg-update
 ```
+
+## Subscription Usage Troubleshooting
+
+If you use `subscription_usage` or `subscription_usage_all`, try the checks below.
+
+### Loading does not finish
+
+- Switch panes once in Claude Code (for example `Ctrl+O`) to trigger a statusline refresh.
+- Confirm the segment is enabled in your command (for example `--segments=model,cost,subscription_usage,ctx`).
+- Run with `--debug` and inspect `oauth.usage.response` events in the debug log.
+
+### 401 authentication error
+
+- Run any prompt in Claude Code once to refresh authentication state.
+- Trigger another statusline refresh and check the next `oauth.usage.response` event.
+
+### No subscription segment shown
+
+- Confirm you used `subscription_usage` or `subscription_usage_all` in `--segments`.
+- Remember these segments are experimental and can stop working when upstream private API behavior changes.
