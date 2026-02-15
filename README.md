@@ -283,6 +283,26 @@ The `subscription_usage` and `subscription_usage_all` segments display your Clau
 🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
+#### Extra Usage Credits
+
+When extra usage credits are enabled on your Claude subscription, the statusline will automatically display an additional segment showing your extra credit usage:
+
+**With extra usage enabled:**
+`--segments=model,cost,subscription_usage_all,ctx`
+```
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)  ✨ $12.50 (25.0%) | 🧠 31,616 [█░░░░░░░] (16%)
+```
+
+**Without emojis:**
+`--segments=model,cost,subscription_usage_all,ctx --no-emojis`
+```
+Opus | $0.23 | 5h: 55% [██░░] (~3:45pm)  7d: 55% [██░░] (~10:45pm, Feb 1)  extra: $12.50 (25.0%) | ctx: 31,616 [█░░░░░░░] (16%)
+```
+
+The extra usage segment appears automatically when:
+- Extra usage credits are enabled in your Claude subscription settings
+- You have used some extra credits in the current billing period
+
 #### How to Enable
 
 Add the segment to your `--segments` list in `settings.json`:
