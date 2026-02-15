@@ -47,7 +47,11 @@ export function isLockFileFresh(cacheDir: string): boolean {
  * Gets the file path for a cache key.
  */
 function getCacheFilePath(key: CacheKey, cacheDir: string): string {
-  return join(cacheDir, CACHE_FILE_NAMES[key]);
+  const fileName = CACHE_FILE_NAMES[key];
+  if (fileName === undefined) {
+    return '';
+  }
+  return join(cacheDir, fileName);
 }
 
 /**
@@ -70,6 +74,9 @@ export function readCacheSync(
     }
 
     const filePath = getCacheFilePath(key, cacheDir);
+    if (filePath === '') {
+      return null;
+    }
 
     // Check file exists and size
     if (!existsSync(filePath)) {
@@ -135,6 +142,9 @@ export function readCacheSyncWithMtime(
     }
 
     const filePath = getCacheFilePath(key, cacheDir);
+    if (filePath === '') {
+      return { entry: null, isFresh: false };
+    }
 
     if (!existsSync(filePath)) {
       return { entry: null, isFresh: false };

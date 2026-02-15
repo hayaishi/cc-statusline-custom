@@ -1,7 +1,7 @@
 import { request } from 'node:https';
 
-import type { DebugLogOptions } from '../utils/debug-log.js';
-import { writeDebugLog } from '../utils/debug-log.js';
+import type { DebugLogOptions } from '../../utils/debug-log.js';
+import { writeDebugLog } from '../../utils/debug-log.js';
 
 const OAUTH_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const DEFAULT_USER_AGENT = 'claude-code/2.1.5';

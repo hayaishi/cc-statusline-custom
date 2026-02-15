@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync, utimesSync 
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { writeCacheAtomic, acquireLock, releaseLock } from './cache.js';
-import type { SubscriptionUsageEntry } from '../types/cache.js';
+import type { CacheEntry } from '../types/cache.js';
 
 describe('cache', () => {
   const testDir = join(tmpdir(), `cc-statusline-custom-cache-test-${String(process.pid)}`);
@@ -22,7 +22,7 @@ describe('cache', () => {
 
   describe('writeCacheAtomic', () => {
     it('writes cache file atomically', () => {
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         lastError: null,
@@ -35,13 +35,13 @@ describe('cache', () => {
       expect(existsSync(filePath)).toBe(true);
 
       const content = readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(content) as SubscriptionUsageEntry;
+      const parsed = JSON.parse(content) as CacheEntry;
       expect(parsed).toEqual(entry);
     });
 
     it('creates cache directory if it does not exist', () => {
       const nestedDir = join(testDir, 'nested', 'cache');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         lastError: null,
@@ -56,14 +56,14 @@ describe('cache', () => {
     });
 
     it('overwrites existing cache file', () => {
-      const entry1: SubscriptionUsageEntry = {
+      const entry1: CacheEntry = {
         utilizationPercent: 10,
         resetsAt: '2026-01-20T10:00:00Z',
         lastError: null,
         lastAttemptAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const entry2: SubscriptionUsageEntry = {
+      const entry2: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         lastError: null,
@@ -76,7 +76,7 @@ describe('cache', () => {
 
       const filePath = join(testDir, 'subscription-usage.json');
       const content = readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(content) as SubscriptionUsageEntry;
+      const parsed = JSON.parse(content) as CacheEntry;
       expect(parsed.utilizationPercent).toBe(55);
     });
   });

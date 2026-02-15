@@ -11,7 +11,7 @@ vi.mock('node:https', () => ({
   request: mockRequest,
 }));
 
-vi.mock('../utils/debug-log.js', () => ({
+vi.mock('../../utils/debug-log.js', () => ({
   writeDebugLog: mockWriteDebugLog,
 }));
 

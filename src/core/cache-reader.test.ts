@@ -6,7 +6,7 @@ import {
   readCacheSync,
   readCacheSyncWithMtime,
 } from './cache-reader.js';
-import type { SubscriptionUsageEntry } from '../types/cache.js';
+import type { CacheEntry } from '../types/cache.js';
 
 describe('cache-reader', () => {
   const testDir = join(tmpdir(), `cc-statusline-custom-test-${String(process.pid)}`);
@@ -63,7 +63,7 @@ describe('cache-reader', () => {
 
     it('reads valid subscription-usage.json', () => {
       const filePath = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',
@@ -78,7 +78,7 @@ describe('cache-reader', () => {
     it('skips read when lock file is fresh (< 5 seconds old)', () => {
       // Create valid cache file
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',
@@ -99,7 +99,7 @@ describe('cache-reader', () => {
     it('reads cache when lock file is stale (> 5 seconds old)', () => {
       // Create valid cache file
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',
@@ -123,7 +123,7 @@ describe('cache-reader', () => {
     describe('mtime-based TTL guard', () => {
       it('returns null when file mtime exceeds TTL', () => {
         const cacheFile = join(testDir, 'subscription-usage.json');
-        const entry: SubscriptionUsageEntry = {
+        const entry: CacheEntry = {
           utilizationPercent: 55,
           resetsAt: '2026-01-20T15:45:00Z',
           updatedAt: '2026-01-20T10:00:00Z',
@@ -142,7 +142,7 @@ describe('cache-reader', () => {
 
       it('reads cache when file mtime is within TTL', () => {
         const cacheFile = join(testDir, 'subscription-usage.json');
-        const entry: SubscriptionUsageEntry = {
+        const entry: CacheEntry = {
           utilizationPercent: 55,
           resetsAt: '2026-01-20T15:45:00Z',
           updatedAt: '2026-01-20T10:00:00Z',
@@ -158,7 +158,7 @@ describe('cache-reader', () => {
 
       it('returns null at exactly TTL boundary', () => {
         const cacheFile = join(testDir, 'subscription-usage.json');
-        const entry: SubscriptionUsageEntry = {
+        const entry: CacheEntry = {
           utilizationPercent: 55,
           resetsAt: '2026-01-20T15:45:00Z',
           updatedAt: '2026-01-20T10:00:00Z',
@@ -177,7 +177,7 @@ describe('cache-reader', () => {
 
       it('respects custom TTL parameter', () => {
         const cacheFile = join(testDir, 'subscription-usage.json');
-        const entry: SubscriptionUsageEntry = {
+        const entry: CacheEntry = {
           utilizationPercent: 55,
           resetsAt: '2026-01-20T15:45:00Z',
           updatedAt: '2026-01-20T10:00:00Z',
@@ -204,7 +204,7 @@ describe('cache-reader', () => {
   describe('readCacheSyncWithMtime', () => {
     it('returns null when lock file is fresh', () => {
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',
@@ -266,7 +266,7 @@ describe('cache-reader', () => {
 
     it('returns entry with isFresh=false when mtime exceeds TTL', () => {
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',
@@ -285,7 +285,7 @@ describe('cache-reader', () => {
 
     it('returns entry with isFresh=true when mtime is within TTL', () => {
       const cacheFile = join(testDir, 'subscription-usage.json');
-      const entry: SubscriptionUsageEntry = {
+      const entry: CacheEntry = {
         utilizationPercent: 55,
         resetsAt: '2026-01-20T15:45:00Z',
         updatedAt: '2026-01-20T10:00:00Z',

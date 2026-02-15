@@ -10,34 +10,34 @@ Support Claude Code users by providing a customizable statusline that reads JSON
 
 ### Recommended Configurations
 
-**5-hour limit + weekly limit (both displayed):**
-`--segments=model,cost,usage_all,ctx`
+**Basic usage (recommended):**
+`--segments=model,cost,ctx`
 ```
-🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 31,616 [█░░░░░░░] (16%)
+🤖 Opus | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
-**5-hour limit only:**
-`--segments=model,cost,usage,ctx`
+**With preset plugin (`:git_branch`):**
+`--config=/path/to/cc-statusline-custom/config.presets.yml --segments=model,:git_branch,cost,ctx`
 ```
-🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
+🤖 Opus | 🌿 main | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
 **No emojis:**
-`--segments=model,cost,usage,ctx --no-emojis`
+`--segments=model,cost,ctx --no-emojis`
 ```
-Opus | $0.23 | 5h: 55% [██░░] (~3:45pm) | ctx: 31,616 [█░░░░░░░] (16%)
+Opus | $0.23 | ctx: 31,616 [█░░░░░░░] (16%)
 ```
 
 **No progress bars:**
-`--segments=model,cost,usage,ctx --no-bars`
+`--segments=model,cost,ctx --no-bars`
 ```
-🤖 Opus | 💰 $0.23 | ⌛️ 55% (~3:45pm) | 🧠 31,616 (16%)
+🤖 Opus | 💰 $0.23 | 🧠 31,616 (16%)
 ```
 
 **No emojis + no progress bars:**
-`--segments=model,cost,usage,ctx --no-emojis --no-bars`
+`--segments=model,cost,ctx --no-emojis --no-bars`
 ```
-Opus | $0.23 | 5h: 55% (~3:45pm) | ctx: 31,616 (16%)
+Opus | $0.23 | ctx: 31,616 (16%)
 ```
 
 ## settings.json Example
@@ -46,7 +46,7 @@ Opus | $0.23 | 5h: 55% (~3:45pm) | ctx: 31,616 (16%)
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,usage_all,ctx",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,ctx",
     "padding": 0
   }
 }
@@ -58,7 +58,7 @@ With display options:
 {
   "statusLine": {
     "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,usage,ctx --no-emojis --no-bars",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,ctx --no-emojis --no-bars",
     "padding": 0
   }
 }
@@ -114,8 +114,6 @@ Canonical IDs and aliases:
 | `model` | - |
 | `cost_session` | `cost`, `cost_usd`, `cost_sess`, `sess` |
 | `context` | `ctx` |
-| `subscription_usage` | `usage`, `subscription`, `sub_usage`, `sub` |
-| `subscription_usage_all` | `sub_all`, `usage_all` |
 
 Resolution order: CLI > ENV > DEFAULT. Unknown tokens are ignored.
 
@@ -256,6 +254,94 @@ Environment variable: `CCSTATUSLINE_PLUGIN_CONFIG` (CLI takes precedence)
 - **[Plugin Development Guide](docs/plugin-development-guide.md)** — Create custom plugins, best practices, TTL design, debugging
 - **[Debug Logging](docs/debug-logging.md)** — Enable debug mode and inspect logs
 
+## Experimental Features
+
+### Subscription Usage Tracking
+
+**⚠️ EXPERIMENTAL**: These features are experimental and may change or be removed without notice. They call the Claude API directly and are provided as-is with no warranty.
+
+The `subscription_usage` and `subscription_usage_all` segments display your Claude subscription usage limits (5-hour and weekly limits).
+
+#### Available Segments
+
+| Segment | Aliases | Description |
+|---------|---------|-------------|
+| `subscription_usage` | `usage`, `subscription`, `sub_usage`, `sub` | Shows 5-hour usage limit |
+| `subscription_usage_all` | `sub_all`, `usage_all` | Shows both 5-hour and weekly limits |
+
+#### Example
+
+**5-hour limit + weekly limit (both displayed):**
+`--segments=model,cost,subscription_usage_all,ctx`
+```
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 31,616 [█░░░░░░░] (16%)
+```
+
+**5-hour limit only:**
+`--segments=model,cost,subscription_usage,ctx`
+```
+🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
+```
+
+#### Extra Usage Credits
+
+When extra usage is enabled and credits are being used, the statusline displays exactly 2 usage segments:
+- Extra usage credits (first)
+- ONE usage limit at 100% (either 5-hour OR 7-day)
+
+**Display patterns:**
+
+With 5-hour limit at 100%:
+```
+✨ $12.50 [█░░░] (25.0%) ⌛️ 100% [████] (~3:45pm)
+```
+
+With 7-day limit at 100%:
+```
+✨ $12.50 [█░░░] (25.0%) 🌙 100% [████] (~10:45pm, Feb 1)
+```
+
+**Without emojis:**
+```
+extra: $12.50 [█░░░] (25.0%) 5h: 100% [████] (~3:45pm)
+```
+
+The extra usage segment appears automatically when:
+- Extra usage credits are enabled in your Claude subscription settings
+- You have used some extra credits in the current billing period
+- One of your usage limits (5-hour or 7-day) has reached 100%
+
+#### How to Enable
+
+Add the segment to your `--segments` list in `settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,sub_all,ctx",
+    "padding": 0
+  }
+}
+```
+
+#### ⚠️ Disclaimer
+
+- **Experimental feature**: This functionality is experimental and may break or be removed in future versions
+- **No warranty**: We cannot guarantee stability or take responsibility for any issues
+- **Direct API calls**: This feature calls the Claude API directly using your credentials
+- **Opt-in only**: You must explicitly enable this feature — use at your own risk
+- **May stop working**: Claude API changes may cause this feature to stop functioning without notice
+
+#### Troubleshooting
+
+**Loading never finishes:**
+- Press `Ctrl+O` to switch between panes — this triggers a statusline refresh and may display the data
+
+**401 Authentication Error:**
+- Execute any prompt in Claude Code to refresh the internal authentication token
+- The next statusline refresh should work correctly
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -266,10 +352,11 @@ Environment variable: `CCSTATUSLINE_PLUGIN_CONFIG` (CLI takes precedence)
 | `CCSTATUSLINE_DEBUG` | `true`/`1` enables debug mode (see `docs/debug-logging.md`). | `false` |
 | `CCSTATUSLINE_CACHE_DIR` | Cache directory path. | `~/.cache/cc-statusline-custom` |
 | `CCSTATUSLINE_PLUGIN_CONFIG` | Path to plugin config YAML file. | (none) |
-| `CCSTATUSLINE_CACHE_TTL` | Cache TTL in seconds. | `60` |
-| `CCSTATUSLINE_SUBSCRIPTION_CACHE_TTL` | Subscription cache TTL in seconds. | `60` |
+| `CCSTATUSLINE_PLUGIN_CACHE_TTL` | Cache TTL in seconds. | `60` |
 | `CCSTATUSLINE_CONTEXT_LOW_THRESHOLD` | Context low threshold percentage. | `50` |
 | `CCSTATUSLINE_CONTEXT_MEDIUM_THRESHOLD` | Context medium threshold percentage. | `80` |
+
+Experimental subscription usage segments do not require dedicated environment variables; enable them explicitly via `--segments`.
 
 ## License
 

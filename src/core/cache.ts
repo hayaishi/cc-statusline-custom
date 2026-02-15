@@ -27,7 +27,11 @@ import type { CacheKey, CacheEntry } from '../types/cache.js';
  * Gets the file path for a cache key.
  */
 function getCacheFilePath(key: CacheKey, cacheDir: string): string {
-  return join(cacheDir, CACHE_FILE_NAMES[key]);
+  const fileName = CACHE_FILE_NAMES[key];
+  if (fileName === undefined) {
+    return '';
+  }
+  return join(cacheDir, fileName);
 }
 
 /**
@@ -61,6 +65,9 @@ export function writeCacheAtomic(
   ensureDir(cacheDir);
 
   const filePath = getCacheFilePath(key, cacheDir);
+  if (filePath === '') {
+    throw new Error(`Unknown cache key: ${key}`);
+  }
   const tempPath = filePath + '.tmp.' + String(process.pid);
 
   try {

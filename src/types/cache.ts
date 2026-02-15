@@ -1,7 +1,7 @@
 /**
  * Type definitions for cache entries.
  *
- * These types define the structure of cached subscription usage metrics.
+ * These types define generic cache storage structures.
  */
 
 import { homedir } from 'node:os';
@@ -38,50 +38,24 @@ export const LOCK_FILE_ACTIVE_THRESHOLD_SECONDS = 5;
 /**
  * Cache file names.
  */
-export const CACHE_FILE_NAMES = {
+export const CACHE_FILE_NAMES: {
+  lock: string;
+  subscriptionUsage: string;
+  [key: string]: string;
+} = {
   subscriptionUsage: 'subscription-usage.json',
   lock: 'cache.lock',
-} as const;
+};
 
 /**
  * Cache key type.
  */
-export type CacheKey = 'subscriptionUsage';
-
-/**
- * Subscription usage cache entry.
- */
-export interface SubscriptionUsageEntry {
-  readonly utilizationPercent?: number;
-  readonly resetsAt?: string;
-  readonly lastError: string | null;
-  readonly lastErrorDetail?: string | null;
-  readonly lastAttemptAt?: string;
-  readonly updatedAt?: string;
-  readonly window?: 'five_hours' | 'seven_days';
-  readonly fiveHours?: {
-    readonly utilizationPercent: number;
-    readonly resetsAt: string;
-  };
-  readonly sevenDays?: {
-    readonly utilizationPercent: number;
-    readonly resetsAt: string;
-  };
-  readonly extraUsage?: {
-    readonly isEnabled: boolean;
-    readonly usedCredits: number;
-    readonly utilizationPercent: number;
-  };
-}
+export type CacheKey = string;
 
 /**
  * Union of all cache entry types.
  */
-export type CacheEntry = SubscriptionUsageEntry;
-
-/**
- * Map of cache keys to their entry types.
- */
-export interface CacheEntryMap {
-  subscriptionUsage: SubscriptionUsageEntry;
+export interface CacheEntry {
+  [key: string]: unknown;
+  lastAttemptAt?: string;
 }

@@ -44,7 +44,7 @@ module.exports = { formatCost };
 | Functions/Variables | camelCase | `getCachedData` |
 | Constants | SCREAMING_SNAKE_CASE | `DEFAULT_TTL_SECONDS` |
 | Types/Interfaces | PascalCase | `ClaudeCodeInput` |
-| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCSTATUSLINE_CACHE_TTL` |
+| Environment variables | SCREAMING_SNAKE_CASE with prefix | `CCSTATUSLINE_PLUGIN_CACHE_TTL` |
 
 #### Import Order
 
@@ -264,8 +264,15 @@ cc-statusline-custom/
 │   ├── core/                 # Core logic
 │   │   ├── parser.ts         # Input parser
 │   │   ├── cache.ts          # Cache management
-│   │   ├── oauth.ts          # OAuth API
-│   │   └── statusline.ts     # Output generation
+│   │   └── statusline.ts     # Output generation + external segment registry
+│   ├── experimental/         # Optional modules (safe to delete)
+│   │   └── subscription-usage/  # Subscription usage segments
+│   │       ├── index.ts      # Registers subscription_usage & subscription_usage_all
+│   │       ├── oauth.ts      # OAuth API client
+│   │       ├── formatter.ts  # Subscription formatters
+│   │       ├── segment-builders.ts  # Segment builder logic
+│   │       ├── update-cache.ts      # Cache update logic
+│   │       └── types.ts      # SubscriptionUsageEntry type
 │   ├── presets/              # Preset configurations
 │   │   ├── percentage.ts     # Subscription usage percentage display
 │   │   ├── simple.ts         # Simple display

@@ -7,7 +7,7 @@
 
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 import type { CacheEntry } from '../types/cache.js';
-import { DEFAULT_CACHE_DIR } from '../types/cache.js';
+import { CACHE_FILE_NAMES, DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_SECONDS } from '../types/cache.js';
 import type { PluginConfig } from '../types/plugin.js';
 import {
   extractModelDisplayName,
@@ -18,26 +18,17 @@ import {
   formatModelSegment,
   formatCostSegment,
   formatContextSegment,
-  formatSubscriptionUsageAllSegment,
-  formatSubscriptionUsagePrefix,
-  formatExtraUsageWindow,
-  NORMAL_SUB_BAR_WIDTH,
-  SUB_ALL_BAR_WIDTH,
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
-  type WindowData,
 } from './formatter.js';
 import { readCacheSyncWithMtime, isLockFileFresh } from './cache-reader.js';
 import {
   getContextLowThreshold,
   getContextMediumThreshold,
-  getSubscriptionCacheTtl,
   getSegmentsConfig,
   getEmojisEnabled,
   getBarsEnabled,
 } from '../config/env.js';
-import { formatResetTime, normalizeSubscriptionResetTime } from '../utils/time.js';
-import { formatProgressBar } from '../utils/format.js';
 import type { RenderOptions } from './formatter.js';
 import {
   isPluginSegmentId,
@@ -49,12 +40,57 @@ import { shouldRefreshPlugin } from './plugin-cache.js';
 /**
  * Canonical segment identifiers for built-in segments.
  */
-export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+export type BuiltinSegmentId = 'model' | 'cost_session' | 'context';
 
 /**
  * Segment identifier - either a built-in segment or a plugin segment (:xxx).
  */
-export type SegmentId = BuiltinSegmentId | `:${string}`;
+export type SegmentId = BuiltinSegmentId | `:${string}` | (string & {});
+
+/**
+ * External segment registration config.
+ */
+export interface ExternalSegmentConfig {
+  readonly builder: (
+    input: ClaudeCodeInput,
+    cacheDir: string,
+    options: RenderOptions,
+    debug?: boolean
+  ) => string;
+  readonly aliases?: readonly string[];
+  readonly cacheTargets?: readonly string[];
+  readonly cacheTtlSeconds?: number;
+  readonly neverStandalone?: boolean;
+}
+
+const externalSegmentRegistry = new Map<string, ExternalSegmentConfig>();
+
+/**
+ * Registers an external segment.
+ */
+export function registerExternalSegment(id: string, config: ExternalSegmentConfig): void {
+  const trimmed = id.trim();
+  if (trimmed === '') {
+    return;
+  }
+  externalSegmentRegistry.set(trimmed, config);
+}
+
+/**
+ * Clears all external segment registrations.
+ * Intended for tests and controlled re-initialization.
+ */
+export function clearExternalSegments(): void {
+  externalSegmentRegistry.clear();
+}
+
+/**
+ * @internal
+ * Returns external segment config for tests/internal checks.
+ */
+export function getExternalSegmentConfig(id: string): ExternalSegmentConfig | undefined {
+  return externalSegmentRegistry.get(id);
+}
 
 /**
  * Default segment order (matches original hardcoded behavior).
@@ -75,7 +111,6 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
   model: 'model',
   cost_session: 'cost_session',
   context: 'context',
-  subscription_usage: 'subscription_usage',
 
   // Cost aliases
   cost: 'cost_session',
@@ -85,17 +120,6 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 
   // Context aliases
   ctx: 'context',
-
-  // Subscription aliases
-  usage: 'subscription_usage',
-  subscription: 'subscription_usage',
-  sub_usage: 'subscription_usage',
-  sub: 'subscription_usage',
-
-  // Subscription all aliases
-  subscription_usage_all: 'subscription_usage_all',
-  sub_all: 'subscription_usage_all',
-  usage_all: 'subscription_usage_all',
 };
 
 /**
@@ -123,7 +147,21 @@ export function normalizeSegmentId(id: string): SegmentId | null {
 
   // Handle built-in segments
   const normalized = trimmed.toLowerCase();
-  return SEGMENT_ALIASES[normalized] ?? null;
+  const builtin = SEGMENT_ALIASES[normalized];
+  if (builtin !== undefined) {
+    return builtin;
+  }
+
+  for (const [externalId, config] of externalSegmentRegistry.entries()) {
+    const idMatches = externalId.toLowerCase() === normalized;
+    const aliasMatches = (config.aliases ?? []).some(alias => alias.toLowerCase() === normalized);
+
+    if (idMatches || aliasMatches) {
+      return externalId as SegmentId;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -219,19 +257,12 @@ export function resolveRenderOptions(
 }
 
 /**
- * Cache target identifiers for background update scheduling.
- */
-export type CacheTargetId = 'subscriptionUsage';
-
-/**
  * Mapping from built-in segment identifiers to required cache targets.
  */
-const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly CacheTargetId[]> = {
+const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly string[]> = {
   model: [],
   cost_session: [],
   context: [],
-  subscription_usage: ['subscriptionUsage'],
-  subscription_usage_all: ['subscriptionUsage'],
 };
 
 /**
@@ -244,25 +275,22 @@ const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly CacheTargetId[]> 
  * @param segments - Array of segment identifiers
  * @returns Array of cache target identifiers (deduplicated)
  */
-export function getCacheTargetsForSegments(segments: readonly SegmentId[]): CacheTargetId[] {
+export function getCacheTargetsForSegments(segments: readonly SegmentId[]): string[] {
   const allTargets = segments.flatMap(seg => {
     // Plugin segments have their own cache system
     if (isPluginSegmentId(seg)) {
       return [];
     }
-    return SEGMENT_CACHE_TARGETS[seg as BuiltinSegmentId];
+
+    const external = externalSegmentRegistry.get(seg);
+    if (external !== undefined) {
+      return external.cacheTargets ?? [];
+    }
+
+    const targets = (SEGMENT_CACHE_TARGETS as Partial<Record<string, readonly string[]>>)[seg];
+    return targets ?? [];
   });
   return [...new Set(allTargets)];
-}
-
-/**
- * Gets the TTL in seconds for a given cache target.
- *
- * @param target - Cache target identifier
- * @returns TTL in seconds
- */
-export function getCacheTargetTtlSeconds(_target: CacheTargetId): number {
-  return getSubscriptionCacheTtl();
 }
 
 /**
@@ -286,27 +314,14 @@ export interface BgUpdateCheckOptions {
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
 
-  const lastAttemptMs = getLastAttemptAt(entry);
-  if (lastAttemptMs === null) return false;
+  const lastAttemptAt = entry.lastAttemptAt;
+  if (typeof lastAttemptAt !== 'string') return false;
+
+  const lastAttemptMs = Date.parse(lastAttemptAt);
+  if (!Number.isFinite(lastAttemptMs)) return false;
 
   const elapsedMs = nowMs - lastAttemptMs;
   return elapsedMs < cooldownMs;
-}
-
-/**
- * Checks if a cache entry has valid data.
- *
- * @param entry - Cache entry (may be null)
- * @param isFresh - Whether the cache is within TTL
- * @returns true if cache exists, is fresh, and has valid payload
- */
-function isCacheValid(entry: CacheEntry | null, isFresh: boolean): boolean {
-  if (entry === null) return false;
-  if (!isFresh) return false;
-
-  // NOTE: validation must be target-specific when more targets are added.
-  const valid = getValidSubscriptionUsage(entry);
-  return valid !== null;
 }
 
 /**
@@ -351,21 +366,36 @@ export function shouldRequestBgCacheUpdate(
   const nowMs = options?.nowMs ?? Date.now();
   const cooldownMs = (options?.cooldownSeconds ?? 30) * 1000;
 
-  // Check subscription cache targets
-  const subscriptionNeedsUpdate = targets.some(target => {
-    const ttl = getCacheTargetTtlSeconds(target);
-    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttl);
+  const targetNeedsUpdate = targets.some(target => {
+    if (CACHE_FILE_NAMES[target] === undefined) {
+      return false;
+    }
+
+    let ttlSeconds = DEFAULT_CACHE_TTL_SECONDS;
+    for (const [, config] of externalSegmentRegistry.entries()) {
+      const hasTarget = config.cacheTargets?.includes(target) === true;
+      if (hasTarget && config.cacheTtlSeconds !== undefined) {
+        ttlSeconds = config.cacheTtlSeconds;
+        break;
+      }
+    }
+
+    const { entry, isFresh } = readCacheSyncWithMtime(target, cacheDir, ttlSeconds);
 
     // Skip this target if within cooldown (prevents spawn storms)
     if (isWithinCooldown(entry, nowMs, cooldownMs)) {
       return false; // Not ready for update; try other targets
     }
 
-    // Needs update if cache is invalid (missing, stale, or corrupt)
-    return !isCacheValid(entry, isFresh);
+    if (entry === null || !isFresh) {
+      return true;
+    }
+
+    const lastError = entry.lastError;
+    return typeof lastError === 'string' && lastError.trim() !== '';
   });
 
-  if (subscriptionNeedsUpdate) return true;
+  if (targetNeedsUpdate) return true;
 
   // Check plugin cache staleness
   return plugins.some(plugin => {
@@ -380,61 +410,6 @@ export function shouldRequestBgCacheUpdate(
  */
 export const FALLBACK_OUTPUT = '🤖 ? | ⏳ Loading...';
 
-/**
- * Validates and extracts subscription usage payload from cache entry.
- *
- * Returns null if any validation fails:
- * - utilizationPercent must be integer 0-100
- * - resetsAt must be valid ISO date string
- *
- * @returns Validated payload or null if invalid
- */
-function getValidSubscriptionUsage(
-  entry: CacheEntry
-): { utilizationPercent: number; resetsAt: string } | null {
-  const record = entry as {
-    utilizationPercent?: unknown;
-    resetsAt?: unknown;
-  };
-
-  // Validate utilizationPercent: must be integer in range 0-100
-  const percentValue = record.utilizationPercent;
-  if (typeof percentValue !== 'number' ||
-      !Number.isInteger(percentValue) ||
-      percentValue < 0 ||
-      percentValue > 100) {
-    return null;
-  }
-
-  // Validate resetsAt: must be parseable ISO date string
-  if (typeof record.resetsAt !== 'string' ||
-      !Number.isFinite(Date.parse(record.resetsAt))) {
-    return null;
-  }
-
-  return { utilizationPercent: percentValue, resetsAt: record.resetsAt };
-}
-
-/**
- * Extracts the last attempt timestamp from cache entry.
- *
- * Used for cooldown gating to prevent spawn storms.
- *
- * @returns Milliseconds since epoch, or null if missing/invalid
- */
-function getLastAttemptAt(entry: CacheEntry): number | null {
-  const record = entry as { lastAttemptAt?: unknown };
-  if (typeof record.lastAttemptAt !== 'string') {
-    return null;
-  }
-
-  const parsedMs = Date.parse(record.lastAttemptAt);
-  if (!Number.isFinite(parsedMs)) {
-    return null;
-  }
-
-  return parsedMs;
-}
 
 /**
  * Extracts cost data from input for cost segment rendering.
@@ -442,14 +417,10 @@ function getLastAttemptAt(entry: CacheEntry): number | null {
  * Currently only extracts session cost; extensible for future cost types.
  */
 function buildCostSegmentData(input: ClaudeCodeInput): CostSegmentData {
-  const data: CostSegmentData = {};
-
   const sessionCost = extractSessionCost(input);
-  if (sessionCost !== undefined) {
-    (data as { sessionCost?: number }).sessionCost = sessionCost;
-  }
+  if (sessionCost === undefined) return {};
 
-  return data;
+  return { sessionCost };
 }
 
 /**
@@ -462,7 +433,7 @@ type SegmentBuilder = (input: ClaudeCodeInput, cacheDir: string, options: Render
  * Creates the segment builder registry for built-in segments.
  * Each builder returns an empty string if the segment should be omitted.
  */
-function createSegmentBuilders(debug: boolean): Record<BuiltinSegmentId, SegmentBuilder> {
+function createSegmentBuilders(): Record<BuiltinSegmentId, SegmentBuilder> {
   return {
     model: (input, _cacheDir, options): string => {
       const modelName = extractModelDisplayName(input);
@@ -481,12 +452,6 @@ function createSegmentBuilders(debug: boolean): Record<BuiltinSegmentId, Segment
         options
       );
     },
-    subscription_usage: (_input, cacheDir, options): string => {
-      return buildSubscriptionUsageSegment(cacheDir, getSubscriptionCacheTtl(), options, debug);
-    },
-    subscription_usage_all: (_input, cacheDir, options): string => {
-      return buildSubscriptionUsageAllSegment(cacheDir, getSubscriptionCacheTtl(), options, debug);
-    },
   };
 }
 
@@ -497,9 +462,6 @@ export type PluginConfigMap = ReadonlyMap<string, PluginConfig>;
 
 /**
  * Composes segments in the specified order, filtering empty results.
- *
- * Special rule: subscription_usage only renders if at least one other segment exists
- * (prevents showing only subscription usage with no context).
  *
  * @param input - Parsed input
  * @param cacheDir - Cache directory
@@ -517,7 +479,7 @@ function composeSegments(
   pluginConfigs?: PluginConfigMap,
   projectDir?: string
 ): string[] {
-  const builders = createSegmentBuilders(debug);
+  const builders = createSegmentBuilders();
   const segments: string[] = [];
 
   for (const segmentId of segmentOrder) {
@@ -526,7 +488,17 @@ function composeSegments(
     if (isPluginSegmentId(segmentId)) {
       rendered = renderPluginSegment(segmentId, pluginConfigs, cacheDir, renderOptions, projectDir);
     } else {
-      rendered = renderBuiltinSegment(segmentId, segments.length, input, cacheDir, renderOptions, builders);
+      const externalConfig = externalSegmentRegistry.get(segmentId);
+      rendered = renderBuiltinSegment(
+        segmentId,
+        segments.length,
+        input,
+        cacheDir,
+        renderOptions,
+        debug,
+        builders,
+        externalConfig
+      );
     }
 
     if (rendered !== '') {
@@ -544,9 +516,10 @@ function renderPluginSegment(
   renderOptions: RenderOptions,
   projectDir?: string
 ): string {
+  if (pluginConfigs === undefined) return '';
+
   const pluginId = parsePluginSegmentId(segmentId);
   if (pluginId === null) return '';
-  if (pluginConfigs === undefined) return '';
 
   const pluginConfig = pluginConfigs.get(pluginId);
   if (pluginConfig === undefined) return '';
@@ -560,298 +533,21 @@ function renderBuiltinSegment(
   input: ClaudeCodeInput,
   cacheDir: string,
   renderOptions: RenderOptions,
-  builders: Record<BuiltinSegmentId, SegmentBuilder>
+  debug: boolean,
+  builders: Record<BuiltinSegmentId, SegmentBuilder>,
+  externalConfig?: ExternalSegmentConfig
 ): string {
-  // Subscription usage segments only show when other context exists (never standalone)
-  const isSubscriptionSegment =
-    segmentId === 'subscription_usage' || segmentId === 'subscription_usage_all';
+  if (externalConfig !== undefined) {
+    const isStandaloneDisallowed = externalConfig.neverStandalone === true && existingSegmentCount === 0;
+    if (isStandaloneDisallowed) return '';
 
-  if (isSubscriptionSegment && existingSegmentCount === 0) {
-    return '';
+    return externalConfig.builder(input, cacheDir, renderOptions, debug);
   }
 
-  return builders[segmentId as BuiltinSegmentId](input, cacheDir, renderOptions);
-}
+  const builder = (builders as Partial<Record<string, SegmentBuilder>>)[segmentId];
+  if (builder === undefined) return '';
 
-/**
- * Checks if a failed cache fetch is recent (within TTL).
- *
- * Used to distinguish "Fetch Error" from "Loading" states.
- *
- * @param entry - Cache entry (may be null)
- * @param ttlSeconds - Cache TTL in seconds
- * @returns true if entry exists, has lastAttemptAt, and is within TTL
- */
-function isRecentFetchError(entry: CacheEntry | null, ttlSeconds: number): boolean {
-  if (entry === null) return false;
-
-  const lastAttemptMs = getLastAttemptAt(entry);
-  if (lastAttemptMs === null) return false;
-
-  const ageSeconds = (Date.now() - lastAttemptMs) / 1000;
-  return ageSeconds < ttlSeconds;
-}
-
-const MAX_FETCH_ERROR_DETAIL_LENGTH = 32;
-
-function normalizeFetchErrorDetail(value: string): string {
-  const singleLine = value.replace(/\s+/g, ' ').trim();
-  if (singleLine.length <= MAX_FETCH_ERROR_DETAIL_LENGTH) {
-    return singleLine;
-  }
-  const truncated = singleLine.slice(0, MAX_FETCH_ERROR_DETAIL_LENGTH - 3).trimEnd();
-  return `${truncated}...`;
-}
-
-function formatFetchErrorMessage(entry: CacheEntry | null, debug: boolean): string {
-  const fallback = 'Fetch Error...';
-
-  if (!debug || entry === null) {
-    return fallback;
-  }
-
-  const record = entry as { lastError?: unknown };
-  if (typeof record.lastError !== 'string') {
-    return fallback;
-  }
-
-  const trimmed = record.lastError.trim();
-  if (trimmed === '') {
-    return fallback;
-  }
-
-  return `Fetch Error (${normalizeFetchErrorDetail(trimmed)})`;
-}
-
-/**
- * Builds the subscription usage segment from cache.
- *
- * Returns one of:
- * - Formatted usage segment (if cache valid and fresh)
- * - "Fetch Error..." (or "Fetch Error (<detail>)" when debug is enabled)
- * - "Loading..." (if no cache or stale)
- *
- * @param cacheDir - Cache directory path
- * @param ttlSeconds - Cache time-to-live in seconds
- * @param options - Render options for emojis
- */
-function buildSubscriptionUsageSegment(
-  cacheDir: string,
-  ttlSeconds: number,
-  options: RenderOptions,
-  debug: boolean
-): string {
-  const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const entryWindow = entry !== null
-    ? (entry as { window?: 'five_hours' | 'seven_days' }).window
-    : undefined;
-  const fallbackWindowType = entryWindow === 'seven_days' ? 'seven_days' : 'five_hours';
-  const prefix = formatSubscriptionUsagePrefix(fallbackWindowType, options);
-
-  // Happy path: fresh valid cache
-  if (entry !== null && isFresh) {
-    const valid = getValidSubscriptionUsage(entry);
-    if (valid !== null) {
-      const windowType = entryWindow;
-      const reset = formatResetTime(normalizeSubscriptionResetTime(valid.resetsAt), windowType);
-      if (reset !== '') {
-        const primaryWindowType = fallbackWindowType;
-        const windowData = { percent: valid.utilizationPercent, reset };
-
-        // Check for extra usage display conditions
-        const extraData = extractExtraUsageData(entry);
-        const shouldShowExtra = extraData !== null
-          && extraData.isEnabled
-          && extraData.usedUsd > 0
-          && valid.utilizationPercent >= 100;
-
-        if (shouldShowExtra) {
-          const extraFormatted = formatExtraUsageWindow(
-            { usedUsd: extraData.usedUsd, utilizationPercent: extraData.utilizationPercent },
-            options,
-            SUB_ALL_BAR_WIDTH
-          );
-
-          // Format window with SUB_ALL_BAR_WIDTH for dual-item display
-          const windowPrefix = formatSubscriptionUsagePrefix(primaryWindowType, options);
-          let windowFormatted: string;
-          if (options.showBars) {
-            const bar = formatProgressBar(windowData.percent, SUB_ALL_BAR_WIDTH);
-            windowFormatted = `${windowPrefix}${String(windowData.percent)}% ${bar} (${windowData.reset})`;
-          } else {
-            windowFormatted = `${windowPrefix}${String(windowData.percent)}% (${windowData.reset})`;
-          }
-
-          return `${extraFormatted} ${windowFormatted}`;
-        }
-
-        // Normal display (no extra usage or conditions not met)
-        return formatSubscriptionUsageAllSegment(
-          windowData,
-          null,
-          options,
-          { primaryWindowType, barWidth: NORMAL_SUB_BAR_WIDTH }
-        );
-      }
-    }
-  }
-
-  // Error state: recent fetch failed (within TTL)
-  if (isRecentFetchError(entry, ttlSeconds)) {
-    return `${prefix}${formatFetchErrorMessage(entry, debug)}`;
-  }
-
-  // Loading state: no cache or stale
-  return `${prefix}Loading...`;
-}
-
-/**
- * Extracts and validates window data from cache entry.
- * Returns WindowData if valid (has integer percent and formatted reset time), null otherwise.
- */
-function extractWindowData(
-  window: { utilizationPercent?: unknown; resetsAt?: unknown } | undefined,
-  windowType: 'five_hours' | 'seven_days'
-): WindowData | null {
-  if (!window) return null;
-
-  const { utilizationPercent, resetsAt } = window;
-
-  // Validate percent is an integer in range 0-100
-  if (typeof utilizationPercent !== 'number' ||
-      !Number.isInteger(utilizationPercent) ||
-      utilizationPercent < 0 ||
-      utilizationPercent > 100) {
-    return null;
-  }
-
-  // Validate and format reset timestamp
-  if (typeof resetsAt !== 'string') return null;
-  const reset = formatResetTime(normalizeSubscriptionResetTime(resetsAt), windowType);
-  if (reset === '') return null;
-
-  return { percent: utilizationPercent, reset };
-}
-
-/**
- * Extracts and validates extra usage data from cache entry.
- * Returns data with isEnabled flag, usedUsd, and utilizationPercent, or null if invalid.
- */
-function extractExtraUsageData(
-  entry: CacheEntry
-): { usedUsd: number; utilizationPercent: number; isEnabled: boolean } | null {
-  const record = entry as {
-    extraUsage?: {
-      isEnabled?: unknown;
-      usedCredits?: unknown;
-      utilizationPercent?: unknown;
-    };
-  };
-
-  const extra = record.extraUsage;
-  if (!extra ||
-      typeof extra.isEnabled !== 'boolean' ||
-      typeof extra.usedCredits !== 'number' ||
-      typeof extra.utilizationPercent !== 'number') {
-    return null;
-  }
-
-  return {
-    usedUsd: extra.usedCredits / 100,
-    utilizationPercent: extra.utilizationPercent,
-    isEnabled: extra.isEnabled,
-  };
-}
-
-/**
- * Builds the subscription_usage_all segment showing both five_hours and seven_days windows.
- *
- * Returns formatted segment with both windows, or fallback messages:
- * - "⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1)" (happy path)
- * - "⌛️ Fetch Error..." (or "⌛️ Fetch Error (<detail>)" when debug is enabled)
- * - "⌛️ Loading..." (no cache or stale)
- *
- * @param cacheDir - Cache directory path
- * @param ttlSeconds - Cache TTL in seconds
- * @param options - Render options for emojis and bars
- * @returns Formatted segment string or fallback message
- */
-function buildSubscriptionUsageAllSegment(
-  cacheDir: string,
-  ttlSeconds: number,
-  options: RenderOptions,
-  debug: boolean
-): string {
-  const { entry, isFresh } = readCacheSyncWithMtime('subscriptionUsage', cacheDir, ttlSeconds);
-  const prefix = formatSubscriptionUsagePrefix('five_hours', options);
-
-  // Happy path: fresh valid cache with both windows
-  if (entry !== null && isFresh) {
-    const record = entry as {
-      fiveHours?: { utilizationPercent?: unknown; resetsAt?: unknown };
-      sevenDays?: { utilizationPercent?: unknown; resetsAt?: unknown };
-    };
-
-    const fiveHoursData = extractWindowData(record.fiveHours, 'five_hours');
-    const sevenDaysData = extractWindowData(record.sevenDays, 'seven_days');
-
-    // Check for extra usage display conditions
-    const extraData = extractExtraUsageData(entry);
-    const shouldShowExtra = extraData !== null
-      && extraData.isEnabled
-      && extraData.usedUsd > 0;
-
-    // Determine which windows are at 100%
-    const fiveAt100 = fiveHoursData !== null && fiveHoursData.percent >= 100;
-    const sevenAt100 = sevenDaysData !== null && sevenDaysData.percent >= 100;
-
-    if (shouldShowExtra && (fiveAt100 || sevenAt100)) {
-      const extraFormatted = formatExtraUsageWindow(
-        { usedUsd: extraData.usedUsd, utilizationPercent: extraData.utilizationPercent },
-        options,
-        SUB_ALL_BAR_WIDTH
-      );
-
-      // Helper to format a single window
-      const formatWindow = (
-        data: WindowData,
-        windowType: 'five_hours' | 'seven_days'
-      ): string => {
-        const windowPrefix = formatSubscriptionUsagePrefix(windowType, options);
-        if (options.showBars) {
-          const bar = formatProgressBar(data.percent, SUB_ALL_BAR_WIDTH);
-          return `${windowPrefix}${String(data.percent)}% ${bar} (${data.reset})`;
-        }
-        return `${windowPrefix}${String(data.percent)}% (${data.reset})`;
-      };
-
-      if (sevenAt100) {
-        // Case 2 (or both at 100%): extra + seven_day (five_hour hidden)
-        // sevenDaysData is guaranteed non-null by sevenAt100 check
-        const sevenFormatted = formatWindow(sevenDaysData, 'seven_days');
-        return `${extraFormatted} ${sevenFormatted}`;
-      } else if (fiveAt100) {
-        // Case 1: five_hour at 100%, seven_day < 100%: extra + five_hour
-        // fiveHoursData is guaranteed non-null by fiveAt100 check
-        const fiveFormatted = formatWindow(fiveHoursData, 'five_hours');
-        return `${extraFormatted} ${fiveFormatted}`;
-      }
-    }
-
-    // Normal display (no extra usage or conditions not met)
-    const result = formatSubscriptionUsageAllSegment(fiveHoursData, sevenDaysData, options);
-    if (result !== '') {
-      return result;
-    }
-  }
-
-  // Error state: recent fetch failed (within TTL)
-  if (isRecentFetchError(entry, ttlSeconds)) {
-    return `${prefix}${formatFetchErrorMessage(entry, debug)}`;
-  }
-
-  // Loading state: no cache or stale
-  return `${prefix}Loading...`;
+  return builder(input, cacheDir, renderOptions);
 }
 
 /**

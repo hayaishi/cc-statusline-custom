@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { acquireLock, releaseLock, writeCacheAtomic } from './cache.js';
-import type { SubscriptionUsageEntry } from '../types/cache.js';
+import type { CacheEntry } from '../types/cache.js';
 
 const fsMocks = vi.hoisted(() => ({
   writeFileSync: vi.fn(),
@@ -17,7 +17,7 @@ const fsMocks = vi.hoisted(() => ({
 vi.mock('node:fs', () => fsMocks);
 
 describe('cache error handling', () => {
-  const entry: SubscriptionUsageEntry = {
+  const entry: CacheEntry = {
     utilizationPercent: 55,
     resetsAt: '2026-01-20T15:45:00Z',
     lastError: null,
