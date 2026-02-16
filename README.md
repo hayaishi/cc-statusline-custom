@@ -31,44 +31,19 @@ Example output:
 🤖 Opus | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
-### Option B: Use with `npx` / `bunx` (no install required)
+### Option B: Local clone (for development or customization)
 
-Add this to your `settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "npx github:hayaishi/cc-statusline-custom --segments=model,cost,ctx",
-    "padding": 0
-  }
-}
-```
-
-For Bun users:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bunx github:hayaishi/cc-statusline-custom --segments=model,cost,ctx",
-    "padding": 0
-  }
-}
-```
-
-### Option C: Local clone (for development or customization)
-
-Clone and build from source:
+Clone and install (the `prepare` script builds `dist/` automatically):
 
 ```bash
 git clone https://github.com/hayaishi/cc-statusline-custom.git
 cd cc-statusline-custom
 npm install
-npm run build
 ```
 
-Then add this to your `settings.json`:
+#### Option B-1: Reference `dist/` directly
+
+Add this to your `settings.json`:
 
 ```json
 {
@@ -79,6 +54,28 @@ Then add this to your `settings.json`:
   }
 }
 ```
+
+#### Option B-2: Link globally (`npm link`)
+
+Make the command available on PATH just like Option A:
+
+```bash
+npm link
+```
+
+Then use the same `settings.json` format as Option A (global install):
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "cc-statusline-custom --segments=model,cost,ctx",
+    "padding": 0
+  }
+}
+```
+
+After any source change, run `npm run build` to update the linked command.
 
 ## Common Examples
 
@@ -142,18 +139,6 @@ Load your plugin file explicitly with the `--config` option:
   "statusLine": {
     "type": "command",
     "command": "cc-statusline-custom --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
-    "padding": 0
-  }
-}
-```
-
-**npx / bunx:**
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "npx github:hayaishi/cc-statusline-custom --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
     "padding": 0
   }
 }

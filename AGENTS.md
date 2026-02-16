@@ -56,15 +56,17 @@ import { join } from 'node:path';
 // 2. External packages
 import { describe, it, expect } from 'vitest';
 
-// 3. Internal absolute imports
-import { CacheManager } from '@/core/cache';
+// 3. Internal relative imports (prefer relative paths; do not use TS-only path aliases)
+import { CacheManager } from './core/cache';
 
 // 4. Internal relative imports
 import { formatTime } from './utils';
 
 // 5. Types (type-only imports)
-import type { ClaudeCodeInput } from '@/types';
+import type { ClaudeCodeInput } from './types';
 ```
+
+**Rule:** Do not use TypeScript-only path aliases (e.g. `@/`). They are not resolved by Node.js at runtime in this project. Use relative imports instead.
 
 ### 2. Error Handling Principles
 

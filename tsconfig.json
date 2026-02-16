@@ -9,7 +9,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "noEmitOnError": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -20,11 +22,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "exactOptionalPropertyTypes": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "coverage", "tests"]
