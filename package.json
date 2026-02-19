@@ -18,7 +18,7 @@
     "config.presets.yml"
   ],
   "scripts": {
-    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && ./node_modules/.bin/esbuild src/index.ts --bundle --platform=node --format=esm --external:node:* --alias:yaml=./node_modules/yaml/browser/index.js --outfile=dist/index.js",
     "prepare": "npm run build",
     "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
     "test": "vitest run",
@@ -59,7 +59,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "esbuild": "^0.27.0"
   },
   "dependencies": {
     "picocolors": "^1.1.1",

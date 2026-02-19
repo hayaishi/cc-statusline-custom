@@ -148,13 +148,13 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('performance', () => {
-    it('completes within 500ms', () => {
+    it('completes within 300ms', () => {
       const start = performance.now();
       runCli('{}', [], { timeout: 1000 });
       const duration = performance.now() - start;
 
       // Allow some margin for test environment variance
-      expect(duration).toBeLessThan(500);
+      expect(duration).toBeLessThan(300);
     });
   });
 

@@ -5,6 +5,7 @@
  * Invalid values fall back to safe defaults.
  */
 
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -164,6 +165,12 @@ export function getPluginConfigPath(): string | undefined {
  * @returns Absolute path to config.presets.yml at package root
  */
 export function getDefaultPresetsPath(): string {
+  // import.meta.url points to the current file:
+  //   - Bundled (dist/index.js): thisDir = dist/ → one level up reaches project root
+  //   - Compiled (dist/config/env.js): thisDir = dist/config/ → two levels up reaches project root
+  //   - Tests via tsx (src/config/env.ts): thisDir = src/config/ → two levels up reaches project root
   const thisDir = dirname(fileURLToPath(import.meta.url));
-  return join(thisDir, '..', '..', 'config.presets.yml');
+  const oneUp = join(thisDir, '..', 'config.presets.yml');
+  const twoUp = join(thisDir, '..', '..', 'config.presets.yml');
+  return existsSync(oneUp) ? oneUp : twoUp;
 }

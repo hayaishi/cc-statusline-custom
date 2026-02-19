@@ -374,9 +374,9 @@ describe('No Network Calls Regression Test (Issue #455)', () => {
         }
         const totalDuration = performance.now() - start;
 
-        // 10 invocations should complete in under 5 seconds total
-        // (500ms each would be 5 seconds, accommodates slower CI environments)
-        expect(totalDuration).toBeLessThan(5000);
+        // 10 invocations should complete in under 3 seconds total
+        // (300ms each would be 3 seconds, we expect much faster)
+        expect(totalDuration).toBeLessThan(3000);
       });
     });
   });
