@@ -483,7 +483,7 @@ function composeSegments(
   const segments: string[] = [];
 
   for (const segmentId of segmentOrder) {
-    let rendered = '';
+    let rendered: string;
 
     if (isPluginSegmentId(segmentId)) {
       rendered = renderPluginSegment(segmentId, pluginConfigs, cacheDir, renderOptions, projectDir);

@@ -81,7 +81,8 @@ describe('CLI Integration Tests', () => {
       });
     } catch (error) {
       throw new Error(
-        `Build failed. Run 'npm run build' first. Error: ${String(error)}`
+        `Build failed. Run 'npm run build' first. Error: ${String(error)}`,
+        { cause: error }
       );
     }
   });
