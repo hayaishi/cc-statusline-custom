@@ -20,7 +20,7 @@
   "scripts": {
     "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
     "prepare": "npm run build",
-    "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
+    "postbuild": "chmod +x dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
