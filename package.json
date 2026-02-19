@@ -49,7 +49,7 @@
   },
   "homepage": "https://github.com/hayaishi/cc-statusline-custom#readme",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
