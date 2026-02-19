@@ -3,14 +3,13 @@
 A customizable statusline command for Claude Code.
 It reads JSON from stdin and **always prints one line** with model, cost, context, and optional plugin/experimental segments.
 
-## Quick Start
-
-### Option A: Install from GitHub (recommended)
-
-Install directly from GitHub:
+## Install
 
 ```bash
-npm install -g github:hayaishi/cc-statusline-custom
+git clone https://github.com/hayaishi/cc-statusline-custom.git
+cd cc-statusline-custom
+npm install
+npm install -g .
 ```
 
 Then add this to your `settings.json`:
@@ -31,51 +30,14 @@ Example output:
 🤖 Opus | 💰 $0.23 | 🧠 31,616 [█░░░░░░░] (16%)
 ```
 
-### Option B: Local clone (for development or customization)
-
-Clone and install (the `prepare` script builds `dist/` automatically):
+### Update
 
 ```bash
-git clone https://github.com/hayaishi/cc-statusline-custom.git
 cd cc-statusline-custom
+git pull
 npm install
+npm install -g .
 ```
-
-#### Option B-1: Reference `dist/` directly
-
-Add this to your `settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --segments=model,cost,ctx",
-    "padding": 0
-  }
-}
-```
-
-#### Option B-2: Link globally (`npm link`)
-
-Make the command available on PATH just like Option A:
-
-```bash
-npm link
-```
-
-Then use the same `settings.json` format as Option A (global install):
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "cc-statusline-custom --segments=model,cost,ctx",
-    "padding": 0
-  }
-}
-```
-
-After any source change, run `npm run build` to update the linked command.
 
 ## Common Examples
 
@@ -132,25 +94,11 @@ Plugins add custom shell-command segments (for example `:git_branch`, `:node_ver
 
 Load your plugin file explicitly with the `--config` option:
 
-**Global install from GitHub:**
-
 ```json
 {
   "statusLine": {
     "type": "command",
     "command": "cc-statusline-custom --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
-    "padding": 0
-  }
-}
-```
-
-**Local clone:**
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "/path/to/cc-statusline-custom/dist/index.js --config=your.plugins.yml --segments=model,:git_branch,cost_session,context",
     "padding": 0
   }
 }
