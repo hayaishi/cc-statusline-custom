@@ -14,21 +14,17 @@ import {
   resolveRenderOptions,
   DEFAULT_SEGMENT_ORDER,
   getCacheTargetsForSegments,
-  getExternalSegmentConfig,
   shouldRequestBgCacheUpdate,
 } from './statusline.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
-import type { CacheEntry } from '../types/cache.js';
 import type { PluginConfig } from '../types/plugin.js';
 import { stripAnsi } from '../utils/colors.js';
-import { registerSubscriptionSegments } from '../experimental/subscription-usage/index.js';
 
 const CANONICAL_FULL_LINE =
   '🤖 Opus | 💰 $0.23 | ⌛️ 55% [████░░░░] (~3:45pm) | 🧠 25,000 [█░░░░░░░] (12%)';
 
 beforeEach(() => {
   clearExternalSegments();
-  registerSubscriptionSegments();
 });
 
 afterEach(() => {
@@ -136,7 +132,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       // Strip ANSI for assertion
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%)');
       expect(stripAnsi(result)).not.toContain('🔥');
       expect(stripAnsi(result)).not.toContain('left)');
     });
@@ -152,7 +148,7 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 | ⌛️ Loading... | 🧠 150,000 [██████░░] (75%)');
+      expect(stripAnsi(result)).toBe('🤖 Sonnet | 💰 $1.50 | 🧠 150,000 [██████░░] (75%)');
     });
 
     it('formats flat schema (backward compat)', () => {
@@ -166,20 +162,20 @@ describe('generateStatusline', () => {
         },
       };
       const result = generateStatusline(input, testCacheDir);
-      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 | ⌛️ Loading... | 🧠 20,000 [█░░░░░░░] (10%)');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.05 | 🧠 20,000 [█░░░░░░░] (10%)');
     });
 
     it('omits missing metrics gracefully', () => {
       const modelOnly: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
       };
-      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(stripAnsi(generateStatusline(modelOnly, testCacheDir))).toBe('🤖 Haiku | 🧠 0 [░░░░░░░░] (0%)');
 
       const modelAndCost: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
         cost: { total_cost_usd: 0.01 },
       };
-      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(stripAnsi(generateStatusline(modelAndCost, testCacheDir))).toBe('🤖 Haiku | 💰 $0.01 | 🧠 0 [░░░░░░░░] (0%)');
 
       const modelAndContext: ClaudeCodeInput = {
         model: { display_name: 'Claude Haiku' },
@@ -189,7 +185,7 @@ describe('generateStatusline', () => {
           current_usage: { input_tokens: 10000 },
         },
       };
-      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | ⌛️ Loading... | 🧠 10,000 [░░░░░░░░] (5%)');
+      expect(stripAnsi(generateStatusline(modelAndContext, testCacheDir))).toBe('🤖 Haiku | 🧠 10,000 [░░░░░░░░] (5%)');
     });
 
     it('returns context placeholder for empty object', () => {
@@ -213,7 +209,7 @@ describe('generateStatusline', () => {
       };
       const result = generateStatusline(input, testCacheDir);
       expect(result.split('\n').length).toBe(1);
-      expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
   });
 
@@ -301,16 +297,17 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     };
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%)');
     expect(stripAnsi(result)).not.toContain('🔥');
     expect(stripAnsi(result)).not.toContain('left)');
   });
 
-  it('includes subscription usage segment when cache has fresh subscription-usage.json', () => {
+  it('includes subscription usage segment from rate_limits', () => {
     const originalTz = process.env.TZ;
     process.env.TZ = 'UTC';
 
     try {
+      // 1768923900 = 2026-01-20T15:45:00Z
       const input: ClaudeCodeInput = {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
@@ -319,16 +316,10 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
           context_window_size: 200000,
           current_usage: { input_tokens: 84000 },
         },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1768923900 },
+        },
       };
-
-      const subscriptionUsage: CacheEntry = {
-        utilizationPercent: 55,
-        resetsAt: '2026-01-20T15:45:00Z',
-        updatedAt: '2026-01-20T10:00:00Z',
-        lastError: null,
-        lastAttemptAt: '2026-01-20T10:00:00Z',
-      };
-      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
@@ -343,11 +334,12 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     }
   });
 
-  it('uses seven_days emoji when subscription usage window is seven_days', () => {
+  it('uses seven_days emoji for subscription_usage_all segment with seven_day data', () => {
     const originalTz = process.env.TZ;
     process.env.TZ = 'UTC';
 
     try {
+      // 1769985900 = 2026-02-01T22:45:00Z
       const input: ClaudeCodeInput = {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
@@ -356,21 +348,14 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
           context_window_size: 200000,
           current_usage: { input_tokens: 84000 },
         },
+        rate_limits: {
+          seven_day: { used_percentage: 55, resets_at: 1769985900 },
+        },
       };
 
-      const subscriptionUsage: CacheEntry = {
-        utilizationPercent: 55,
-        resetsAt: '2026-02-01T22:45:00Z',
-        updatedAt: '2026-01-20T10:00:00Z',
-        lastError: null,
-        lastAttemptAt: '2026-01-20T10:00:00Z',
-        window: 'seven_days',
-      };
-      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-      const result = generateStatuslineWithExtended(input, testCacheDir);
+      const result = generateStatusline(input, testCacheDir, ['model', 'cost_session', 'subscription_usage_all', 'context']);
       expect(stripAnsi(result)).toBe(
-        '🤖 Opus | 💰 $0.23 | 🌙 55% [████░░░░] (~10:45pm, Feb 1) | 🧠 84,000 [███░░░░░] (42%)'
+        '🤖 Opus | 💰 $0.23 | 🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 84,000 [███░░░░░] (42%)'
       );
     } finally {
       if (originalTz === undefined) {
@@ -386,6 +371,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     process.env.TZ = 'UTC';
 
     try {
+      // 2026-01-20T02:59:00Z = epoch 1768877940 → rounds up to ~3am
       const input: ClaudeCodeInput = {
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
@@ -394,16 +380,10 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
           context_window_size: 200000,
           current_usage: { input_tokens: 84000 },
         },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1768877940 },
+        },
       };
-
-      const subscriptionUsage: CacheEntry = {
-        utilizationPercent: 55,
-        resetsAt: '2026-01-20T02:59:00Z',
-        updatedAt: '2026-01-20T10:00:00Z',
-        lastError: null,
-        lastAttemptAt: '2026-01-20T10:00:00Z',
-      };
-      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(
@@ -418,7 +398,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     }
   });
 
-  it('shows fetch error when cache is invalid and lastAttemptAt is recent', () => {
+  it('returns empty string for subscription_usage when rate_limits absent', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       context_window: {
@@ -427,165 +407,18 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
         current_usage: { input_tokens: 84000 },
       },
     };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      lastError: 'oauth_fetch_failed',
-      lastAttemptAt: nowIso,
-      updatedAt: nowIso,
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
 
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error... | 🧠 84,000 [███░░░░░] (42%)');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 84,000 [███░░░░░] (42%)');
+    expect(stripAnsi(result)).not.toContain('⌛️');
+    expect(stripAnsi(result)).not.toContain('Loading...');
   });
 
-  it('shows fetch error detail when debug is enabled', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      lastError: 'oauth_fetch_failed',
-      lastAttemptAt: nowIso,
-      updatedAt: nowIso,
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir, undefined, undefined, true);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error (oauth_fetch_failed) | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('shows fetch error when resetsAt is invalid', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      utilizationPercent: 55,
-      resetsAt: 'invalid-date',
-      updatedAt: nowIso,
-      lastAttemptAt: nowIso,
-      lastError: 'oauth_fetch_failed',
-      window: 'five_hours',
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error... | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('shows fetch error when resetsAt is not a string', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage = {
-      utilizationPercent: 55,
-      resetsAt: 12345,
-      updatedAt: nowIso,
-      lastAttemptAt: nowIso,
-      lastError: 'oauth_fetch_failed',
-      window: 'five_hours',
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error... | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('shows fetch error when utilizationPercent is out of range', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      utilizationPercent: 101,
-      resetsAt: '2026-01-20T15:45:00Z',
-      updatedAt: nowIso,
-      lastAttemptAt: nowIso,
-      lastError: 'oauth_fetch_failed',
-      window: 'five_hours',
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Fetch Error... | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('uses seven_days label for fetch error when window is seven_days', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      lastError: 'oauth_fetch_failed',
-      lastAttemptAt: nowIso,
-      updatedAt: nowIso,
-      window: 'seven_days',
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🌙 Fetch Error... | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('uses seven_days label for loading when window is seven_days', () => {
-    const input: ClaudeCodeInput = {
-      model: { display_name: 'Claude Opus 4.5' },
-      context_window: {
-        used_percentage: 42,
-        context_window_size: 200000,
-        current_usage: { input_tokens: 84000 },
-      },
-    };
-
-    const nowIso = new Date().toISOString();
-    const subscriptionUsage: CacheEntry = {
-      lastError: null,
-      updatedAt: nowIso,
-      window: 'seven_days',
-    };
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
-    const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🌙 Loading... | 🧠 84,000 [███░░░░░] (42%)');
-  });
-
-  it('formats full output with subscription usage cache', () => {
+  it('formats full output with rate_limits subscription data', () => {
     const originalTz = process.env.TZ;
     process.env.TZ = 'UTC';
 
+    // 1768923900 = 2026-01-20T15:45:00Z
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
       cost: { total_cost_usd: 0.23 },
@@ -594,18 +427,12 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
         context_window_size: 200000,
         current_usage: { input_tokens: 25000 },
       },
+      rate_limits: {
+        five_hour: { used_percentage: 55, resets_at: 1768923900 },
+      },
     };
 
     try {
-      const subscriptionUsage: CacheEntry = {
-        utilizationPercent: 55,
-        resetsAt: '2026-01-20T15:45:00Z',
-        updatedAt: '2026-01-20T10:00:00Z',
-        lastError: null,
-        lastAttemptAt: '2026-01-20T10:00:00Z',
-      };
-      writeFileSync(join(testCacheDir, 'subscription-usage.json'), JSON.stringify(subscriptionUsage));
-
       const result = generateStatuslineWithExtended(input, testCacheDir);
       expect(stripAnsi(result)).toBe(CANONICAL_FULL_LINE);
       expect(stripAnsi(result)).not.toContain('🔥');
@@ -624,16 +451,13 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(result).toBe(FALLBACK_OUTPUT);
   });
 
-  it('gracefully handles corrupt cache files', () => {
+  it('gracefully handles invalid input gracefully', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
     };
 
-    // Create corrupt cache file
-    writeFileSync(join(testCacheDir, 'subscription-usage.json'), 'not valid json');
-
     const result = generateStatuslineWithExtended(input, testCacheDir);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('is an alias for generateStatusline', () => {
@@ -854,14 +678,14 @@ describe('segment configuration', () => {
       expect(result).toEqual([]);
     });
 
-    it('returns subscriptionUsage when subscription_usage segment is included', () => {
+    it('returns empty array for subscription_usage (no cache needed)', () => {
       const result = getCacheTargetsForSegments(['subscription_usage']);
-      expect(result).toEqual(['subscriptionUsage']);
+      expect(result).toEqual([]);
     });
 
-    it('returns subscriptionUsage when mixed with non-cache segments', () => {
+    it('returns empty array for subscription_usage mixed with non-cache segments', () => {
       const result = getCacheTargetsForSegments(['model', 'subscription_usage', 'context']);
-      expect(result).toEqual(['subscriptionUsage']);
+      expect(result).toEqual([]);
     });
 
     it('returns empty array for cost_session segment', () => {
@@ -871,7 +695,7 @@ describe('segment configuration', () => {
 
     it('deduplicates when same segment appears multiple times', () => {
       const result = getCacheTargetsForSegments(['subscription_usage', 'model', 'subscription_usage']);
-      expect(result).toEqual(['subscriptionUsage']);
+      expect(result).toEqual([]);
     });
 
     it('returns empty array for empty segment list', () => {
@@ -899,118 +723,14 @@ describe('segment configuration', () => {
       expect(result).toBe(false);
     });
 
-    it('returns true when cache is missing', () => {
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
-      expect(result).toBe(true);
-    });
-
-    it('returns true when cache is expired', () => {
-      // Create cache file that's older than TTL
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const oldEntry: CacheEntry = {
-        utilizationPercent: 50,
-        resetsAt: '2026-01-20T15:45:00Z',
-        lastError: null,
-        lastAttemptAt: new Date(Date.now() - 120 * 1000).toISOString(), // 120 seconds ago
-        updatedAt: new Date(Date.now() - 120 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(oldEntry));
-
-      // Set file mtime to 120 seconds ago to make it appear old
-      const oldTime = Date.now() / 1000 - 120;
-      utimesSync(cacheFile, oldTime, oldTime);
-
-      // Set TTL to 60 seconds, so cache is expired
-      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
-      expect(result).toBe(true);
-    });
-
-    it('returns true when cache has error/invalid payload', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const errorEntry: CacheEntry = {
-        lastError: 'oauth_fetch_failed',
-        lastAttemptAt: new Date(Date.now() - 60 * 1000).toISOString(), // 60 seconds ago (beyond cooldown)
-        updatedAt: new Date(Date.now() - 60 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(errorEntry));
-
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
-      expect(result).toBe(true);
-    });
-
-    it('returns false when within cooldown', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const nowMs = Date.now();
-      const recentEntry: CacheEntry = {
-        utilizationPercent: 50,
-        resetsAt: '2026-01-20T15:45:00Z',
-        lastError: null,
-        lastAttemptAt: new Date(nowMs - 10 * 1000).toISOString(), // 10 seconds ago
-        updatedAt: new Date(nowMs - 10 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(recentEntry));
-
-      // Cooldown is 30 seconds by default, so should not update
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
-        nowMs,
-        cooldownSeconds: 30,
-      });
-      expect(result).toBe(false);
-    });
-
-    it('returns false when cache is fresh and valid', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const freshEntry: CacheEntry = {
-        utilizationPercent: 50,
-        resetsAt: '2026-01-20T15:45:00Z',
-        lastError: null,
-        lastAttemptAt: new Date(Date.now() - 10 * 1000).toISOString(),
-        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(freshEntry));
-
-      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
+    it('returns false for subscription_usage segment (no cache targets)', () => {
+      // subscription_usage reads from rate_limits in stdin — no cache targets needed
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
       expect(result).toBe(false);
-    });
-
-    it('returns true when beyond cooldown period', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const nowMs = Date.now();
-      const oldAttemptEntry: CacheEntry = {
-        lastError: 'oauth_fetch_failed',
-        lastAttemptAt: new Date(nowMs - 60 * 1000).toISOString(), // 60 seconds ago
-        updatedAt: new Date(nowMs - 60 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(oldAttemptEntry));
-
-      // Cooldown is 30 seconds, last attempt was 60 seconds ago => should update
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
-        nowMs,
-        cooldownSeconds: 30,
-      });
-      expect(result).toBe(true);
     });
 
     it('returns false for empty segment list', () => {
       const result = shouldRequestBgCacheUpdate(testCacheDir, []);
-      expect(result).toBe(false);
-    });
-
-    it('handles missing lastAttemptAt gracefully', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const entryWithoutAttempt: CacheEntry = {
-        utilizationPercent: 50,
-        resetsAt: '2026-01-20T15:45:00Z',
-        lastError: null,
-        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(entryWithoutAttempt));
-
-      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage']);
-      // Fresh and valid => should not update
       expect(result).toBe(false);
     });
 
@@ -1050,18 +770,8 @@ describe('segment configuration', () => {
       expect(result).toBe(true);
     });
 
-    it('returns true when subscription cache is fresh but plugin cache is stale', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const freshEntry: CacheEntry = {
-        utilizationPercent: 50,
-        resetsAt: '2026-01-20T15:45:00Z',
-        lastError: null,
-        lastAttemptAt: new Date(Date.now() - 10 * 1000).toISOString(),
-        updatedAt: new Date(Date.now() - 10 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(freshEntry));
-
-      // Plugin cache is missing (stale), subscription cache is fresh
+    it('returns true when plugin cache is stale even if subscription_usage is in segments', () => {
+      // Plugin cache is missing (stale) — subscription_usage has no cache targets
       process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '60';
       const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage', ':test-plugin'], {
         plugins: [makePlugin('test-plugin')],
@@ -1119,39 +829,7 @@ describe('segment configuration', () => {
       expect(result).toBe(false);
     });
 
-    it('should use cacheTtlSeconds from external segment config when checking background update staleness', () => {
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      const nowMs = Date.now();
 
-      process.env.CCSTATUSLINE_PLUGIN_CACHE_TTL = '10';
-
-      clearExternalSegments();
-      registerSubscriptionSegments();
-
-      const config = getExternalSegmentConfig('subscription_usage');
-      expect(config).toBeDefined();
-      expect(config?.cacheTtlSeconds).toBe(10);
-      expect(config?.cacheTargets).toContain('subscriptionUsage');
-
-      const entry: CacheEntry = {
-        utilizationPercent: 10,
-        resetsAt: '2026-03-01T00:00:00Z',
-        lastError: null,
-        lastAttemptAt: new Date(nowMs - 15 * 1000).toISOString(),
-        updatedAt: new Date(nowMs - 15 * 1000).toISOString(),
-      };
-      writeFileSync(cacheFile, JSON.stringify(entry));
-
-      const oldTime = nowMs / 1000 - 15;
-      utimesSync(cacheFile, oldTime, oldTime);
-
-      const result = shouldRequestBgCacheUpdate(testCacheDir, ['subscription_usage'], {
-        nowMs,
-        cooldownSeconds: 5,
-      });
-
-      expect(result).toBe(true);
-    });
   });
 });
 
@@ -1210,7 +888,7 @@ describe('generateStatusline with custom segment order', () => {
 
     // Request all four - context shows placeholder, cost is skipped
     const result = generateStatusline(input, testCacheDir, ['cost_session', 'model', 'context', 'subscription_usage']);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%) | ⌛️ Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('uses default order when segments is undefined', () => {
@@ -1220,7 +898,7 @@ describe('generateStatusline with custom segment order', () => {
     };
 
     const result = generateStatusline(input, testCacheDir, undefined);
-    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+    expect(stripAnsi(result)).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
   });
 
   it('returns fallback when no requested segments have data', () => {
@@ -1246,9 +924,9 @@ describe('generateStatusline with custom segment order', () => {
       model: { display_name: 'Claude Opus 4.5' },
     };
 
-    // Request model first, then subscription
+    // Request model first, then subscription — empty when no rate_limits
     const result = generateStatusline(input, testCacheDir, ['model', 'subscription_usage']);
-    expect(stripAnsi(result)).toBe('🤖 Opus | ⌛️ Loading...');
+    expect(stripAnsi(result)).toBe('🤖 Opus');
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { execSync, execFileSync, type ExecSyncOptions } from 'node:child_process';
-import { readFileSync, accessSync, constants, mkdirSync, writeFileSync, rmSync, existsSync, utimesSync } from 'node:fs';
+import { readFileSync, accessSync, constants, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -234,7 +234,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)'
+        '🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%)'
       );
     });
 
@@ -246,7 +246,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Sonnet | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Sonnet | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('formats partial schema (model + cost)', () => {
@@ -258,7 +258,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Haiku | 💰 $0.01 | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('formats backward-compatible flat schema', () => {
@@ -276,7 +276,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Sonnet | 💰 $0.15 | ⌛️ Loading... | 🧠 50,000 [██░░░░░░] (25%)'
+        '🤖 Sonnet | 💰 $0.15 | 🧠 50,000 [██░░░░░░] (25%)'
       );
     });
 
@@ -293,7 +293,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('rounds percentage with .5 up to 43', () => {
@@ -331,7 +331,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // cost + context placeholder
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('💰 $0.50 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('💰 $0.50 | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('handles invalid cost gracefully', () => {
@@ -344,7 +344,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // model + context placeholder (cost is invalid, skipped)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('handles missing context_window gracefully', () => {
@@ -356,7 +356,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCli(input, [], { env: { CCSTATUSLINE_CACHE_DIR: testCacheDir } });
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
     });
   });
 
@@ -415,20 +415,10 @@ describe('CLI Integration Tests', () => {
       }
     });
 
-    it('renders subscription usage segment when cache has subscription-usage.json', () => {
+    it('renders subscription usage segment when rate_limits provided in stdin', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-20T15:45:00Z',
-          lastError: null,
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
+      // resets_at for 2026-01-20T15:45:00Z in UTC = 1768923900
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
         cost: { total_cost_usd: 0.23 },
@@ -437,9 +427,12 @@ describe('CLI Integration Tests', () => {
           context_window_size: 200000,
           current_usage: { input_tokens: 25000 },
         },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1768923900 },
+        },
       });
 
-      const { stdout, exitCode } = runCli(input, [], {
+      const { stdout, exitCode } = runCli(input, ['--disable-bg-update'], {
         env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
       });
       expect(exitCode).toBe(0);
@@ -471,7 +464,7 @@ describe('CLI Integration Tests', () => {
       // Should still produce output without cache data
       const cleanOutput = assertSingleLine(stdout);
       expect(cleanOutput).toBe(
-        '🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 84,000 [███░░░░░] (42%)'
+        '🤖 Opus | 💰 $0.23 | 🧠 84,000 [███░░░░░] (42%)'
       );
     });
   });
@@ -591,7 +584,7 @@ describe('CLI Integration Tests', () => {
       const { stdout, exitCode } = runCliWithSegments(input, '-s model,sub --disable-bg-update');
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading...');
+      expect(cleanOutput).toBe('🤖 Opus');
     });
 
     it('normalizes ctx alias to context', () => {
@@ -647,7 +640,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order: model, cost_session, context, subscription_usage
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('maintains single-line output invariant', () => {
@@ -740,7 +733,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('falls back to default when -s is at end without value', () => {
@@ -753,7 +746,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used when no value provided
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     it('does not consume another flag as segment value', () => {
@@ -768,7 +761,7 @@ describe('CLI Integration Tests', () => {
       expect(exitCode).toBe(0);
       // Default order used since -s has no valid value (--some-other-flag starts with -)
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toBe('🤖 Opus | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+      expect(cleanOutput).toBe('🤖 Opus | 🧠 0 [░░░░░░░░] (0%)');
     });
 
     // CLI precedence tests: CLI present but invalid should NOT fall back to env
@@ -790,7 +783,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order: model, cost_session, context, subscription_usage
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when CLI --segments is at end without value even if env is valid', () => {
@@ -810,7 +803,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's context,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when CLI --segments= has empty value even if env is valid', () => {
@@ -830,7 +823,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session,model
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when -s is at end without value even if env is valid', () => {
@@ -850,7 +843,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's cost_session only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
       });
 
       it('uses DEFAULT when -s followed by flag even if env is valid', () => {
@@ -870,7 +863,7 @@ describe('CLI Integration Tests', () => {
         expect(exitCode).toBe(0);
         const cleanOutput = assertSingleLine(stdout);
         // Default order, not env's model only
-        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | ⌛️ Loading... | 🧠 0 [░░░░░░░░] (0%)');
+        expect(cleanOutput).toBe('🤖 Opus | 💰 $0.23 | 🧠 0 [░░░░░░░░] (0%)');
       });
     });
   });
@@ -894,6 +887,9 @@ describe('CLI Integration Tests', () => {
             used_percentage: 42,
             context_window_size: 200000,
             current_usage: { input_tokens: 84000 },
+          },
+          rate_limits: {
+            five_hour: { used_percentage: 55, resets_at: 1768923900 },
           },
         });
 
@@ -957,9 +953,12 @@ describe('CLI Integration Tests', () => {
             context_window_size: 200000,
             current_usage: { input_tokens: 84000 },
           },
+          rate_limits: {
+            five_hour: { used_percentage: 55, resets_at: 1768923900 },
+          },
         });
 
-        const { stdout, exitCode } = runCli(input, ['--no-bars'], {
+        const { stdout, exitCode } = runCli(input, ['--no-bars', '--disable-bg-update'], {
           env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
         });
         expect(exitCode).toBe(0);
@@ -988,9 +987,12 @@ describe('CLI Integration Tests', () => {
             context_window_size: 200000,
             current_usage: { input_tokens: 84000 },
           },
+          rate_limits: {
+            five_hour: { used_percentage: 55, resets_at: 1768923900 },
+          },
         });
 
-        const { stdout, exitCode } = runCli(input, ['--no-emojis', '--no-bars'], {
+        const { stdout, exitCode } = runCli(input, ['--no-emojis', '--no-bars', '--disable-bg-update'], {
           env: { CCSTATUSLINE_CACHE_DIR: testCacheDir },
         });
         expect(exitCode).toBe(0);
@@ -1235,31 +1237,19 @@ describe('CLI Integration Tests', () => {
       }
     });
 
+    // resets_at epoch seconds (UTC):
+    // 2026-01-27T15:45:00Z = 1769528700
+    // 2026-02-01T22:45:00Z = 1769985900
+
     it('renders both windows with correct formatting', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hours',
-          fiveHours: {
-            utilizationPercent: 55,
-            resetsAt: '2026-01-27T15:45:00Z',
-          },
-          sevenDays: {
-            utilizationPercent: 75,
-            resetsAt: '2026-02-01T22:45:00Z',
-          },
-          lastError: null,
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1769528700 },
+          seven_day: { used_percentage: 75, resets_at: 1769985900 },
+        },
       });
 
       const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
@@ -1273,28 +1263,14 @@ describe('CLI Integration Tests', () => {
       expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm) 🌙 75% [███░] (~10:45pm, Feb 1)');
     });
 
-    it('renders only five_hours when seven_days is missing', () => {
+    it('renders only five_hours when seven_day is absent', () => {
       mkdirSync(testCacheDir, { recursive: true });
-
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hours',
-          fiveHours: {
-            utilizationPercent: 55,
-            resetsAt: '2026-01-27T15:45:00Z',
-          },
-          // sevenDays is missing
-          lastError: null,
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
 
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1769528700 },
+        },
       });
 
       const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
@@ -1303,24 +1279,12 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      // No trailing separators, only fiveHours shown
       expect(cleanOutput).toBe('🤖 Opus | ⌛️ 55% [██░░] (~3:45pm)');
       expect(cleanOutput).not.toContain('🌙');
     });
 
-    it('shows fallback on fetch error', () => {
+    it('renders empty when rate_limits absent', () => {
       mkdirSync(testCacheDir, { recursive: true });
-
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: null,
-          resetsAt: null,
-          lastError: 'Network error',
-          lastAttemptAt: new Date().toISOString(),  // Recent attempt
-          updatedAt: new Date(Date.now() - 30000).toISOString(),  // Stale data
-        })
-      );
 
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
@@ -1332,72 +1296,21 @@ describe('CLI Integration Tests', () => {
 
       expect(exitCode).toBe(0);
       const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toContain('Fetch Error...');
-    });
-
-    it('shows loading state when cache is stale', () => {
-      mkdirSync(testCacheDir, { recursive: true });
-
-      // Write stale cache (old updatedAt)
-      const cacheFile = join(testCacheDir, 'subscription-usage.json');
-      writeFileSync(
-        cacheFile,
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hours',
-          fiveHours: {
-            utilizationPercent: 55,
-            resetsAt: '2026-01-27T15:45:00Z',
-          },
-          lastError: null,
-          lastAttemptAt: new Date(Date.now() - 120000).toISOString(),
-          updatedAt: new Date(Date.now() - 120000).toISOString(),
-        })
-      );
-
-      // Set mtime to old time (beyond TTL of 60 seconds)
-      const oldTime = new Date(Date.now() - 120000);
-      utimesSync(cacheFile, oldTime, oldTime);
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-      });
-
-      const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--disable-bg-update'], {
-        env: { CCSTATUSLINE_CACHE_DIR: testCacheDir, TZ: 'UTC' },
-      });
-
-      expect(exitCode).toBe(0);
-      const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toContain('Loading...');
+      // subscription segment silently omitted when no rate_limits
+      expect(cleanOutput).toBe('🤖 Opus');
+      expect(cleanOutput).not.toContain('⌛️');
+      expect(cleanOutput).not.toContain('🌙');
     });
 
     it('respects --no-emojis flag', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hours',
-          fiveHours: {
-            utilizationPercent: 55,
-            resetsAt: '2026-01-27T15:45:00Z',
-          },
-          sevenDays: {
-            utilizationPercent: 75,
-            resetsAt: '2026-02-01T22:45:00Z',
-          },
-          lastError: null,
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1769528700 },
+          seven_day: { used_percentage: 75, resets_at: 1769985900 },
+        },
       });
 
       const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-emojis', '--disable-bg-update'], {
@@ -1412,28 +1325,12 @@ describe('CLI Integration Tests', () => {
     it('respects --no-bars flag', () => {
       mkdirSync(testCacheDir, { recursive: true });
 
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          utilizationPercent: 55,
-          resetsAt: '2026-01-27T15:45:00Z',
-          window: 'five_hours',
-          fiveHours: {
-            utilizationPercent: 55,
-            resetsAt: '2026-01-27T15:45:00Z',
-          },
-          sevenDays: {
-            utilizationPercent: 75,
-            resetsAt: '2026-02-01T22:45:00Z',
-          },
-          lastError: null,
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
       const input = JSON.stringify({
         model: { display_name: 'Claude Opus 4.5' },
+        rate_limits: {
+          five_hour: { used_percentage: 55, resets_at: 1769528700 },
+          seven_day: { used_percentage: 75, resets_at: 1769985900 },
+        },
       });
 
       const { stdout, exitCode } = runCli(input, ['--segments=model,sub_all', '--no-bars', '--disable-bg-update'], {
@@ -1482,32 +1379,5 @@ describe('CLI Integration Tests', () => {
       expect(firstRecord.payload?.body).toContain('"display_name":"Claude Opus 4.5"');
     });
 
-    it('enables fetch error detail with env debug without --debug flag', () => {
-      mkdirSync(testCacheDir, { recursive: true });
-      writeFileSync(
-        join(testCacheDir, 'subscription-usage.json'),
-        JSON.stringify({
-          lastError: 'oauth_status_401',
-          lastErrorDetail: '{"error":"unauthorized"}',
-          lastAttemptAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      );
-
-      const input = JSON.stringify({
-        model: { display_name: 'Claude Opus 4.5' },
-      });
-
-      const { stdout, exitCode } = runCli(input, ['--disable-bg-update'], {
-        env: {
-          CCSTATUSLINE_CACHE_DIR: testCacheDir,
-          CCSTATUSLINE_DEBUG: '1',
-        },
-      });
-
-      expect(exitCode).toBe(0);
-      const cleanOutput = assertSingleLine(stdout);
-      expect(cleanOutput).toContain('oauth_status_401');
-    });
   });
 });

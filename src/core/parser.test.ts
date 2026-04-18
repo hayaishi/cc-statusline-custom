@@ -5,6 +5,7 @@ import {
   extractSessionCost,
   extractContextUsage,
   extractTokenUsage,
+  extractRateLimitWindow,
 } from './parser.js';
 import type { ClaudeCodeInput } from '../types/claude-code.js';
 
@@ -639,6 +640,135 @@ describe('extractTokenUsage', () => {
       };
       const result = extractTokenUsage(input);
       expect(result?.percentage).toBe(100);
+    });
+  });
+});
+
+describe('extractRateLimitWindow', () => {
+  const validEpoch = 1_766_084_400; // 2025-12-18 somewhere, well under year 2100
+
+  describe('returns valid data when input is correct', () => {
+    it('should extract five_hour window when present and valid', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 55, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toEqual({
+        percent: 55,
+        resetsAtEpochSec: validEpoch,
+      });
+    });
+
+    it('should extract seven_day window when present and valid', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { seven_day: { used_percentage: 20, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'seven_day')).toEqual({
+        percent: 20,
+        resetsAtEpochSec: validEpoch,
+      });
+    });
+
+    it('should return valid data when percent is 0', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 0, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')?.percent).toBe(0);
+    });
+
+    it('should return valid data when percent is 100', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 100, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')?.percent).toBe(100);
+    });
+  });
+
+  describe('returns null when rate_limits is absent or window is missing', () => {
+    it('should return null when rate_limits is absent', () => {
+      const input: ClaudeCodeInput = {};
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when requested window is absent', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { seven_day: { used_percentage: 20, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+  });
+
+  describe('returns null when used_percentage is invalid', () => {
+    it('should return null when used_percentage is a float', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 55.5, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when used_percentage is negative', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: -1, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when used_percentage is 101', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 101, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when used_percentage is NaN', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: NaN, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when used_percentage is absent', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+  });
+
+  describe('returns null when resets_at is invalid', () => {
+    it('should return null when resets_at is zero', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 50, resets_at: 0 } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when resets_at is negative', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 50, resets_at: -1 } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when resets_at exceeds year 2100 (likely milliseconds)', () => {
+      // 4_102_444_801 is just above the year-2100 threshold
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 50, resets_at: 4_102_444_801 } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when resets_at is absent', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 50 } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when resets_at is Infinity', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: { used_percentage: 50, resets_at: Infinity } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
     });
   });
 });

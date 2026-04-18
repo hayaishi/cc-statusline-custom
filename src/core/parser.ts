@@ -2,7 +2,10 @@ import type {
   ClaudeCodeInput,
   ParseResult,
   ModelInfo,
+  RateLimits,
 } from '../types/claude-code.js';
+
+export type { RateLimits };
 
 /**
  * Safely parses JSON input from Claude Code.
@@ -170,4 +173,64 @@ export function extractTokenUsage(input: ClaudeCodeInput | null): TokenUsage | u
     limit,
     percentage,
   };
+}
+
+/**
+ * Extracted data for a single rate-limit window.
+ */
+export interface RateLimitWindowData {
+  /** Usage percentage, integer in [0, 100] */
+  readonly percent: number;
+  /** Unix epoch seconds when the window resets */
+  readonly resetsAtEpochSec: number;
+}
+
+/**
+ * Upper bound on valid unix epoch seconds (year 2100).
+ * Values above this threshold are likely milliseconds sent by mistake.
+ */
+const MAX_RESETS_AT_EPOCH_SEC = 4_102_444_800;
+
+/**
+ * Extracts and validates a single rate-limit window from the input.
+ *
+ * @param input - Parsed input
+ * @param window - Which window to extract ('five_hour' or 'seven_day')
+ * @returns Validated window data or null if absent/invalid
+ */
+export function extractRateLimitWindow(
+  input: ClaudeCodeInput,
+  window: 'five_hour' | 'seven_day'
+): RateLimitWindowData | null {
+  const rateLimits = input.rate_limits;
+  if (rateLimits === undefined) {
+    return null;
+  }
+
+  const windowData = rateLimits[window];
+  if (windowData === undefined) {
+    return null;
+  }
+
+  const { used_percentage, resets_at } = windowData;
+
+  if (
+    typeof used_percentage !== 'number' ||
+    !Number.isInteger(used_percentage) ||
+    used_percentage < 0 ||
+    used_percentage > 100
+  ) {
+    return null;
+  }
+
+  if (
+    typeof resets_at !== 'number' ||
+    !Number.isFinite(resets_at) ||
+    resets_at <= 0 ||
+    resets_at > MAX_RESETS_AT_EPOCH_SEC
+  ) {
+    return null;
+  }
+
+  return { percent: used_percentage, resetsAtEpochSec: resets_at };
 }
