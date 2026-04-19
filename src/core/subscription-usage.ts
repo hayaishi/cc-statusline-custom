@@ -98,7 +98,7 @@ export function buildSubscriptionUsageAllSegment(
     return formatWindow(sevenData, 'seven_days', options, SUB_ALL_BAR_WIDTH);
   }
 
-  // Both present (guaranteed by the early-return branches above)
+  // Both present — TypeScript requires the explicit null check here for narrowing
   if (fiveData !== null && sevenData !== null) {
     const fiveStr = formatWindow(fiveData, 'five_hours', options, SUB_ALL_BAR_WIDTH);
     const sevenStr = formatWindow(sevenData, 'seven_days', options, SUB_ALL_BAR_WIDTH);

@@ -451,7 +451,7 @@ describe('generateStatuslineWithExtended (cache integration)', () => {
     expect(result).toBe(FALLBACK_OUTPUT);
   });
 
-  it('gracefully handles invalid input gracefully', () => {
+  it('gracefully handles invalid input', () => {
     const input: ClaudeCodeInput = {
       model: { display_name: 'Claude Opus 4.5' },
     };
