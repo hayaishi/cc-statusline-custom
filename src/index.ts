@@ -106,7 +106,11 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
 /** Handles the --update-cache subcommand (plugin caches only). */
 async function handleUpdateCache(args: string[]): Promise<void> {
   const cacheDir = getCacheDir();
-  acquireLock(cacheDir);
+  if (!acquireLock(cacheDir)) {
+    // Another updater holds the lock; skip to avoid concurrent cache writes
+    console.log(ensureVisibleFirstLine('Cache updated', CACHE_FALLBACK_OUTPUT));
+    return;
+  }
   try {
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);

@@ -10,9 +10,7 @@ describe('--update-cache integration', () => {
   const testCacheDir = join(tmpdir(), `cc-statusline-custom-update-cache-test-${String(process.pid)}`);
 
   beforeAll(() => {
-    if (!existsSync(distPath)) {
-      execSync('npm run build', { stdio: 'inherit' });
-    }
+    execSync('npm run build', { stdio: 'inherit' });
   });
 
   beforeEach(() => {
@@ -106,6 +104,20 @@ describe('--update-cache integration', () => {
     expect(existsSync(lockPath)).toBe(true);
 
     await new Promise<void>(resolve => child.on('close', resolve));
+  });
+
+  it('skips update and does not release lock when another updater holds it', () => {
+    const lockPath = join(testCacheDir, 'cache.lock');
+    // Simulate a fresh lock held by another process
+    mkdirSync(testCacheDir, { recursive: true });
+    writeFileSync(lockPath, String(process.pid));
+
+    const { stdout } = runUpdateCache();
+
+    // Lock must still exist — the second updater must not have removed it
+    expect(existsSync(lockPath)).toBe(true);
+    // Output must still be a single visible line
+    assertSingleLine(stdout);
   });
 
   describe('does not affect statusline hot path', () => {
