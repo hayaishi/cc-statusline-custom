@@ -214,14 +214,11 @@ export function extractRateLimitWindow(
 
   const { used_percentage, resets_at } = windowData;
 
-  if (
-    typeof used_percentage !== 'number' ||
-    !Number.isInteger(used_percentage) ||
-    used_percentage < 0 ||
-    used_percentage > 100
-  ) {
+  if (typeof used_percentage !== 'number' || !Number.isFinite(used_percentage)) {
     return null;
   }
+
+  const percent = Math.round(Math.max(0, Math.min(100, used_percentage)));
 
   if (
     typeof resets_at !== 'number' ||
@@ -232,5 +229,5 @@ export function extractRateLimitWindow(
     return null;
   }
 
-  return { percent: used_percentage, resetsAtEpochSec: resets_at };
+  return { percent, resetsAtEpochSec: resets_at };
 }

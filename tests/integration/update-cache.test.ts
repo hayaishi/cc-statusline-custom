@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { assertSingleLine } from '../helpers/assertions.js';
 
@@ -81,6 +81,31 @@ describe('--update-cache integration', () => {
       .map((entry) => entry.name);
 
     expect(entries).toEqual([]);
+  });
+
+  it('creates a lock file while updating a slow plugin cache', async () => {
+    const configFile = join(testCacheDir, 'plugins.yml');
+    writeFileSync(configFile, `plugins:
+  - id: slow
+    command: sleep 1
+    ttl: 0
+`);
+
+    const lockPath = join(testCacheDir, 'cache.lock');
+    const child = spawn(
+      'node',
+      [distPath, '--update-cache', '--config', configFile, '--segments', ':slow'],
+      {
+        env: { ...process.env, CCSTATUSLINE_CACHE_DIR: testCacheDir },
+        stdio: 'ignore',
+      }
+    );
+
+    // Give the process ~200ms to start and acquire the lock
+    await new Promise<void>(resolve => setTimeout(resolve, 200));
+    expect(existsSync(lockPath)).toBe(true);
+
+    await new Promise<void>(resolve => child.on('close', resolve));
   });
 
   describe('does not affect statusline hot path', () => {

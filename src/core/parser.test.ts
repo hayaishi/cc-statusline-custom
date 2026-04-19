@@ -697,26 +697,35 @@ describe('extractRateLimitWindow', () => {
     });
   });
 
-  describe('returns null when used_percentage is invalid', () => {
-    it('should return null when used_percentage is a float', () => {
+  describe('rounds and clamps used_percentage', () => {
+    it('should round fractional used_percentage to nearest integer', () => {
       const input: ClaudeCodeInput = {
         rate_limits: { five_hour: { used_percentage: 55.5, resets_at: validEpoch } },
       };
-      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+      expect(extractRateLimitWindow(input, 'five_hour')).toEqual({
+        percent: 56,
+        resetsAtEpochSec: validEpoch,
+      });
     });
 
-    it('should return null when used_percentage is negative', () => {
+    it('should clamp negative used_percentage to 0', () => {
       const input: ClaudeCodeInput = {
         rate_limits: { five_hour: { used_percentage: -1, resets_at: validEpoch } },
       };
-      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+      expect(extractRateLimitWindow(input, 'five_hour')).toEqual({
+        percent: 0,
+        resetsAtEpochSec: validEpoch,
+      });
     });
 
-    it('should return null when used_percentage is 101', () => {
+    it('should clamp used_percentage above 100 to 100', () => {
       const input: ClaudeCodeInput = {
         rate_limits: { five_hour: { used_percentage: 101, resets_at: validEpoch } },
       };
-      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+      expect(extractRateLimitWindow(input, 'five_hour')).toEqual({
+        percent: 100,
+        resetsAtEpochSec: validEpoch,
+      });
     });
 
     it('should return null when used_percentage is NaN', () => {

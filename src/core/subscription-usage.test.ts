@@ -42,11 +42,12 @@ describe('buildSubscriptionUsageSegment', () => {
       expect(buildSubscriptionUsageSegment(input, WITH_ALL)).toBe('');
     });
 
-    it('should return empty string when five_hour used_percentage is invalid', () => {
+    it('should render using rounded percent when five_hour used_percentage is fractional', () => {
       const input: ClaudeCodeInput = {
         rate_limits: { five_hour: { used_percentage: 55.5, resets_at: EPOCH_5H } },
       };
-      expect(buildSubscriptionUsageSegment(input, WITH_ALL)).toBe('');
+      const result = buildSubscriptionUsageSegment(input, WITH_ALL);
+      expect(result).toContain('56%');
     });
   });
 

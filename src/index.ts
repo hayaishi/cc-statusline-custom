@@ -54,6 +54,7 @@ import {
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
 import { updatePluginCaches } from './updater/plugin-executor.js';
+import { acquireLock, releaseLock } from './core/cache.js';
 import { writeDebugLog } from './utils/debug-log.js';
 import type { DebugLogOptions } from './utils/debug-log.js';
 import type { PluginConfig } from './types/plugin.js';
@@ -104,6 +105,8 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
 
 /** Handles the --update-cache subcommand (plugin caches only). */
 async function handleUpdateCache(args: string[]): Promise<void> {
+  const cacheDir = getCacheDir();
+  acquireLock(cacheDir);
   try {
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
@@ -125,6 +128,8 @@ async function handleUpdateCache(args: string[]): Promise<void> {
     console.log(ensureVisibleFirstLine('Cache updated', CACHE_FALLBACK_OUTPUT));
   } catch {
     console.log(CACHE_FALLBACK_OUTPUT);
+  } finally {
+    releaseLock(cacheDir);
   }
 }
 
