@@ -76,8 +76,8 @@ export interface RateLimitWindow {
  * Rate limit data from Claude Code's official statusline data.
  */
 export interface RateLimits {
-  readonly five_hour?: RateLimitWindow;
-  readonly seven_day?: RateLimitWindow;
+  readonly five_hour?: RateLimitWindow | null;
+  readonly seven_day?: RateLimitWindow | null;
 }
 
 /**
@@ -118,7 +118,7 @@ export interface ClaudeCodeInput {
   readonly output_style?: OutputStyle;
 
   // Rate limit data (official Claude Code statusline field)
-  readonly rate_limits?: RateLimits;
+  readonly rate_limits?: RateLimits | null;
 
   // Allow additional unknown fields for forward compatibility
   readonly [key: string]: unknown;

@@ -203,12 +203,12 @@ export function extractRateLimitWindow(
   window: 'five_hour' | 'seven_day'
 ): RateLimitWindowData | null {
   const rateLimits = input.rate_limits;
-  if (rateLimits === undefined) {
+  if (rateLimits == null) {
     return null;
   }
 
   const windowData = rateLimits[window];
-  if (windowData === undefined) {
+  if (windowData == null) {
     return null;
   }
 

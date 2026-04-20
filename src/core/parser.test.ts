@@ -689,9 +689,21 @@ describe('extractRateLimitWindow', () => {
       expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
     });
 
+    it('should return null when rate_limits is null', () => {
+      const input: ClaudeCodeInput = { rate_limits: null };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
     it('should return null when requested window is absent', () => {
       const input: ClaudeCodeInput = {
         rate_limits: { seven_day: { used_percentage: 20, resets_at: validEpoch } },
+      };
+      expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
+    });
+
+    it('should return null when requested window is null', () => {
+      const input: ClaudeCodeInput = {
+        rate_limits: { five_hour: null, seven_day: { used_percentage: 20, resets_at: validEpoch } },
       };
       expect(extractRateLimitWindow(input, 'five_hour')).toBeNull();
     });
