@@ -7,7 +7,7 @@
  * - CCSTATUSLINE_BG_UPDATE=1 prevents recursion
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -29,13 +29,6 @@ function withIsolatedCacheDir<T>(run: (cacheDir: string) => T): T {
 }
 
 describe('Background Cache Update Integration Tests', () => {
-  beforeAll(() => {
-    execSync('npm run build', {
-      cwd: PROJECT_ROOT,
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    });
-  });
 
   describe('segment-aware scheduling', () => {
     it('does not request background update when segments exclude subscription_usage', () => {

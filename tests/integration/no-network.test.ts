@@ -8,7 +8,7 @@
  * @see https://github.com/ryoppippi/ccusage/issues/455
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -151,15 +151,6 @@ function withIsolatedCacheDir<T>(run: (cacheDir: string) => T): T {
 }
 
 describe('No Network Calls Regression Test (Issue #455)', () => {
-  beforeAll(() => {
-    // Ensure the project is built
-    execSync('npm run build', {
-      cwd: PROJECT_ROOT,
-      encoding: 'utf-8',
-      stdio: 'pipe',
-    });
-  });
-
   describe('stripComments helper', () => {
     it('removes line comments', () => {
       const input = 'const x = 1; // this is a comment\nconst y = 2;';

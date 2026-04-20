@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { execSync, execFileSync, type ExecSyncOptions } from 'node:child_process';
 import { readFileSync, accessSync, constants, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -71,22 +71,6 @@ function runCliDirect(
 }
 
 describe('CLI Integration Tests', () => {
-  beforeAll(() => {
-    // Ensure the project is built before running integration tests
-    try {
-      execSync('npm run build', {
-        cwd: PROJECT_ROOT,
-        encoding: 'utf-8',
-        stdio: 'pipe',
-      });
-    } catch (error) {
-      throw new Error(
-        `Build failed. Run 'npm run build' first. Error: ${String(error)}`,
-        { cause: error }
-      );
-    }
-  });
-
   describe('NEVER silent - always outputs visible content', () => {
     it('outputs exactly one visible line for empty stdin', () => {
       const { stdout, exitCode } = runCli('');

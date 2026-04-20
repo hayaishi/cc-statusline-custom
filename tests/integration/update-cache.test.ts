@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { existsSync, mkdirSync, rmSync, readdirSync, writeFileSync } from 'node:fs';
@@ -8,10 +8,6 @@ import { assertSingleLine } from '../helpers/assertions.js';
 describe('--update-cache integration', () => {
   const distPath = join(process.cwd(), 'dist', 'index.js');
   const testCacheDir = join(tmpdir(), `cc-statusline-custom-update-cache-test-${String(process.pid)}`);
-
-  beforeAll(() => {
-    execSync('npm run build', { stdio: 'inherit' });
-  });
 
   beforeEach(() => {
     if (!existsSync(testCacheDir)) {
