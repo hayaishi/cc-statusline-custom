@@ -24,13 +24,9 @@ export interface MetricValue<T> {
  * All fields are optional to support partial data scenarios.
  */
 export interface FormattedMetrics {
-  // Fast-path metrics (from stdin JSON)
   readonly model?: MetricValue<string>;
   readonly sessionCost?: MetricValue<string>;
   readonly contextUsage?: MetricValue<string>;
-
-  // Cache-derived metrics
-  readonly subscriptionUsage?: MetricValue<string>;
 }
 
 /**

@@ -65,6 +65,22 @@ export interface OutputStyle {
 }
 
 /**
+ * Single rate-limit window from Claude Code's official statusline data.
+ */
+export interface RateLimitWindow {
+  readonly used_percentage?: number;
+  readonly resets_at?: number;
+}
+
+/**
+ * Rate limit data from Claude Code's official statusline data.
+ */
+export interface RateLimits {
+  readonly five_hour?: RateLimitWindow | null;
+  readonly seven_day?: RateLimitWindow | null;
+}
+
+/**
  * Input payload from Claude Code's statusline feature.
  *
  * This interface represents the JSON structure passed via stdin.
@@ -100,6 +116,9 @@ export interface ClaudeCodeInput {
 
   // Output style
   readonly output_style?: OutputStyle;
+
+  // Rate limit data (official Claude Code statusline field)
+  readonly rate_limits?: RateLimits | null;
 
   // Allow additional unknown fields for forward compatibility
   readonly [key: string]: unknown;

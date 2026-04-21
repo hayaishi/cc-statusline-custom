@@ -21,6 +21,10 @@ import {
   DEFAULT_RENDER_OPTIONS,
   type CostSegmentData,
 } from './formatter.js';
+import {
+  buildSubscriptionUsageSegment,
+  buildSubscriptionUsageAllSegment,
+} from './subscription-usage.js';
 import { readCacheSyncWithMtime, isLockFileFresh } from './cache-reader.js';
 import {
   getContextLowThreshold,
@@ -40,7 +44,7 @@ import { shouldRefreshPlugin } from './plugin-cache.js';
 /**
  * Canonical segment identifiers for built-in segments.
  */
-export type BuiltinSegmentId = 'model' | 'cost_session' | 'context';
+export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
 
 /**
  * Segment identifier - either a built-in segment or a plugin segment (:xxx).
@@ -120,6 +124,16 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
 
   // Context aliases
   ctx: 'context',
+
+  // Subscription usage aliases
+  subscription_usage: 'subscription_usage',
+  usage: 'subscription_usage',
+  subscription: 'subscription_usage',
+  sub: 'subscription_usage',
+  sub_usage: 'subscription_usage',
+  subscription_usage_all: 'subscription_usage_all',
+  sub_all: 'subscription_usage_all',
+  usage_all: 'subscription_usage_all',
 };
 
 /**
@@ -263,12 +277,12 @@ const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly string[]> = {
   model: [],
   cost_session: [],
   context: [],
+  subscription_usage: [],
+  subscription_usage_all: [],
 };
 
 /**
  * Gets the list of cache targets required for the given segments.
- *
- * Example: ["model", "subscription_usage"] → ["subscriptionUsage"]
  *
  * Note: Plugin segments have their own cache system and are not included here.
  *
@@ -452,6 +466,10 @@ function createSegmentBuilders(): Record<BuiltinSegmentId, SegmentBuilder> {
         options
       );
     },
+    subscription_usage: (input, _cacheDir, options): string =>
+      buildSubscriptionUsageSegment(input, options),
+    subscription_usage_all: (input, _cacheDir, options): string =>
+      buildSubscriptionUsageAllSegment(input, options),
   };
 }
 

@@ -37,14 +37,16 @@ export const LOCK_FILE_ACTIVE_THRESHOLD_SECONDS = 5;
 
 /**
  * Cache file names.
+ * subscriptionUsage is retained for backward compat (stale files in user caches
+ * are harmless; no production code writes to it anymore).
  */
 export const CACHE_FILE_NAMES: {
   lock: string;
   subscriptionUsage: string;
   [key: string]: string;
 } = {
-  subscriptionUsage: 'subscription-usage.json',
   lock: 'cache.lock',
+  subscriptionUsage: 'subscription-usage.json',
 };
 
 /**

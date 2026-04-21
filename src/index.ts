@@ -22,17 +22,14 @@ import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readStdinSync } from './utils/stdin.js';
-import { detectClaudeCodeVersion } from './utils/cc-version.js';
 import {
   parseSegmentsArg,
   parseNoEmojisArg,
   parseNoBarsArg,
   parseDisableBgUpdateArg,
-  parseAutoArg,
   parseDebugArg,
   parseConfigArg,
   parseProjectDirArg,
-  parseCcVersionArg,
 } from './utils/cli-args.js';
 import { parseInput } from './core/parser.js';
 import {
@@ -57,6 +54,7 @@ import {
 import { loadPluginConfig, parsePluginsFile } from './config/plugin-config.js';
 import { shouldRefreshPlugin } from './core/plugin-cache.js';
 import { updatePluginCaches } from './updater/plugin-executor.js';
+import { acquireLock, releaseLock } from './core/cache.js';
 import { writeDebugLog } from './utils/debug-log.js';
 import type { DebugLogOptions } from './utils/debug-log.js';
 import type { PluginConfig } from './types/plugin.js';
@@ -105,26 +103,20 @@ function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT
   return firstLine.trim() === '' ? fallback : firstLine;
 }
 
-/** Handles the --update-cache subcommand. */
+/** Handles the --update-cache subcommand (plugin caches only). */
 async function handleUpdateCache(args: string[]): Promise<void> {
+  const cacheDir = getCacheDir();
+  if (!acquireLock(cacheDir)) {
+    // Another updater holds the lock; skip to avoid concurrent cache writes
+    console.log(ensureVisibleFirstLine('Cache updated', CACHE_FALLBACK_OUTPUT));
+    return;
+  }
   try {
-    const isAuto = parseAutoArg(args);
-    const debug = isDebugModeEnabled(args);
     const configPath = parseConfigArg(args);
     const projectDir = parseProjectDirArg(args);
-    const ccVersion = parseCcVersionArg(args) ?? detectClaudeCodeVersion() ?? undefined;
-
-    const { updateCache } = await import('./updater/update-cache.js');
-    const options: Parameters<typeof updateCache>[1] = {
-      mode: isAuto ? 'auto' : 'force',
-      debug,
-      ...(ccVersion !== undefined && { ccVersion }),
-    };
-    const result = await updateCache(undefined, options);
 
     const plugins = loadPlugins(configPath);
     if (plugins !== null) {
-      // Filter plugins to only those referenced in segments
       const segmentsArg = parseSegmentsArg(args);
       const segments = resolveSegmentOrder(segmentsArg);
       const referencedPluginIds = new Set(
@@ -134,14 +126,14 @@ async function handleUpdateCache(args: string[]): Promise<void> {
           .filter((id): id is string => id !== null)
       );
       const filteredPlugins = plugins.filter(plugin => referencedPluginIds.has(plugin.id));
-
       await tryUpdatePluginCaches(filteredPlugins, projectDir);
     }
 
-    const output = result.success ? result.message : `Error: ${result.message}`;
-    console.log(ensureVisibleFirstLine(output, CACHE_FALLBACK_OUTPUT));
+    console.log(ensureVisibleFirstLine('Cache updated', CACHE_FALLBACK_OUTPUT));
   } catch {
     console.log(CACHE_FALLBACK_OUTPUT);
+  } finally {
+    releaseLock(cacheDir);
   }
 }
 
@@ -276,14 +268,6 @@ function handleStatusline(args: string[]): void {
 /** Main entry point. */
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-
-  // Load experimental subscription-usage module if available
-  try {
-    const { registerSubscriptionSegments } = await import('./experimental/subscription-usage/index.js');
-    registerSubscriptionSegments();
-  } catch {
-    // Module not available - subscription segments won't be registered
-  }
 
   if (args.includes('--update-cache')) {
     await handleUpdateCache(args);

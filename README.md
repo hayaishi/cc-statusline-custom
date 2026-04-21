@@ -1,7 +1,7 @@
 # cc-statusline-custom
 
 A customizable statusline command for Claude Code.
-It reads JSON from stdin and **always prints one line** with model, cost, context, and optional plugin/experimental segments.
+It reads JSON from stdin and **always prints one line** with model, cost, subscription usage, context, and optional plugin segments.
 
 ## Install
 
@@ -61,7 +61,7 @@ Resolution order: **CLI > ENV > default**.
 | `--no-bars` | Disable progress bars in output. |
 | `--debug` | Enable debug mode. See `docs/debug-logging.md`. |
 | `--disable-bg-update` | Disable background cache updates. |
-| `--update-cache` | Update subscription/plugin cache and print the result. |
+| `--update-cache` | Update plugin cache and print the result. |
 | `--auto` | Internal flag for background updates (usually not needed manually). |
 
 ### Environment variables
@@ -80,11 +80,15 @@ Resolution order: **CLI > ENV > default**.
 
 ### Built-in segments
 
-| Canonical ID | Aliases |
-| --- | --- |
-| `model` | - |
-| `cost_session` | `cost`, `cost_usd`, `cost_sess`, `sess` |
-| `context` | `ctx` |
+| Canonical ID | Aliases | Example output |
+| --- | --- | --- |
+| `model` | - | `🤖 Opus` |
+| `cost_session` | `cost`, `cost_usd`, `cost_sess`, `sess` | `💰 $0.23` |
+| `subscription_usage` | `usage`, `subscription`, `sub`, `sub_usage` | `⌛️ 55% [████░░░░] (~3:45pm)` |
+| `subscription_usage_all` | `sub_all`, `usage_all` | `⌛️ 55% [████░░░░] (~3:45pm) 🌙 20% [██░░] (~10:45pm, Feb 1)` |
+| `context` | `ctx` | `🧠 31,616 [█░░░░░░░] (16%)` |
+
+`subscription_usage` and `subscription_usage_all` render from the `rate_limits` field in Claude Code's stdin JSON. They return an empty string when the field is absent (segment is silently omitted).
 
 Unknown segment tokens are ignored.
 
@@ -110,31 +114,6 @@ For full plugin setup, fields, cache behavior, and troubleshooting, see:
 
 - [Plugin Usage Guide](docs/plugin-usage-guide.md)
 - [Plugin Development Guide](docs/plugin-development-guide.md)
-
-## Experimental features
-
-`subscription_usage` / `subscription_usage_all` segments are experimental.
-
-⚠️ **Disclaimer**
-
-- These segments rely on private/undocumented Claude API behavior.
-- They may break at any time, change without notice, or be removed from this project.
-- This feature is opt-in (`--segments`) and is provided without warranty.
-- You use this feature at your own risk, and we are not liable for issues, data loss, or other damage.
-
-Example output:
-
-```text
-🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm) | 🧠 31,616 [█░░░░░░░] (16%)
-```
-
-With both limits:
-
-```text
-🤖 Opus | 💰 $0.23 | ⌛️ 55% [██░░] (~3:45pm)  🌙 55% [██░░] (~10:45pm, Feb 1) | 🧠 31,616 [█░░░░░░░] (16%)
-```
-
-For debug details and subscription usage troubleshooting, see [Debug Logging](docs/debug-logging.md#subscription-usage-troubleshooting).
 
 ## Development
 

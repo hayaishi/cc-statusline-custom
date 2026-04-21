@@ -8,7 +8,6 @@ When debug mode is enabled, the tool writes structured JSON lines (JSONL) to a d
 
 Logged events:
 - `statusline.stdin`: raw JSON payload received from stdin for statusline rendering
-- `oauth.usage.response`: raw response body and status code from `https://api.anthropic.com/api/oauth/usage`
 
 ## Enable Debug Mode
 
@@ -48,18 +47,6 @@ To parse `payload.body` as JSON from the default debug log path:
 jq '.payload.body | fromjson' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
 ```
 
-To output only `oauth.usage.response` records:
-
-```bash
-jq 'select(.event=="oauth.usage.response")' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
-```
-
-To output only `oauth.usage.response` records and parse `payload.body` as JSON:
-
-```bash
-jq 'select(.event=="oauth.usage.response") | .payload |= (. + {body: (.body | fromjson)})' ~/.cache/cc-statusline-custom/debug/statusline-debug.log
-```
-
 ## Example
 
 ```bash
@@ -70,20 +57,7 @@ node ./dist/index.js --disable-bg-update
 
 ## Subscription Usage Troubleshooting
 
-If you use `subscription_usage` or `subscription_usage_all`, try the checks below.
+If `subscription_usage` or `subscription_usage_all` shows nothing, check:
 
-### Loading does not finish
-
-- Switch panes once in Claude Code (for example `Ctrl+O`) to trigger a statusline refresh.
-- Confirm the segment is enabled in your command (for example `--segments=model,cost,subscription_usage,ctx`).
-- Run with `--debug` and inspect `oauth.usage.response` events in the debug log.
-
-### 401 authentication error
-
-- Run any prompt in Claude Code once to refresh authentication state.
-- Trigger another statusline refresh and check the next `oauth.usage.response` event.
-
-### No subscription segment shown
-
-- Confirm you used `subscription_usage` or `subscription_usage_all` in `--segments`.
-- Remember these segments are experimental and can stop working when upstream private API behavior changes.
+- The segment is included in your `--segments` list.
+- Claude Code is providing `rate_limits` data in its stdin JSON. This field is only present when Claude Code itself exposes it; no local action can force it to appear.
