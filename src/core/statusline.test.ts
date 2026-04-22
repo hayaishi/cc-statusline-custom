@@ -708,6 +708,7 @@ describe('segment configuration', () => {
       expect(result).toEqual([]);
     });
   });
+
   describe('shouldRequestBgCacheUpdate', () => {
     const testCacheDir = join(tmpdir(), `cc-statusline-custom-bgupdate-test-${String(process.pid)}`);
 
@@ -833,8 +834,6 @@ describe('segment configuration', () => {
       });
       expect(result).toBe(false);
     });
-
-
   });
 });
 

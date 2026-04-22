@@ -336,14 +336,12 @@ export interface BgUpdateCheckOptions {
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
 
-  const lastAttemptAt = entry.lastAttemptAt;
-  if (typeof lastAttemptAt !== 'string') return false;
+  if (typeof entry.lastAttemptAt !== 'string') return false;
 
-  const lastAttemptMs = Date.parse(lastAttemptAt);
+  const lastAttemptMs = Date.parse(entry.lastAttemptAt);
   if (!Number.isFinite(lastAttemptMs)) return false;
 
-  const elapsedMs = nowMs - lastAttemptMs;
-  return elapsedMs < cooldownMs;
+  return nowMs - lastAttemptMs < cooldownMs;
 }
 
 /**
@@ -510,6 +508,9 @@ function composeSegments(
 ): SegmentToken[] {
   const builders = createSegmentBuilders();
   const segments: SegmentToken[] = [];
+  // Tracks how many visible string segments have been emitted so far.
+  // Used to enforce neverStandalone: segments that must follow other content.
+  let visibleSegmentCount = 0;
 
   for (const segmentId of segmentOrder) {
     if (segmentId === 'br') {
@@ -525,7 +526,7 @@ function composeSegments(
       const externalConfig = externalSegmentRegistry.get(segmentId);
       rendered = renderBuiltinSegment(
         segmentId,
-        segments.filter((t): t is string => typeof t === 'string').length,
+        visibleSegmentCount,
         input,
         cacheDir,
         renderOptions,
@@ -537,6 +538,7 @@ function composeSegments(
 
     if (rendered !== '') {
       segments.push(rendered);
+      visibleSegmentCount++;
     }
   }
 
