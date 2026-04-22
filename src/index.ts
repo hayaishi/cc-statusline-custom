@@ -10,7 +10,7 @@
  * 🤖 <Model> | 💰 $<session> | 🧠 <used>k/<limit>k [████░░░░] <pct>% | ⌛️ <pct>% [████░░░░] (~h:mmam/pm)
  *
  * Guarantees:
- * - NEVER silent: always outputs exactly one VISIBLE line
+ * - NEVER silent: always outputs at least one VISIBLE line
  * - Never throws or exits with non-zero code
  * - Responds within 300ms
  *
@@ -95,12 +95,12 @@ function createPluginConfigMap(plugins: readonly PluginConfig[] | null): PluginC
 }
 
 /**
- * Ensures output is a single visible line.
- * Takes first line only; falls back if empty or whitespace-only.
+ * Ensures output has at least one visible line.
+ * Falls back if all lines are empty or whitespace-only.
  */
 function ensureVisibleFirstLine(text: string, fallback: string = FALLBACK_OUTPUT): string {
-  const firstLine = text.split('\n')[0] ?? '';
-  return firstLine.trim() === '' ? fallback : firstLine;
+  const hasVisible = text.split('\n').some(line => line.trim() !== '');
+  return hasVisible ? text : fallback;
 }
 
 /** Handles the --update-cache subcommand (plugin caches only). */

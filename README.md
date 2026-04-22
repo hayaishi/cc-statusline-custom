@@ -1,7 +1,7 @@
 # cc-statusline-custom
 
 A customizable statusline command for Claude Code.
-It reads JSON from stdin and **always prints one line** with model, cost, subscription usage, context, and optional plugin segments.
+It reads JSON from stdin and outputs model, cost, subscription usage, context, and optional plugin segments — on one line or multiple lines.
 
 ## Install
 
@@ -87,8 +87,23 @@ Resolution order: **CLI > ENV > default**.
 | `subscription_usage` | `usage`, `subscription`, `sub`, `sub_usage` | `⌛️ 55% [████░░░░] (~3:45pm)` |
 | `subscription_usage_all` | `sub_all`, `usage_all` | `⌛️ 55% [████░░░░] (~3:45pm) 🌙 20% [██░░] (~10:45pm, Feb 1)` |
 | `context` | `ctx` | `🧠 31,616 [█░░░░░░░] (16%)` |
+| `br` | - | *(line break — starts a new line in the statusline)* |
 
 `subscription_usage` and `subscription_usage_all` render from the `rate_limits` field in Claude Code's stdin JSON. They return an empty string when the field is absent (segment is silently omitted).
+
+Use `br` to split the statusline across multiple lines:
+
+```
+--segments model,cost_session,br,context
+```
+
+Output:
+```
+🤖 Opus | 💰 $0.23
+🧠 31,616 [█░░░░░░░] (16%)
+```
+
+Consecutive `br` segments and leading/trailing `br` are collapsed automatically.
 
 Unknown segment tokens are ignored.
 

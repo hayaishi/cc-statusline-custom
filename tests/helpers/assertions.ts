@@ -17,3 +17,19 @@ export function assertSingleLine(output: string | Buffer): string {
   expect(withoutTrailing).not.toMatch(/[\r\n]/);
   return withoutTrailing;
 }
+
+/**
+ * Helper to assert multi-line output from the CLI.
+ * - Strips ANSI escape codes
+ * - Removes only ONE trailing newline (added by console.log)
+ * - Asserts the output contains exactly `expectedLineCount` lines
+ * - Returns the array of lines for further assertions
+ */
+export function assertMultiLine(output: string | Buffer, expectedLineCount: number): string[] {
+  const text = typeof output === 'string' ? output : output.toString('utf-8');
+  const stripped = stripAnsi(text);
+  const withoutTrailing = stripped.replace(/\r?\n$/, '');
+  const lines = withoutTrailing.split('\n');
+  expect(lines).toHaveLength(expectedLineCount);
+  return lines;
+}
