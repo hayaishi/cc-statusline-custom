@@ -4,7 +4,7 @@ import { readFileSync, accessSync, constants, mkdirSync, rmSync, existsSync } fr
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { assertSingleLine } from '../helpers/assertions.js';
+import { assertSingleLine, assertMultiLine } from '../helpers/assertions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../..');
@@ -1364,4 +1364,46 @@ describe('CLI Integration Tests', () => {
     });
 
   });
+
+  describe('br segment - multi-line output', () => {
+    const brCacheDir = join(tmpdir(), `cc-int-br-${String(process.pid)}`);
+
+    afterEach(() => {
+      if (existsSync(brCacheDir)) {
+        rmSync(brCacheDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should produce two-line output when br separates segments', () => {
+      mkdirSync(brCacheDir, { recursive: true });
+      const input = JSON.stringify({
+        model: { display_name: 'Claude Opus 4.5' },
+        cost: { total_cost_usd: 0.5 },
+      });
+      const { stdout, exitCode } = runCli(input, [
+        '--segments', 'model,br,cost_session',
+        '--disable-bg-update',
+      ], {
+        env: { CCSTATUSLINE_CACHE_DIR: brCacheDir },
+      });
+      expect(exitCode).toBe(0);
+      const lines = assertMultiLine(stdout, 2);
+      expect(lines[0]).toContain('Opus');
+      expect(lines[1]).toContain('$0.50');
+    });
+
+    it('should produce single-line fallback when all content is empty', () => {
+      mkdirSync(brCacheDir, { recursive: true });
+      const input = JSON.stringify({});
+      const { stdout, exitCode } = runCli(input, [
+        '--segments', 'model,br,cost_session',
+        '--disable-bg-update',
+      ], {
+        env: { CCSTATUSLINE_CACHE_DIR: brCacheDir },
+      });
+      expect(exitCode).toBe(0);
+      assertSingleLine(stdout);
+    });
+  });
+
 });

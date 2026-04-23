@@ -90,7 +90,7 @@ describe('generateStatusline', () => {
   });
 
   describe('output guarantees', () => {
-    it('should never return multi-line output', () => {
+    it('should never return multi-line output when br segment is not used', () => {
       const testCases: (ClaudeCodeInput | null)[] = [
         null,
         {},
@@ -572,6 +572,11 @@ describe('segment configuration', () => {
       expect(result).toEqual(['model', 'cost_session', 'context']);
     });
 
+    it('preserves duplicate br segments (structural marker, not deduplicated)', () => {
+      const result = parseSegmentList('model,br,cost_session,br,context');
+      expect(result).toEqual(['model', 'br', 'cost_session', 'br', 'context']);
+    });
+
     it('handles aliases resolving to same canonical (dedup)', () => {
       const result = parseSegmentList('cost_usd,cost_session,sess');
       expect(result).toEqual(['cost_session']);
@@ -703,6 +708,7 @@ describe('segment configuration', () => {
       expect(result).toEqual([]);
     });
   });
+
   describe('shouldRequestBgCacheUpdate', () => {
     const testCacheDir = join(tmpdir(), `cc-statusline-custom-bgupdate-test-${String(process.pid)}`);
 
@@ -828,8 +834,6 @@ describe('segment configuration', () => {
       });
       expect(result).toBe(false);
     });
-
-
   });
 });
 
@@ -1070,5 +1074,78 @@ describe('external segment registry', () => {
 
     expect(normalizeSegmentId('clear_alias')).toBeNull();
     expect(getCacheTargetsForSegments(['external_clear_target'])).toEqual([]);
+  });
+});
+
+describe('br segment - multi-line output', () => {
+  const testCacheDir = join(tmpdir(), `cc-statusline-br-test-${String(process.pid)}`);
+
+  beforeEach(() => {
+    if (!existsSync(testCacheDir)) {
+      mkdirSync(testCacheDir, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    if (existsSync(testCacheDir)) {
+      rmSync(testCacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should join segments across lines when br is present', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      cost: { total_cost_usd: 1.0 },
+    };
+    const result = generateStatusline(input, testCacheDir, ['model', 'br', 'cost_session']);
+    const lines = stripAnsi(result).split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('Opus');
+    expect(lines[1]).toContain('$1.00');
+  });
+
+  it('should collapse consecutive br into single newline', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+      cost: { total_cost_usd: 1.0 },
+    };
+    const result = generateStatusline(input, testCacheDir, ['model', 'br', 'br', 'cost_session']);
+    const lines = stripAnsi(result).split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('Opus');
+    expect(lines[1]).toContain('$1.00');
+  });
+
+  it('should strip leading and trailing br', () => {
+    const input: ClaudeCodeInput = {
+      model: { display_name: 'Claude Opus 4.5' },
+    };
+    const result = generateStatusline(input, testCacheDir, ['br', 'model', 'br']);
+    const lines = stripAnsi(result).split('\n');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('Opus');
+  });
+
+  it('should fallback to single-line FALLBACK_OUTPUT when only br is given', () => {
+    const input: ClaudeCodeInput = { model: { display_name: 'Claude Opus 4.5' } };
+    const result = generateStatusline(input, testCacheDir, ['br', 'br']);
+    expect(result).toBe(FALLBACK_OUTPUT);
+    expect(result.split('\n')).toHaveLength(1);
+  });
+
+  it('should fallback when all non-br segments render empty', () => {
+    const input: ClaudeCodeInput = {};
+    const result = generateStatusline(input, testCacheDir, ['model', 'br', 'cost_session']);
+    expect(result).toBe(FALLBACK_OUTPUT);
+    expect(result.split('\n')).toHaveLength(1);
+  });
+
+  it('should recognize br via normalizeSegmentId', () => {
+    expect(normalizeSegmentId('br')).toBe('br');
+  });
+
+  it('should parse br in CSV segment list', () => {
+    const segments = parseSegmentList('model,br,cost_session');
+    expect(segments).toEqual(['model', 'br', 'cost_session']);
   });
 });

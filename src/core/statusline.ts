@@ -44,7 +44,7 @@ import { shouldRefreshPlugin } from './plugin-cache.js';
 /**
  * Canonical segment identifiers for built-in segments.
  */
-export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all';
+export type BuiltinSegmentId = 'model' | 'cost_session' | 'context' | 'subscription_usage' | 'subscription_usage_all' | 'br';
 
 /**
  * Segment identifier - either a built-in segment or a plugin segment (:xxx).
@@ -115,6 +115,7 @@ const SEGMENT_ALIASES: Record<string, SegmentId> = {
   model: 'model',
   cost_session: 'cost_session',
   context: 'context',
+  br: 'br',
 
   // Cost aliases
   cost: 'cost_session',
@@ -198,7 +199,13 @@ export function parseSegmentList(csv: string): SegmentId[] {
   const parts = csv.split(',');
   for (const part of parts) {
     const canonical = normalizeSegmentId(part);
-    if (canonical !== null && !seen.has(canonical)) {
+    if (canonical === null) continue;
+    // br is a structural marker and may appear multiple times — skip deduplication
+    if (canonical === 'br') {
+      result.push(canonical);
+      continue;
+    }
+    if (!seen.has(canonical)) {
       seen.add(canonical);
       result.push(canonical);
     }
@@ -279,6 +286,7 @@ const SEGMENT_CACHE_TARGETS: Record<BuiltinSegmentId, readonly string[]> = {
   context: [],
   subscription_usage: [],
   subscription_usage_all: [],
+  br: [],
 };
 
 /**
@@ -328,14 +336,12 @@ export interface BgUpdateCheckOptions {
 function isWithinCooldown(entry: CacheEntry | null, nowMs: number, cooldownMs: number): boolean {
   if (entry === null) return false;
 
-  const lastAttemptAt = entry.lastAttemptAt;
-  if (typeof lastAttemptAt !== 'string') return false;
+  if (typeof entry.lastAttemptAt !== 'string') return false;
 
-  const lastAttemptMs = Date.parse(lastAttemptAt);
+  const lastAttemptMs = Date.parse(entry.lastAttemptAt);
   if (!Number.isFinite(lastAttemptMs)) return false;
 
-  const elapsedMs = nowMs - lastAttemptMs;
-  return elapsedMs < cooldownMs;
+  return nowMs - lastAttemptMs < cooldownMs;
 }
 
 /**
@@ -470,6 +476,7 @@ function createSegmentBuilders(): Record<BuiltinSegmentId, SegmentBuilder> {
       buildSubscriptionUsageSegment(input, options),
     subscription_usage_all: (input, _cacheDir, options): string =>
       buildSubscriptionUsageAllSegment(input, options),
+    br: (): string => '',
   };
 }
 
@@ -486,8 +493,10 @@ export type PluginConfigMap = ReadonlyMap<string, PluginConfig>;
  * @param segmentOrder - Order of segments to render
  * @param renderOptions - Render options for emojis and bars
  * @param pluginConfigs - Optional plugin configuration map
- * @returns Array of non-empty segment strings
+ * @returns Array of non-empty segment strings or line-break markers
  */
+type SegmentToken = string | { readonly kind: 'br' };
+
 function composeSegments(
   input: ClaudeCodeInput,
   cacheDir: string,
@@ -496,11 +505,19 @@ function composeSegments(
   debug: boolean,
   pluginConfigs?: PluginConfigMap,
   projectDir?: string
-): string[] {
+): SegmentToken[] {
   const builders = createSegmentBuilders();
-  const segments: string[] = [];
+  const segments: SegmentToken[] = [];
+  // Tracks how many visible string segments have been emitted so far.
+  // Used to enforce neverStandalone: segments that must follow other content.
+  let visibleSegmentCount = 0;
 
   for (const segmentId of segmentOrder) {
+    if (segmentId === 'br') {
+      segments.push({ kind: 'br' });
+      continue;
+    }
+
     let rendered: string;
 
     if (isPluginSegmentId(segmentId)) {
@@ -509,7 +526,7 @@ function composeSegments(
       const externalConfig = externalSegmentRegistry.get(segmentId);
       rendered = renderBuiltinSegment(
         segmentId,
-        segments.length,
+        visibleSegmentCount,
         input,
         cacheDir,
         renderOptions,
@@ -521,6 +538,7 @@ function composeSegments(
 
     if (rendered !== '') {
       segments.push(rendered);
+      visibleSegmentCount++;
     }
   }
 
@@ -569,23 +587,46 @@ function renderBuiltinSegment(
 }
 
 /**
- * Ensures the output is a single visible line (never empty/whitespace).
+ * Assembles SegmentTokens into a multi-line string.
  *
- * - Extracts first line only (discards any newlines)
- * - Returns FALLBACK_OUTPUT if result is empty/whitespace
+ * Rules:
+ * - br markers are collapsed (consecutive/leading/trailing removed)
+ * - Remaining strings within each line are joined with ' | '
+ * - Lines are joined with '\n'
+ * - Returns '' when no visible content remains
+ */
+function assembleOutput(tokens: SegmentToken[]): string {
+  const lines: string[][] = [[]];
+
+  for (const token of tokens) {
+    if (typeof token === 'string') {
+      // Take only the first line of each segment to prevent raw data newlines from leaking
+      const sanitized = token.split('\n')[0] ?? '';
+      const current = lines[lines.length - 1];
+      if (current !== undefined && sanitized !== '') current.push(sanitized);
+    } else {
+      lines.push([]);
+    }
+  }
+
+  const nonEmptyLines = lines
+    .map(line => line.join(' | '))
+    .filter(line => line.trim() !== '');
+
+  return nonEmptyLines.join('\n');
+}
+
+/**
+ * Ensures the output is never empty/whitespace-only.
+ *
+ * - Returns FALLBACK_OUTPUT if all lines are empty/whitespace
+ * - Otherwise returns text as-is (preserves newlines from br segments)
  *
  * Guarantees: returned string is never empty and never whitespace-only.
  */
 function ensureVisibleOutput(text: string): string {
-  const firstLine = text.split('\n')[0] ?? '';
-  const trimmed = firstLine.trim();
-
-  // Never return empty or whitespace-only output
-  if (trimmed === '') {
-    return FALLBACK_OUTPUT;
-  }
-
-  return firstLine;
+  const hasVisible = text.split('\n').some(line => line.trim() !== '');
+  return hasVisible ? text : FALLBACK_OUTPUT;
 }
 
 /**
@@ -606,14 +647,14 @@ export interface GenerateStatuslineOptions {
  *
  * Guarantees (NEVER-SILENT):
  * - NEVER throws (catches all errors internally)
- * - ALWAYS returns a non-empty, visible single line
+ * - ALWAYS returns a non-empty, visible output (one or more lines)
  * - Returns FALLBACK_OUTPUT on any error or missing input
  *
  * Behavior:
  * - Composes segments in specified order
  * - Reads subscription usage from cache (when segment enabled)
  * - Joins segments with " | " separator
- * - Ensures output is exactly one visible line
+ * - Ensures output has at least one visible line
  *
  * @param input - Parsed input from Claude Code, or null if parsing failed
  * @param cacheDir - Cache directory (defaults to ~/.cache/cc-statusline-custom)
@@ -621,7 +662,7 @@ export interface GenerateStatuslineOptions {
  * @param renderOptions - Render options for emojis and bars (defaults to DEFAULT_RENDER_OPTIONS)
  * @param debug - Enable debug mode
  * @param pluginConfigs - Optional plugin configuration map
- * @returns A non-empty, single-line string
+ * @returns A non-empty string (one or more lines, separated by \n)
  */
 export function generateStatusline(
   input: ClaudeCodeInput | null,
@@ -642,11 +683,12 @@ export function generateStatusline(
 
     const composedSegments = composeSegments(input, cacheDir, segmentOrder, options, debug, pluginConfigs, projectDir);
 
-    if (composedSegments.length === 0) {
+    const hasContent = composedSegments.some(t => typeof t === 'string');
+    if (!hasContent) {
       return FALLBACK_OUTPUT;
     }
 
-    const output = composedSegments.join(' | ');
+    const output = assembleOutput(composedSegments);
 
     return ensureVisibleOutput(output);
   } catch {
