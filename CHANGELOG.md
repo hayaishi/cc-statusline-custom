@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
-- None.
+- Drop Node.js 20 (end of life): `engines` is now `>=22.12.0` and CI tests Node 22 and 24.
 
 ## [0.3.0] - 2026-04-23
 - Add `br` segment for multi-line statusline output. Consecutive and leading/trailing `br` are collapsed.
